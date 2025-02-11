@@ -2,7 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 // import 'package:tele_tudo_app/HomePage.dart';
 // import 'package:tele_tudo_app/api.dart';
-// import 'package:tele_tudo_app/register_page.dart';
+import 'package:entregatudo/register_page.dart';
 
 void main() => runApp(const MyApp());
 
@@ -79,10 +79,10 @@ class _LoginPageState extends State<LoginPage> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () {
-                // Navigator.push(
-                //   context,
-                //   MaterialPageRoute(builder: (context) => const RegisterPage()),
-                // );
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const RegisterPage()),
+                );
               },
               child: const Text("Cadastrar Novo Usuário"),
             ),

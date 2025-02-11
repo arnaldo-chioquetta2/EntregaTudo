@@ -1,6 +1,5 @@
-// import 'login_page.dart';
-import 'package:flutter/material.dart';
 import 'login_page.dart';
+import 'package:flutter/material.dart';
 // import 'package:background_fetch/background_fetch.dart';
 
 void main() {
