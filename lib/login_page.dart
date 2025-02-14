@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-// import 'package:tele_tudo_app/HomePage.dart';
-// import 'package:tele_tudo_app/api.dart';
+import 'package:entregatudo/HomePage.dart';
+import 'package:entregatudo/api.dart';
 import 'package:entregatudo/register_page.dart';
 
 void main() => runApp(const MyApp());
@@ -37,7 +37,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('EntregaTudo 1.1.5'),
+        title: Text('EntregaTudo 1.1.6'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -62,14 +62,14 @@ class _LoginPageState extends State<LoginPage> {
                   // user = "Xevious";
                   // password = "ufrs3753";
 
-                  // String result = await API.veLogin(user, password, lat, lon);
-                  // if (result == "") {
-                  //   Navigator.of(context).pushReplacement(
-                  //     MaterialPageRoute(builder: (context) => const HomePage()),
-                  //   );
-                  // } else {
-                  //   showErrorDialog(result);
-                  // }
+                  String result = await API.veLogin(user, password, lat, lon);
+                  if (result == "") {
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(builder: (context) => const HomePage()),
+                    );
+                  } else {
+                    showErrorDialog(result);
+                  }
                 } catch (e) {
                   showErrorDialog("Erro durante o login: $e");
                 }
