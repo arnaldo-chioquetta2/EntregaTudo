@@ -1,10 +1,10 @@
 import 'dart:async';
-// import 'resgate_page.dart';
-// import 'models/delivery_details.dart';
+import 'resgate_page.dart';
+import 'package:entregatudo/models/delivery_details.dart';
 import 'package:flutter/material.dart';
-// import 'package:entregatudo/api.dart';
+import 'package:entregatudo/api.dart';
 // import 'features/location_service.dart';
-// import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -67,11 +67,11 @@ class _HomePageState extends State<HomePage> {
               ElevatedButton(
                 onPressed: saldoNum > 0
                     ? () {
-                        // Navigator.push(
-                        //   context,
-                        //   MaterialPageRoute(
-                        //       builder: (context) => ResgatePage()),
-                        // );
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => ResgatePage()),
+                        );
                       }
                     : null,
                 child: const Text('Resgate'),
@@ -187,36 +187,36 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> chamaHeartbeat() async {
-    // SharedPreferences prefs = await SharedPreferences.getInstance();
-    // DeliveryDetails? deliveryDetails = await API.sendHeartbeat();
-    // if (deliveryDetails != null) {
-    //   double valorDelivery = deliveryDetails.valor ?? 0.0;
-    //   int? currentChamado = prefs.getInt('currentChamado');
-    //   if (deliveryDetails.chamado != currentChamado && valorDelivery > 0.0) {
-    //     await prefs.setInt('currentChamado', deliveryDetails.chamado ?? 0);
-    //     setState(() {
-    //       deliveryData = {
-    //         'enderIN': deliveryDetails.enderIN ?? 'Desconhecido',
-    //         'enderFN': deliveryDetails.enderFN ?? 'Desconhecido',
-    //         'dist': deliveryDetails.dist ?? 0.0,
-    //         'valor': valorDelivery,
-    //         'peso': deliveryDetails.peso ?? 'Não Informado',
-    //         'chamado': deliveryDetails.chamado,
-    //       };
-    //     });
-    //     int? userId = prefs.getInt('idUser');
-    //     if (userId != null) {
-    //       await API.reportViewToServer(userId, deliveryDetails.chamado);
-    //       print(
-    //           "Visualização reportada: chamado = ${deliveryDetails.chamado}, userId = $userId");
-    //     }
-    //   }
-    //   int nextInterval = (deliveryDetails.modo ?? 3) == 3 ? 60 : 10;
-    //   _scheduleNextHeartbeat(nextInterval);
-    // } else {
-    //   print("Erro ao receber dados de heartbeat");
-    //   _scheduleNextHeartbeat(60); // Usando 60 segundos como fallback
-    // }
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    DeliveryDetails? deliveryDetails = await API.sendHeartbeat();
+    if (deliveryDetails != null) {
+      double valorDelivery = deliveryDetails.valor ?? 0.0;
+      int? currentChamado = prefs.getInt('currentChamado');
+      if (deliveryDetails.chamado != currentChamado && valorDelivery > 0.0) {
+        await prefs.setInt('currentChamado', deliveryDetails.chamado ?? 0);
+        setState(() {
+          deliveryData = {
+            'enderIN': deliveryDetails.enderIN ?? 'Desconhecido',
+            'enderFN': deliveryDetails.enderFN ?? 'Desconhecido',
+            'dist': deliveryDetails.dist ?? 0.0,
+            'valor': valorDelivery,
+            'peso': deliveryDetails.peso ?? 'Não Informado',
+            'chamado': deliveryDetails.chamado,
+          };
+        });
+        int? userId = prefs.getInt('idUser');
+        if (userId != null) {
+          await API.reportViewToServer(userId, deliveryDetails.chamado);
+          print(
+              "Visualização reportada: chamado = ${deliveryDetails.chamado}, userId = $userId");
+        }
+      }
+      int nextInterval = (deliveryDetails.modo ?? 3) == 3 ? 60 : 10;
+      _scheduleNextHeartbeat(nextInterval);
+    } else {
+      print("Erro ao receber dados de heartbeat");
+      _scheduleNextHeartbeat(60); // Usando 60 segundos como fallback
+    }
   }
 
   void handleDeliveryResponse(bool accept) {
@@ -239,19 +239,19 @@ class _HomePageState extends State<HomePage> {
   }
 
   void handleDeliveryCompleted() async {
-    // bool success = await API.notifyDeliveryCompleted();
-    // if (success) {
-    //   setState(() {
-    //     deliveryCompleted = true;
-    //     hasAcceptedDelivery = false;
-    //     hasPickedUp = false;
-    //     deliveryData = null;
-    //     statusMessage = 'Entrega concluída com sucesso!';
-    //   });
-    //   updateSaldo();
-    // } else {
-    //   print("Falha ao confirmar a entrega.");
-    // }
+    bool success = await API.notifyDeliveryCompleted();
+    if (success) {
+      setState(() {
+        deliveryCompleted = true;
+        hasAcceptedDelivery = false;
+        hasPickedUp = false;
+        deliveryData = null;
+        statusMessage = 'Entrega concluída com sucesso!';
+      });
+      updateSaldo();
+    } else {
+      print("Falha ao confirmar a entrega.");
+    }
   }
 
   void handleWaitingForNewDelivery() {
@@ -265,36 +265,36 @@ class _HomePageState extends State<HomePage> {
   }
 
   void handlePickedUp() async {
-    // bool success = await API.notifyPickedUp();
-    // if (success) {
-    //   setState(() {
-    //     hasPickedUp = true;
-    //     statusMessage = "Peguei a encomenda com o fornecedor.";
-    //     deliveryCompleted = false;
-    //   });
-    // } else {
-    //   setState(() {
-    //     statusMessage = "Falha ao registrar a chegada no fornecedor.";
-    //   });
-    // }
+    bool success = await API.notifyPickedUp();
+    if (success) {
+      setState(() {
+        hasPickedUp = true;
+        statusMessage = "Peguei a encomenda com o fornecedor.";
+        deliveryCompleted = false;
+      });
+    } else {
+      setState(() {
+        statusMessage = "Falha ao registrar a chegada no fornecedor.";
+      });
+    }
   }
 
   Future<void> updateSaldo() async {
     print("updateSaldo");
-    // SharedPreferences prefs = await SharedPreferences.getInstance();
-    // int? userId = prefs.getInt('idUser');
-    // if (userId != null) {
-    //   try {
-    //     String newSaldo = await API.saldo(userId);
-    //     print("Saldo = " + newSaldo);
-    //     setState(() {
-    //       saldo = 'R\$ $newSaldo';
-    //       saldoNum =
-    //           double.parse(newSaldo.replaceAll('R\$', '').replaceAll(',', '.'));
-    //     });
-    //   } catch (e) {
-    //     print('Erro ao atualizar saldo: $e');
-    //   }
-    // }
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    int? userId = prefs.getInt('idUser');
+    if (userId != null) {
+      try {
+        String newSaldo = await API.saldo(userId);
+        print("Saldo = " + newSaldo);
+        setState(() {
+          saldo = 'R\$ $newSaldo';
+          saldoNum =
+              double.parse(newSaldo.replaceAll('R\$', '').replaceAll(',', '.'));
+        });
+      } catch (e) {
+        print('Erro ao atualizar saldo: $e');
+      }
+    }
   }
 }

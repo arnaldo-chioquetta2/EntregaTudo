@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:entregatudo/HomePage.dart';
-// import 'package:entregatudo/api.Dart';
+import 'package:entregatudo/api.Dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -107,17 +107,19 @@ class _RegisterPageState extends State<RegisterPage> {
                       context, 'Por favor, insira uma placa válida.');
                   return;
                 }
-                // bool cadastrado = await API.registerUser(nome, email, senha, telefone, cnh, placa, PIX);
-                // if (cadastrado) {
-                //   mostrarMensagem(context, 'Cadastro bem-sucedido');
-                //   print('Cadastro bem-sucedido');
-                Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (context) => const HomePage()));
-                // } else {
-                //   mostrarMensagem(context, 'Falha no cadastro');
-                //   print('Falha no cadastro');
-                //   mostrarMensagem(context, 'Falha no cadastro. Por favor, tente novamente.');
-                // }
+                bool cadastrado = await API.registerUser(
+                    nome, email, senha, telefone, cnh, placa, PIX);
+                if (cadastrado) {
+                  mostrarMensagem(context, 'Cadastro bem-sucedido');
+                  print('Cadastro bem-sucedido');
+                  Navigator.of(context).pushReplacement(MaterialPageRoute(
+                      builder: (context) => const HomePage()));
+                } else {
+                  mostrarMensagem(context, 'Falha no cadastro');
+                  print('Falha no cadastro');
+                  mostrarMensagem(context,
+                      'Falha no cadastro. Por favor, tente novamente.');
+                }
               },
               child: const Text("Cadastrar"),
             ),
