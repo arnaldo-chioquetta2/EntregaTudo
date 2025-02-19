@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:entregatudo/api.dart';
 import 'package:flutter/material.dart';
 import 'package:entregatudo/HomePage.dart';
@@ -95,8 +94,7 @@ class _LoginPageState extends State<LoginPage> {
   void showErrorDialog(String message) {
     showDialog(
       context: context,
-      barrierDismissible:
-          false, // Impede que o usuário feche o diálogo tocando fora dele
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text("Erro"),

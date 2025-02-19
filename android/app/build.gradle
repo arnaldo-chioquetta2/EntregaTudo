@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.example.entregatudo"
-    compileSdk = 34  // flutter.compileSdkVersion
+    compileSdk = 34  
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

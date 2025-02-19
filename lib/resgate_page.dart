@@ -40,8 +40,8 @@ class _ResgatePageState extends State<ResgatePage> {
                   actions: <Widget>[
                     TextButton(
                       onPressed: () {
-                        Navigator.of(context).pop(); // Fecha o diálogo
-                        Navigator.of(context).pop(); // Retorna para a HomePage
+                        Navigator.of(context).pop();
+                        Navigator.of(context).pop();
                       },
                       child: Text('Ok'),
                     )
@@ -131,8 +131,8 @@ class _ResgatePageState extends State<ResgatePage> {
               TextButton(
                 child: Text("Confirmar"),
                 onPressed: () {
-                  Navigator.of(context).pop(); // Fecha o diálogo imediatamente
-                  processResgate(); // Chama a função que processa o resgate
+                  Navigator.of(context).pop();
+                  processResgate();
                 },
               ),
             ],

@@ -1,8 +1,7 @@
-// import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 // import 'features/location_service.dart';
-// import 'package:geolocator/geolocator.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:entregatudo/models/delivery_details.dart';
 
@@ -41,14 +40,14 @@ class API {
     }
   }
 
-  // static Future<Position> getCurrentLocation() async {
-  //   await _locationService.requestPermissions();
-  //   return await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-  // }
+  static Future<Position> getCurrentLocation() async {
+    // await _locationService.requestPermissions();
+    return await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+  }
 
   static Future<bool> sacar(int userId) async {
     var url = Uri.parse('https://teletudo.com/api/sacar');
-    print("Acinando API de saque");
+    print("Acionando API de saque");
     var headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
