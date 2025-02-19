@@ -1,12 +1,53 @@
+import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-// import 'features/location_service.dart';
+import 'features/location_service.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:entregatudo/models/delivery_details.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class API {
-  // static final LocationService _locationService = LocationService();
+  static final LocationService _locationService = LocationService();
+
+  static Future<DeliveryDetails?> sendHeartbeat() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    int? userid = prefs.getInt('idUser');
+    double lat = 0.0;
+    double lon = 0.0;
+    if (Platform.isAndroid || Platform.isIOS) {
+      Position position = await getCurrentLocation();
+      lat = position.latitude;
+      lon = position.longitude;
+    }
+    int vez = prefs.getInt('vez') ?? 0;
+    await prefs.setInt('vez', vez + 1);
+    if (userid != null) {
+      String baseUrl = "https://teletudo.com/api/heartbeat";
+      final response = await http.post(
+        Uri.parse(baseUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: json.encode({
+          'userid': userid,
+          'lat': lat,
+          'lon': lon,
+          'vez': vez
+        }),
+      );
+      if (response.statusCode == 200) {
+        print('Response Body: ${response.body}');
+        var data = json.decode(response.body);
+        int modo = data['modo'] ?? 3;
+        await prefs.setInt('modo', modo);
+        return DeliveryDetails.fromJson(data);
+      } else {
+        print('Erro ao enviar heartbeat');
+      }
+    }
+    return null;
+  }
 
   static Future<String> veLogin(String user, String password, double lat, double lon) async {
     String baseUrl = "https://teletudo.com/api/login";
@@ -41,7 +82,7 @@ class API {
   }
 
   static Future<Position> getCurrentLocation() async {
-    // await _locationService.requestPermissions();
+    await _locationService.requestPermissions();
     return await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
   }
 
@@ -119,46 +160,6 @@ class API {
     } catch (e) {
       print("Erro ao reportar visualização: $e");
     }
-  }
-
-  static Future<DeliveryDetails?> sendHeartbeat() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    int? userid = prefs.getInt('idUser');
-    double lat = 0.0;
-    double lon = 0.0;
-    // if (Platform.isAndroid || Platform.isIOS) {
-    //   Position position = await getCurrentLocation();
-    //   lat = position.latitude;
-    //   lon = position.longitude;
-    // }
-    int vez = prefs.getInt('vez') ?? 0;
-    await prefs.setInt('vez', vez + 1);
-    if (userid != null) {
-      String baseUrl = "https://teletudo.com/api/heartbeat";
-      final response = await http.post(
-        Uri.parse(baseUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: json.encode({
-          'userid': userid,
-          'lat': lat,
-          'lon': lon,
-          'vez': vez
-        }),
-      );
-      if (response.statusCode == 200) {
-        print('Response Body: ${response.body}');
-        var data = json.decode(response.body);
-        int modo = data['modo'] ?? 3;
-        await prefs.setInt('modo', modo);
-        return DeliveryDetails.fromJson(data);
-      } else {
-        print('Erro ao enviar heartbeat');
-      }
-    }
-    return null;
   }
 
   static Future<bool> registerUser(String nome, String email, String senha, String telefone, String cnh, String placa, String PIX) async {
@@ -276,6 +277,5 @@ class API {
     }
     // return "";
   }
-
 
 }
