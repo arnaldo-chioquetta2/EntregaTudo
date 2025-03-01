@@ -3,7 +3,7 @@ import 'resgate_page.dart';
 import 'package:entregatudo/models/delivery_details.dart';
 import 'package:flutter/material.dart';
 import 'package:entregatudo/api.dart';
-// import 'features/location_service.dart';
+import 'features/location_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class HomePage extends StatefulWidget {
@@ -22,12 +22,12 @@ class _HomePageState extends State<HomePage> {
   bool hasAcceptedDelivery = false;
   String saldo = 'R\$ 0,00';
   double saldoNum = 0.0;
-  // final LocationService _locationService = LocationService();
+  final LocationService _locationService = LocationService();
 
   @override
   void initState() {
     super.initState();
-    // _locationService.requestPermissions();
+    _locationService.requestPermissions();
     _scheduleNextHeartbeat(2);
     updateSaldo();
   }
