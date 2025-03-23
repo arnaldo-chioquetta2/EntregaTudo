@@ -19,6 +19,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _placaController = TextEditingController();
   final _pix = TextEditingController();
   bool JaMostrouCnhInv = false;
+  bool JaMostrouPlaca = false;
 
   @override
   void dispose() {
@@ -84,6 +85,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 String telefone = _phoneController.text;
                 String placa = _placaController.text;
                 String PIX = _pix.text;
+                int erroCodigo = 0;
                 if (!validarNome(nome)) {
                   mostrarMensagem(
                       context, 'Por favor, insira o nome completo.');
@@ -99,16 +101,27 @@ class _RegisterPageState extends State<RegisterPage> {
                       'A senha não pode ser vazia e deve ter no mínimo 6 caracteres.');
                   return;
                 }
+
                 if (JaMostrouCnhInv == false) {
                   if (!await validarEProcessarCnh()) return;
                 }
+                if (JaMostrouCnhInv && !await validarCNH(cnh)) {
+                  erroCodigo += 1;
+                }
+
+                if (JaMostrouPlaca && !validarPlaca(placa)) {
+                  erroCodigo += 2;
+                }
+
                 if (!validarPlaca(placa)) {
                   mostrarMensagem(
                       context, 'Por favor, insira uma placa válida.');
                   return;
                 }
+
                 bool cadastrado = await API.registerUser(
-                    nome, email, senha, telefone, cnh, placa, PIX);
+                    nome, email, senha, telefone, cnh, placa, PIX, erroCodigo);
+
                 if (cadastrado) {
                   mostrarMensagem(context, 'Cadastro bem-sucedido');
                   print('Cadastro bem-sucedido');
@@ -146,7 +159,13 @@ class _RegisterPageState extends State<RegisterPage> {
 
   bool validarPlaca(String placa) {
     RegExp regex = RegExp(r'^[A-Z]{3}-\d{4}$|^[A-Z]{3}\d[A-Z]\d{2}$');
-    return regex.hasMatch(placa);
+    bool valida = regex.hasMatch(placa);
+
+    if (!valida && deixaPassarCnhInv && !JaMostrouPlaca) {
+      JaMostrouPlaca = true;
+    }
+
+    return valida;
   }
 
   bool validarNome(String nome) {

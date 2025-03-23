@@ -1,6 +1,5 @@
 import 'login_page.dart';
 import 'package:flutter/material.dart';
-// import 'package:background_fetch/background_fetch.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,7 +15,6 @@ class MyApp extends StatelessWidget {
       title: 'TeleTudo App MotoBoys',
       home: LoginPage(),
       builder: (context, child) {
-        //initPlatformState();
         return child!;
       },
     );

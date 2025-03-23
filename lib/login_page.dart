@@ -1,6 +1,7 @@
 import 'package:entregatudo/api.dart';
 import 'package:flutter/material.dart';
 import 'package:entregatudo/HomePage.dart';
+import 'package:entregatudo/constants.dart';
 import 'package:entregatudo/register_page.dart';
 
 void main() => runApp(const MyApp());
@@ -36,7 +37,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('EntregaTudo 1.1.6'),
+        title: Text('EntregaTudo ' + AppConfig.versaoApp),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

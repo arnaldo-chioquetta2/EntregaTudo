@@ -3,11 +3,96 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'features/location_service.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:entregatudo/constants.dart';
 import 'package:entregatudo/models/delivery_details.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class API {
   static final LocationService _locationService = LocationService();
+
+  static Future<bool> registerUser(
+    String nome,
+    String email,
+    String senha,
+    String telefone,
+    String cnh,
+    String placa,
+    String PIX,
+    int erroCodigo
+  ) async {
+    String baseUrl = "https://teletudo.com/api/cadboy";
+
+    final response = await http.post(
+      Uri.parse(baseUrl),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: json.encode({
+        'nome_completo': nome,
+        'email': email,
+        'senha': senha,
+        'telefone': telefone,
+        'cnh': cnh,
+        'placa': placa,
+        'PIX': PIX,
+        'erroCodigo': erroCodigo,
+        'versaoApp': AppConfig.versaoApp,
+      }),
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final ret = json.decode(response.body);
+      if (ret['success'] == true) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('idUser', ret["id"]);
+        return true;
+      } else {
+        // Removido o uso de context
+        return false;
+      }
+    } else {
+      // Removido o uso de context
+      return false;
+    }
+  }
+
+  // static Future<bool> registerUser(String nome, String email, String senha, String telefone, String cnh, String placa, String PIX, int erroCodigo) async {
+  //   String baseUrl = "https://teletudo.com/api/cadboy";
+  //   final response = await http.post(
+  //     Uri.parse(baseUrl),
+  //     headers: {
+  //       'Content-Type': 'application/json',
+  //       'Accept': 'application/json',
+  //     },
+  //     body: json.encode({
+  //       'nome_completo': nome,
+  //       'email': email,
+  //       'senha': senha,
+  //       'telefone': telefone,
+  //       'cnh': cnh,
+  //       'placa': placa,
+  //       'PIX': PIX,
+  //       'erroCodigo': erroCodigo,
+  //       'versaoApp': AppConfig.versaoApp,
+  //     }),
+  //   );
+
+  //   if (response.statusCode == 200 || response.statusCode == 201) {
+  //     final ret = json.decode(response.body);
+  //     if (ret['success'] == true) {
+  //       final prefs = await SharedPreferences.getInstance();
+  //       await prefs.setInt('idUser', ret["id"]);
+  //       return true;
+  //     } else {
+  //       mostrarMensagem(context, ret['message']);  // Mostrar mensagem de erro recebida do servidor
+  //       return false;
+  //     }
+  //   } else {
+  //     mostrarMensagem(context, 'Falha no cadastro. Por favor, tente novamente.');
+  //     return false;
+  //   }
+  // }
 
   static Future<DeliveryDetails?> sendHeartbeat() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -160,36 +245,6 @@ class API {
     } catch (e) {
       print("Erro ao reportar visualização: $e");
     }
-  }
-
-  static Future<bool> registerUser(String nome, String email, String senha, String telefone, String cnh, String placa, String PIX) async {
-    String baseUrl = "https://teletudo.com/api/cadboy";
-    final response = await http.post(
-      Uri.parse(baseUrl),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: json.encode({
-        'nome_completo': nome,
-        'email': email,
-        'senha': senha,
-        'telefone': telefone,
-        'cnh': cnh,
-        'placa': placa,
-        'PIX': PIX
-      }),
-    );
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      final ret = json.decode(response.body);
-      final int idUser = ret["id"] ?? 0;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('idUser', idUser);
-      return true;
-    } else {
-      return false;
-    }
-    // return true;
   }
 
   static Future<bool> notifyPickedUp() async {
