@@ -10,7 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class API {
   static final LocationService _locationService = LocationService();
 
-  static Future<bool> registerUser(
+  static Future<Map<String, dynamic>> registerUser(
     String nome,
     String email,
     String senha,
@@ -21,44 +21,60 @@ class API {
     int erroCodigo
   ) async {
     String baseUrl = "https://teletudo.com/api/cadboy";
-
-    final response = await http.post(
-      Uri.parse(baseUrl),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: json.encode({
-        'nome_completo': nome,
-        'email': email,
-        'senha': senha,
-        'telefone': telefone,
-        'cnh': cnh,
-        'placa': placa,
-        'PIX': PIX,
-        'erroCodigo': erroCodigo,
-        'versaoApp': AppConfig.versaoApp,
-      }),
-    );
-
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      final ret = json.decode(response.body);
-      if (ret['success'] == true) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setInt('idUser', ret["id"]);
-        return true;
+    try {
+      final response = await http.post(
+        Uri.parse(baseUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: json.encode({
+          'nome_completo': nome,
+          'email': email,
+          'senha': senha,
+          'telefone': telefone,
+          'cnh': cnh,
+          'placa': placa,
+          'PIX': PIX,
+          'erroCodigo': erroCodigo,
+          'versaoApp': AppConfig.versaoApp,
+        }),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final ret = json.decode(response.body);
+        if (ret['success'] == true) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setInt('idUser', ret["id"]);
+          return {'success': true, 'message': 'Cadastro bem-sucedido'};
+        } else {
+          return {
+            'success': false,
+            'message': ret['message'] ?? 'Erro desconhecido ao cadastrar'
+          };
+        }
       } else {
-        // Removido o uso de context
-        return false;
+        return {
+          'success': false,
+          'message': 'Falha no servidor (${response.statusCode})'
+        };
       }
-    } else {
-      // Removido o uso de context
-      return false;
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de conexão com o servidor'};
     }
   }
 
-  // static Future<bool> registerUser(String nome, String email, String senha, String telefone, String cnh, String placa, String PIX, int erroCodigo) async {
+  // static Future<bool> registerUser(
+  //   String nome,
+  //   String email,
+  //   String senha,
+  //   String telefone,
+  //   String cnh,
+  //   String placa,
+  //   String PIX,
+  //   int erroCodigo
+  // ) async {
   //   String baseUrl = "https://teletudo.com/api/cadboy";
+
   //   final response = await http.post(
   //     Uri.parse(baseUrl),
   //     headers: {
@@ -85,11 +101,11 @@ class API {
   //       await prefs.setInt('idUser', ret["id"]);
   //       return true;
   //     } else {
-  //       mostrarMensagem(context, ret['message']);  // Mostrar mensagem de erro recebida do servidor
+  //       // Removido o uso de context
   //       return false;
   //     }
   //   } else {
-  //     mostrarMensagem(context, 'Falha no cadastro. Por favor, tente novamente.');
+  //     // Removido o uso de context
   //     return false;
   //   }
   // }
