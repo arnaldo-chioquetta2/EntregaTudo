@@ -63,53 +63,6 @@ class API {
     }
   }
 
-  // static Future<bool> registerUser(
-  //   String nome,
-  //   String email,
-  //   String senha,
-  //   String telefone,
-  //   String cnh,
-  //   String placa,
-  //   String PIX,
-  //   int erroCodigo
-  // ) async {
-  //   String baseUrl = "https://teletudo.com/api/cadboy";
-
-  //   final response = await http.post(
-  //     Uri.parse(baseUrl),
-  //     headers: {
-  //       'Content-Type': 'application/json',
-  //       'Accept': 'application/json',
-  //     },
-  //     body: json.encode({
-  //       'nome_completo': nome,
-  //       'email': email,
-  //       'senha': senha,
-  //       'telefone': telefone,
-  //       'cnh': cnh,
-  //       'placa': placa,
-  //       'PIX': PIX,
-  //       'erroCodigo': erroCodigo,
-  //       'versaoApp': AppConfig.versaoApp,
-  //     }),
-  //   );
-
-  //   if (response.statusCode == 200 || response.statusCode == 201) {
-  //     final ret = json.decode(response.body);
-  //     if (ret['success'] == true) {
-  //       final prefs = await SharedPreferences.getInstance();
-  //       await prefs.setInt('idUser', ret["id"]);
-  //       return true;
-  //     } else {
-  //       // Removido o uso de context
-  //       return false;
-  //     }
-  //   } else {
-  //     // Removido o uso de context
-  //     return false;
-  //   }
-  // }
-
   static Future<DeliveryDetails?> sendHeartbeat() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     int? userid = prefs.getInt('idUser');

@@ -119,19 +119,24 @@ class _RegisterPageState extends State<RegisterPage> {
                   return;
                 }
 
-                bool cadastrado = await API.registerUser(
-                    nome, email, senha, telefone, cnh, placa, PIX, erroCodigo);
+                final resultado = await API.registerUser(
+                  nome,
+                  email,
+                  senha,
+                  telefone,
+                  cnh,
+                  placa,
+                  PIX,
+                  erroCodigo,
+                );
 
-                if (cadastrado) {
+                if (resultado['success']) {
                   mostrarMensagem(context, 'Cadastro bem-sucedido');
                   print('Cadastro bem-sucedido');
                   Navigator.of(context).pushReplacement(MaterialPageRoute(
                       builder: (context) => const HomePage()));
                 } else {
-                  mostrarMensagem(context, 'Falha no cadastro');
-                  print('Falha no cadastro');
-                  mostrarMensagem(context,
-                      'Falha no cadastro. Por favor, tente novamente.');
+                  mostrarMensagem(context, resultado['message']);
                 }
               },
               child: const Text("Cadastrar"),
