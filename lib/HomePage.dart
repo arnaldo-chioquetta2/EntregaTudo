@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'resgate_page.dart';
-import 'package:entregatudo/models/delivery_details.dart';
-import 'package:flutter/material.dart';
+import 'settingsPage.dart';
 import 'package:entregatudo/api.dart';
+import 'package:flutter/material.dart';
 import 'features/location_service.dart';
+import 'package:entregatudo/models/delivery_details.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class HomePage extends StatefulWidget {
@@ -49,6 +50,24 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            ElevatedButton(
+              onPressed: () {
+                // Ação ao pressionar o botão (navegar para a tela de configurações)
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => SettingsPage()),
+                );
+              },
+              child: const Text('Configurações'),
+              style: ElevatedButton.styleFrom(
+                minimumSize: Size(150, 40),
+                backgroundColor: Colors.blue, // Cor azul para o botão
+                foregroundColor: Colors.white, // Cor do texto (branco)
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8), // Bordas arredondadas
+                ),
+              ),
+            ),
             if (deliveryData != null) _buildDeliveryDetails(),
             if (deliveryData == null &&
                 (deliveryCompleted || !hasAcceptedDelivery)) ...[
