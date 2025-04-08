@@ -4,6 +4,7 @@ import 'settingsPage.dart';
 import 'package:entregatudo/api.dart';
 import 'package:flutter/material.dart';
 import 'features/location_service.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:entregatudo/models/delivery_details.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -206,7 +207,13 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> chamaHeartbeat() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    DeliveryDetails? deliveryDetails = await API.sendHeartbeat();
+
+    Position? pos = _locationService.ultimaPosicao;
+    double latitude = pos?.latitude ?? -30.1165;
+    double longitude = pos?.longitude ?? -51.1355;
+    print("Enviando local: ${latitude}, ${longitude}");
+    DeliveryDetails? deliveryDetails =
+        await API.sendHeartbeat(latitude, longitude);
     if (deliveryDetails != null) {
       double valorDelivery = deliveryDetails.valor ?? 0.0;
       int? currentChamado = prefs.getInt('currentChamado');
@@ -307,11 +314,11 @@ class _HomePageState extends State<HomePage> {
         print("Saldo = " + newSaldo);
         setState(() {
           saldo = 'R\$ $newSaldo';
-          saldoNum =
-              double.parse(newSaldo.replaceAll('R\$', '').replaceAll(',', '.'));
+          String valorStr = newSaldo.replaceAll('R\$', '').replaceAll(',', '.');
+          saldoNum = double.tryParse(valorStr) ?? 0.0;
         });
       } catch (e) {
-        print('Erro ao atualizar saldo: $e');
+        saldo = "0";
       }
     }
   }

@@ -11,17 +11,6 @@ class API {
   static final LocationService _locationService = LocationService();
 
   static Future<Map<String, dynamic>> obtemCfgValores(double lat, double lon) async {
-
-    // return {
-    //       'kmRate': 1.50,
-    //       'minValue': 6.50,
-    //       'rainSurcharge': 0.0,
-    //       'nightSurcharge': 0.0,
-    //       'dawnSurcharge': 0.0,
-    //       'weightSurcharge': 0.0,
-    //       'customDeliverySurcharge': 0.0,
-    //     };
-
     SharedPreferences prefs = await SharedPreferences.getInstance();
     int? userid = prefs.getInt('idUser');
     final response = await http.post(
@@ -94,16 +83,9 @@ class API {
     }
   }
 
-  static Future<DeliveryDetails?> sendHeartbeat() async {
+  static Future<DeliveryDetails?> sendHeartbeat(double lat, double lon) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     int? userid = prefs.getInt('idUser');
-    double lat = 0.0;
-    double lon = 0.0;
-    if (Platform.isAndroid || Platform.isIOS) {
-      Position position = await getCurrentLocation();
-      lat = position.latitude;
-      lon = position.longitude;
-    }
     int vez = prefs.getInt('vez') ?? 0;
     await prefs.setInt('vez', vez + 1);
     if (userid != null) {
