@@ -52,7 +52,6 @@ class _HomePageState extends State<HomePage> {
           children: [
             ElevatedButton(
               onPressed: () {
-                // Ação ao pressionar o botão (navegar para a tela de configurações)
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => SettingsPage()),
@@ -61,8 +60,8 @@ class _HomePageState extends State<HomePage> {
               child: const Text('Configurações'),
               style: ElevatedButton.styleFrom(
                 minimumSize: Size(150, 40),
-                backgroundColor: Colors.blue, // Cor azul para o botão
-                foregroundColor: Colors.white, // Cor do texto (branco)
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8), // Bordas arredondadas
                 ),

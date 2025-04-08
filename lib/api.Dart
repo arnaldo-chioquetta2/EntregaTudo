@@ -10,6 +10,37 @@ import 'package:shared_preferences/shared_preferences.dart';
 class API {
   static final LocationService _locationService = LocationService();
 
+  static Future<Map<String, dynamic>> obtemCfgValores(double lat, double lon) async {
+
+    // return {
+    //       'kmRate': 1.50,
+    //       'minValue': 6.50,
+    //       'rainSurcharge': 0.0,
+    //       'nightSurcharge': 0.0,
+    //       'dawnSurcharge': 0.0,
+    //       'weightSurcharge': 0.0,
+    //       'customDeliverySurcharge': 0.0,
+    //     };
+
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    int? userid = prefs.getInt('idUser');
+    final response = await http.post(
+      Uri.parse('https://teletudo.com/api/obtemCfgValores'), 
+      body: jsonEncode({
+        'userid': userid,
+        'lat': lat,
+        'lon': lon,
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to load data');
+    }
+  }  
+
   static Future<Map<String, dynamic>> registerUser(
     String nome,
     String email,

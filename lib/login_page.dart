@@ -1,5 +1,6 @@
 import 'package:entregatudo/api.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:entregatudo/HomePage.dart';
 import 'package:entregatudo/constants.dart';
 import 'package:entregatudo/register_page.dart';
@@ -32,6 +33,10 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
+    if (kIsWeb) {
+      _userController.text = "Xevious";
+      _passwordController.text = "ufrs3753";
+    }
   }
 
   Widget build(BuildContext context) {
@@ -59,9 +64,6 @@ class _LoginPageState extends State<LoginPage> {
                   String password = _passwordController.text;
                   double lat = 0.0;
                   double lon = 0.0;
-                  // user = "Xevious";
-                  // password = "ufrs3753";
-
                   String result = await API.veLogin(user, password, lat, lon);
                   if (result == "") {
                     Navigator.of(context).pushReplacement(

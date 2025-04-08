@@ -1,0 +1,358 @@
+# Documentação Técnica: Cadastro de Parâmetros de Recebimentos dos MotoBoys
+
+Este documento contém todas as informações necessárias para que outro GPT possa continuar a implementação e suporte relacionado ao cadastro dos parâmetros de recebimentos dos MotoBoys. O objetivo é fornecer uma visão detalhada sobre a interface, validações, mensagens de erro/sucesso, integração com API e os códigos envolvidos.
+
+---
+
+## **1. Visão Geral do Funcionalidade**
+
+O sistema permite o cadastro e atualização de parâmetros financeiros relacionados aos recebimentos dos MotoBoys. Esses parâmetros incluem valores mínimos, tarifas por quilômetro rodado, adicionais (chuva, noturno, madrugada, peso maior e entrega personalizada). A tela também realiza chamadas à API para carregar dados pré-existentes e salvar alterações.
+
+---
+
+## **2. Interface do Usuário**
+
+### **2.1. Estrutura da Tela**
+A interface foi desenvolvida em Flutter e consiste nos seguintes elementos:
+
+- **AppBar**: Contém o título "Configurações".
+- **Formulário**:
+  - Campos de texto (`TextFormField`) para entrada dos valores.
+  - Cada campo possui rótulos claros e bordas arredondadas.
+  - Botão de envio ao final do formulário.
+- **Indicador de Carregamento**:
+  - Um `CircularProgressIndicator` é exibido enquanto os dados são buscados da API.
+
+### **2.2. Código da Interface**
+
+```dart
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+class SettingsPage extends StatefulWidget {
+  @override
+  _SettingsPageState createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  // Controladores para os campos de texto
+  final TextEditingController _minValueController = TextEditingController();
+  final TextEditingController _kmRateController = TextEditingController();
+  final TextEditingController _rainSurchargeController = TextEditingController();
+  final TextEditingController _nightSurchargeController = TextEditingController();
+  final TextEditingController _dawnSurchargeController = TextEditingController();
+  final TextEditingController _weightSurchargeController = TextEditingController();
+  final TextEditingController _customDeliverySurchargeController = TextEditingController();
+
+  // Chave global do formulário
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
+  // Variável para indicar se os dados estão sendo carregados
+  bool _isLoading = true;
+
+  // Função para chamar a API e preencher os campos
+  Future<void> _fetchData() async {
+    try {
+      // Simulação de URL da API (substitua pela sua URL real)
+      final response = await http.get(Uri.parse('https://api.example.com/settings'));
+
+      if (response.statusCode == 200) {
+        // Parse do JSON retornado pela API
+        final Map<String, dynamic> data = json.decode(response.body);
+
+        // Função auxiliar para tratar valores zero
+        String _formatValue(dynamic value) {
+          if (value == null || value == 0) {
+            return ''; // Retorna string vazia se o valor for zero ou nulo
+          }
+          return value.toString();
+        }
+
+        // Atribuir valores aos controladores
+        setState(() {
+          _minValueController.text = _formatValue(data['minValue']);
+          _kmRateController.text = _formatValue(data['kmRate']);
+          _rainSurchargeController.text = _formatValue(data['rainSurcharge']);
+          _nightSurchargeController.text = _formatValue(data['nightSurcharge']);
+          _dawnSurchargeController.text = _formatValue(data['dawnSurcharge']);
+          _weightSurchargeController.text = _formatValue(data['weightSurcharge']);
+          _customDeliverySurchargeController.text = _formatValue(data['customDeliverySurcharge']);
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar dados da API')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao conectar à API: $e')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Chama a API ao iniciar a página
+    _fetchData();
+  }
+
+  // Função para validar os campos
+  String? _validateInput(String? value, {bool isRequired = false}) {
+    if (isRequired && (value == null || value.isEmpty)) {
+      return 'Campo obrigatório';
+    }
+    if (value != null && value.isNotEmpty) {
+      // Verifica se o valor contém apenas números, pontos ou vírgulas
+      final regex = RegExp(r'^[0-9.,]+$');
+      if (!regex.hasMatch(value)) {
+        return 'Apenas números, pontos ou vírgulas são permitidos';
+      }
+    }
+    return null; // Sem erros
+  }
+
+  // Função para formatar o valor (ex.: "1,00")
+  String _formatValue(String value) {
+    String formattedValue = value.replaceAll(',', '.');
+    double numericValue = double.tryParse(formattedValue) ?? 0.0;
+    return numericValue.toStringAsFixed(2).replaceAll('.', ',');
+  }
+
+  // Função para salvar as configurações
+  void _saveSettings() {
+    if (_formKey.currentState!.validate()) {
+      // Aplica a formatação aos valores
+      String minValue = _minValueController.text.isNotEmpty
+          ? _formatValue(_minValueController.text)
+          : '';
+      String kmRate = _formatValue(_kmRateController.text);
+      String rainSurcharge = _rainSurchargeController.text.isNotEmpty
+          ? _formatValue(_rainSurchargeController.text)
+          : '';
+      String nightSurcharge = _nightSurchargeController.text.isNotEmpty
+          ? _formatValue(_nightSurchargeController.text)
+          : '';
+      String dawnSurcharge = _dawnSurchargeController.text.isNotEmpty
+          ? _formatValue(_dawnSurchargeController.text)
+          : '';
+      String weightSurcharge = _weightSurchargeController.text.isNotEmpty
+          ? _formatValue(_weightSurchargeController.text)
+          : '';
+      String customDeliverySurcharge =
+          _customDeliverySurchargeController.text.isNotEmpty
+              ? _formatValue(_customDeliverySurchargeController.text)
+              : '';
+
+      // Exibe a mensagem de confirmação
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Confirmar Envio'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Valor Mínimo: $minValue'),
+              Text('Valor por Km Rodado: $kmRate'),
+              Text('Adicional por Chuva: $rainSurcharge'),
+              Text('Adicional Noturno: $nightSurcharge'),
+              Text('Adicional Madrugada: $dawnSurcharge'),
+              Text('Adicional por Peso Maior: $weightSurcharge'),
+              Text('Adicional por Entrega Personalizada: $customDeliverySurcharge'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Fecha o diálogo
+              },
+              child: Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                // Aqui você pode adicionar a lógica de envio
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Configurações enviadas com sucesso!')),
+                );
+                Navigator.pop(context); // Fecha o diálogo
+              },
+              child: Text('Enviar'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Por favor, revise os valores nos campos em vermelho.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("Configurações"),
+      ),
+      body: _isLoading
+          ? Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: EdgeInsets.all(16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextFormField(
+                      controller: _minValueController,
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: "Valor Mínimo",
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) => _validateInput(value),
+                    ),
+                    SizedBox(height: 16),
+                    TextFormField(
+                      controller: _kmRateController,
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: "Valor por Km Rodado",
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) => _validateInput(value, isRequired: true),
+                    ),
+                    SizedBox(height: 16),
+                    TextFormField(
+                      controller: _rainSurchargeController,
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: "Adicional por Chuva",
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) => _validateInput(value),
+                    ),
+                    SizedBox(height: 16),
+                    TextFormField(
+                      controller: _nightSurchargeController,
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: "Adicional Noturno",
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) => _validateInput(value),
+                    ),
+                    SizedBox(height: 16),
+                    TextFormField(
+                      controller: _dawnSurchargeController,
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: "Adicional Madrugada",
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) => _validateInput(value),
+                    ),
+                    SizedBox(height: 16),
+                    TextFormField(
+                      controller: _weightSurchargeController,
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: "Adicional por Peso Maior",
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) => _validateInput(value),
+                    ),
+                    SizedBox(height: 16),
+                    TextFormField(
+                      controller: _customDeliverySurchargeController,
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: "Adicional por Entrega Personalizada",
+                        helperText: "Exemplo: Subir escada",
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) => _validateInput(value),
+                    ),
+                    SizedBox(height: 32),
+                    ElevatedButton(
+                      onPressed: _saveSettings,
+                      child: Text("Salvar Configurações"),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: Size(double.infinity, 50),
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _minValueController.dispose();
+    _kmRateController.dispose();
+    _rainSurchargeController.dispose();
+    _nightSurchargeController.dispose();
+    _dawnSurchargeController.dispose();
+    _weightSurchargeController.dispose();
+    _customDeliverySurchargeController.dispose();
+    super.dispose();
+  }
+}
+```
+
+---
+
+## **3. Críticas e Validações**
+
+### **3.1. Regras de Validação**
+- **Campos Obrigatórios**:
+  - O campo "Valor por Km Rodado" é obrigatório.
+- **Formato Aceitável**:
+  - Apenas números, pontos ou vírgulas são permitidos.
+- **Tratamento de Zeros**:
+  - Se o valor for zero, o campo deve ser exibido como vazio (`''`).
+
+### **3.2. Mensagens de Erro**
+- **Campos Obrigatórios**:
+  - "Campo obrigatório"
+- **Formato Inválido**:
+  - "Apenas números, pontos ou vírgulas são permitidos"
+
+---
+
+## **4. Integração com API**
+
+### **4.1. Endpoint da API**
+- **URL**: `https://api.example.com/settings`
+- **Método**: `GET` para carregar dados e `POST` para salvar alterações.
+
+### **4.2. Estrutura JSON**
+- **Entrada (GET)**:
+  ```json
+  {
+    "minValue": 0,
+    "kmRate": 2.5,
+    "rainSurcharge": 1.0,
+    "nightSurcharge": 1.5,
+    "dawnSurcharge": 2.0,
+    "weightSurcharge": 3.0,
+    "customDeliverySurcharge": 5.0
+  }
+  ```
+- **Saída (POST)**:
+  Mesma estrutura acima, mas com os valores atualizados pelo usuário.
+
+---
+
+## **5. Considerações Finais**
+
+Este documento fornece uma base sólida para continuar o desenvolvimento e suporte da funcionalidade de cadastro de parâmetros de recebimentos dos MotoBoys. Certifique-se de ajustar a URL da API e testar todos os cenários possíveis antes do lançamento oficial.
