@@ -10,11 +10,71 @@ import 'package:shared_preferences/shared_preferences.dart';
 class API {
   static final LocationService _locationService = LocationService();
 
+  static Future<Map<String, dynamic>> saveConfigurations(
+    double minValue,
+    double kmRate,
+    double rainSurcharge,
+    double nightSurcharge,
+    double dawnSurcharge,
+    double weightSurcharge,
+    double customDeliverySurcharge,
+  ) async {
+    String baseUrl = "https://teletudo.com/api/saveConfigurations";
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      int? userid = prefs.getInt('idUser');
+
+      if (userid == null) {
+        return {'success': false, 'message': 'Usuário não autenticado'};
+      }
+
+      final response = await http.post(
+        Uri.parse(baseUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: json.encode({
+          'userid': userid,
+          'minValue': minValue,
+          'kmRate': kmRate,
+          'rainSurcharge': rainSurcharge,
+          'nightSurcharge': nightSurcharge,
+          'dawnSurcharge': dawnSurcharge,
+          'weightSurcharge': weightSurcharge,
+          'customDeliverySurcharge': customDeliverySurcharge,
+          'versaoApp': AppConfig.versaoApp,
+        }),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final ret = json.decode(response.body);
+        if (ret['success'] == true) {
+          return {'success': true, 'message': 'Configurações salvas com sucesso'};
+        } else {
+          return {
+            'success': false,
+            'message': ret['message'] ?? 'Erro desconhecido ao salvar configurações'
+          };
+        }
+      } else {
+        return {
+          'success': false,
+          'message': 'Falha no servidor (${response.statusCode})'
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de conexão com o servidor'};
+    }
+  }
+
   static Future<Map<String, dynamic>> obtemCfgValores(double lat, double lon) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     int? userid = prefs.getInt('idUser');
+    print('User ID: $userid'); // Log do userid
+    print('Latitude: $lat, Longitude: $lon'); // Log das coordenadas
+
     final response = await http.post(
-      Uri.parse('https://teletudo.com/api/obtemCfgValores'), 
+      Uri.parse('https://teletudo.com/api/obtemCfgValores'),
       body: jsonEncode({
         'userid': userid,
         'lat': lat,
@@ -23,12 +83,15 @@ class API {
       headers: {'Content-Type': 'application/json'},
     );
 
+    print('Response Status Code: ${response.statusCode}'); // Log do status code
+    print('Response Body: ${response.body}'); // Log do corpo da resposta
+
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
       throw Exception('Failed to load data');
     }
-  }  
+  }
 
   static Future<Map<String, dynamic>> registerUser(
     String nome,

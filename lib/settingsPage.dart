@@ -24,6 +24,8 @@ class _SettingsPageState extends State<SettingsPage> {
   // Chave global do formulário
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
+  int _vazio = 0;
+
   // Função para validar os campos
   String? _validateInput(String? value, {bool isRequired = false}) {
     if (isRequired && (value == null || value.isEmpty)) {
@@ -44,76 +46,65 @@ class _SettingsPageState extends State<SettingsPage> {
     return value.toStringAsFixed(2).replaceAll('.', ',');
   }
 
-  void _saveSettings() {
+  void _saveSettings() async {
     if (_formKey.currentState!.validate()) {
-      // Aplica a formatação aos valores
-      String minValue = _minValueController.text.isNotEmpty
-          ? _formatValue(
-              double.parse(_minValueController.text.replaceAll(',', '.')))
-          : '';
-      String kmRate = _formatValue(
-          double.parse(_kmRateController.text.replaceAll(',', '.')));
-      String rainSurcharge = _rainSurchargeController.text.isNotEmpty
-          ? _formatValue(
-              double.parse(_rainSurchargeController.text.replaceAll(',', '.')))
-          : '';
-      String nightSurcharge = _nightSurchargeController.text.isNotEmpty
-          ? _formatValue(
-              double.parse(_nightSurchargeController.text.replaceAll(',', '.')))
-          : '';
-      String dawnSurcharge = _dawnSurchargeController.text.isNotEmpty
-          ? _formatValue(
-              double.parse(_dawnSurchargeController.text.replaceAll(',', '.')))
-          : '';
-      String weightSurcharge = _weightSurchargeController.text.isNotEmpty
-          ? _formatValue(double.parse(
-              _weightSurchargeController.text.replaceAll(',', '.')))
-          : '';
-      String customDeliverySurcharge =
+      // Converte os valores dos controladores para double
+      double minValue = _minValueController.text.isNotEmpty
+          ? double.parse(_minValueController.text.replaceAll(',', '.'))
+          : 0.0;
+      double kmRate = double.parse(_kmRateController.text.replaceAll(',', '.'));
+      double rainSurcharge = _rainSurchargeController.text.isNotEmpty
+          ? double.parse(_rainSurchargeController.text.replaceAll(',', '.'))
+          : 0.0;
+      double nightSurcharge = _nightSurchargeController.text.isNotEmpty
+          ? double.parse(_nightSurchargeController.text.replaceAll(',', '.'))
+          : 0.0;
+      double dawnSurcharge = _dawnSurchargeController.text.isNotEmpty
+          ? double.parse(_dawnSurchargeController.text.replaceAll(',', '.'))
+          : 0.0;
+      double weightSurcharge = _weightSurchargeController.text.isNotEmpty
+          ? double.parse(_weightSurchargeController.text.replaceAll(',', '.'))
+          : 0.0;
+      double customDeliverySurcharge =
           _customDeliverySurchargeController.text.isNotEmpty
-              ? _formatValue(double.parse(
-                  _customDeliverySurchargeController.text.replaceAll(',', '.')))
-              : '';
+              ? double.parse(
+                  _customDeliverySurchargeController.text.replaceAll(',', '.'))
+              : 0.0;
+
+      // Chama o método para salvar as configurações na API
+      final result = null;
+      // final result = await API.saveConfigurations(
+      //   minValue,
+      //   kmRate,
+      //   rainSurcharge,
+      //   nightSurcharge,
+      //   dawnSurcharge,
+      //   weightSurcharge,
+      //   customDeliverySurcharge,
+      // );
 
       // Exibe a mensagem de confirmação
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Confirmar Envio'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Valor Mínimo: $minValue'),
-              Text('Valor por Km Rodado: $kmRate'),
-              Text('Adicional por Chuva: $rainSurcharge'),
-              Text('Adicional Noturno: $nightSurcharge'),
-              Text('Adicional Madrugada: $dawnSurcharge'),
-              Text('Adicional por Peso Maior: $weightSurcharge'),
-              Text(
-                  'Adicional por Entrega Personalizada: $customDeliverySurcharge'),
+      if (result['success']) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'])),
+        );
+      } else {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Erro'),
+            content: Text(result['message']),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context); // Fecha o diálogo
+                },
+                child: Text('OK'),
+              ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context); // Fecha o diálogo
-              },
-              child: Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                // Aqui você pode adicionar a lógica de envio
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                      content: Text('Configurações enviadas com sucesso!')),
-                );
-                Navigator.pop(context); // Fecha o diálogo
-              },
-              child: Text('Enviar'),
-            ),
-          ],
-        ),
-      );
+        );
+      }
     } else {
       // Se houver erros, exibe uma mensagem
       ScaffoldMessenger.of(context).showSnackBar(
@@ -134,6 +125,7 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       final result = await API.obtemCfgValores(-23.5505, -46.6333);
       setState(() {
+        _vazio = result['vazio'];
         _minValueController.text =
             result['minValue'] == 0 ? '' : _formatValue(result['minValue']);
         _kmRateController.text =
@@ -173,6 +165,44 @@ class _SettingsPageState extends State<SettingsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (_vazio == 1)
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.yellow.withOpacity(0.8), // Fundo amarelo
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: Colors.orange, width: 2), // Borda laranja
+                  ),
+                  child: Text(
+                    'Estes são valores médios utilizados na sua região. Voce pode alterar como quiser.',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black, // Texto preto
+                    ),
+                  ),
+                ),
+              if (_vazio == 0)
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.8), // Fundo azul
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: Colors.blueAccent, width: 2), // Borda azul
+                  ),
+                  child: Text(
+                    'Você pode alterar os preços conforme sua necessidade.',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white, // Texto branco
+                    ),
+                  ),
+                ),
+
+              SizedBox(height: 16),
               // Valor Mínimo
               TextFormField(
                 controller: _minValueController,
