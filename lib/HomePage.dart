@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'resgate_page.dart';
 import 'settingsPage.dart';
+import 'package:intl/intl.dart';
 import 'package:entregatudo/api.dart';
 import 'package:flutter/material.dart';
 import 'features/location_service.dart';
@@ -55,7 +56,7 @@ class _HomePageState extends State<HomePage> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => SettingsPage()),
+                  MaterialPageRoute(builder: (context) => ResgatePage()),
                 );
               },
               child: const Text('Configurações'),
@@ -85,6 +86,7 @@ class _HomePageState extends State<HomePage> {
               SizedBox(height: 10),
               ElevatedButton(
                 onPressed: saldoNum > 0
+                    // onPressed: 1 == 1
                     ? () {
                         Navigator.push(
                           context,
@@ -304,22 +306,61 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  // Future<void> updateSaldo() async {
+  //   print("updateSaldo");
+  //   SharedPreferences prefs = await SharedPreferences.getInstance();
+  //   int? userId = prefs.getInt('idUser');
+  //   if (userId != null) {
+  //     try {
+  //       String newSaldo = await API.saldo(userId);
+  //       print("Saldo = " + newSaldo);
+  //       setState(() {
+  //         saldo = 'R\$ $newSaldo';
+  //         String valorStr = newSaldo.replaceAll('R\$', '').replaceAll(',', '.');
+  //         saldoNum = double.tryParse(valorStr) ?? 0.0;
+  //       });
+  //     } catch (e) {
+  //       saldo = "0";
+  //     }
+  //   }
+  // }
+
   Future<void> updateSaldo() async {
-    print("updateSaldo");
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    int? userId = prefs.getInt('idUser');
-    if (userId != null) {
-      try {
-        String newSaldo = await API.saldo(userId);
-        print("Saldo = " + newSaldo);
-        setState(() {
-          saldo = 'R\$ $newSaldo';
-          String valorStr = newSaldo.replaceAll('R\$', '').replaceAll(',', '.');
-          saldoNum = double.tryParse(valorStr) ?? 0.0;
-        });
-      } catch (e) {
-        saldo = "0";
-      }
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getInt('idUser');
+    if (userId == null) return;
+
+    try {
+      // 1) lê como String (já é o tipo de API.saldo)
+      final raw = await API.saldo(userId); // ex.: "123" ou "R$ 123,45"
+      print("Saldo bruto da API: '$raw'");
+
+      // 2) deixa só dígitos e separador decimal
+      final limpo = raw
+          .replaceAll(
+              RegExp(r'[^0-9,\.]'), '') // remove R$, espaços, quebras de linha
+          .replaceAll(',', '.') // vírgula → ponto
+          .trim(); // tira espaços
+
+      // 3) converte; se falhar cai pra 0.0
+      final valor = double.tryParse(limpo) ?? 0.0;
+      print("Saldo parseado: $valor");
+
+      if (!mounted) return;
+      setState(() {
+        saldoNum = valor;
+        saldo = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$')
+            .format(valor); // R$ 123,45
+      });
+    } catch (e) {
+      print("Erro ao atualizar saldo: $e");
+      if (!mounted) return;
+      setState(() {
+        saldoNum = 0.0;
+        saldo = 'R\$ 0,00';
+      });
     }
   }
+
+  //
 }

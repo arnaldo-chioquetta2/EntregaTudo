@@ -1,0 +1,142 @@
+Contexto do Projeto: Aplicativo Flutter entregatudo
+Objetivo
+
+Este é um aplicativo Flutter criado para uso de motoboys da plataforma EntregaTudo. O app inclui funcionalidades de login, localização, e futuramente incluirá execução de tarefas em segundo plano (ex: envio de heartbeat de localização). O usuário responsável está recriando o projeto do zero devido a falhas persistentes com o build APK relacionadas ao pacote background_fetch.
+Estrutura atual do projeto
+Diretório do projeto:
+
+D:\Prog\entregatudo\
+
+Versão do Flutter:
+
+Flutter 3.27.2
+Dart 3.6.1
+pubspec.yaml (última versão conhecida):
+
+name: entregatudo
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.6.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  http: ^0.13.5
+  shared_preferences: ^2.0.16
+  intl: ^0.17.0
+  geolocator: ^8.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+Estrutura da Interface (main.dart simplificado):
+
+import 'package:flutter/material.dart';
+import 'login_page.dart';
+// import 'features/location_service.dart';  // Recurso futuro
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'TeleTudo App MotoBoys',
+      home: LoginPage(),
+    );
+  }
+}
+
+Arquivo LoginPage (login_page.dart simplificado):
+
+import 'package:flutter/material.dart';
+
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
+
+  @override
+  _LoginPageState createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  final TextEditingController _userController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('EntregaTudo 1.1.5')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextField(controller: _userController, decoration: const InputDecoration(labelText: 'User')),
+            TextField(controller: _passwordController, decoration: const InputDecoration(labelText: 'Password'), obscureText: true),
+            ElevatedButton(onPressed: () {}, child: const Text("Login")),
+            const SizedBox(height: 16),
+            ElevatedButton(onPressed: () {}, child: const Text("Cadastrar Novo Usuário")),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Problemas recentes enfrentados:
+1. Erro de compilação com background_fetch
+
+    Recurso background_fetch foi temporariamente desativado devido a problemas com tsbackgroundfetch e erro:
+
+    Could not find any matches for com.transistorsoft:tsbackgroundfetch:+
+
+2. Erro ao usar o plugin flutter
+
+    Build falhou com:
+
+    Plugin [id: 'flutter', apply: false] was not found
+
+3. Erro ao importar arquivos internos
+
+    O comando import 'features/location_service.dart'; falhou porque o Flutter não encontrou o caminho.
+
+    Ainda não foi adicionado corretamente no projeto ou o arquivo não está acessível via lib/features.
+
+Objetivo Imediato
+
+    Desativar o background_fetch completamente do código.
+
+    Restaurar funcionalidade básica com login_page.dart.
+
+    Corrigir e restaurar o acesso a features/location_service.dart com caminho correto.
+
+    Instalar e configurar pacotes em sequência controlada.
+
+Instruções para o GPT sucessor
+
+    Ajudar a instalar pacotes conforme necessário, iniciando com os mais simples como http, shared_preferences e intl.
+
+    Confirmar que a estrutura do projeto siga o padrão correto do Flutter.
+
+    Verificar se features/location_service.dart existe e está acessível dentro de lib/.
+
+    Futuramente, reavaliar reimplementação do background_fetch, talvez com outras bibliotecas alternativas compatíveis com Flutter 3.27.2 e Dart 3.6.1.
+
+    Gerar instruções completas para flutter build apk sem erros.
+
+    Ajudar com integração futura de API e GPS (com geolocator).
+
+Deseja que eu gere esse conteúdo também como um .txt para você salvar?

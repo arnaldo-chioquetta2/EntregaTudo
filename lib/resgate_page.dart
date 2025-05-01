@@ -85,34 +85,82 @@ class _ResgatePageState extends State<ResgatePage> {
   }
 
   void fetchSaldo() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    int? userId = prefs.getInt('idUser');
-    if (userId != null) {
-      try {
-        String newSaldo = await API.saldo(userId);
-        double saldoNum = double.parse(newSaldo);
-        double debito = saldoNum >= 500 ? 1.0 : 2.0;
-        double valorAResgatar = saldoNum - debito;
-        valorPendente = prefs.getString('Pendente') ?? 'R\$ 0,00';
-        dataResgatePendente = prefs.getString('DtaPedResg') ?? '';
-        if (dataResgatePendente.isNotEmpty) {
-          DateTime parsedDate = DateTime.parse(dataResgatePendente);
-          dataResgateFormatada =
-              DateFormat('dd/MM/yyyy HH:mm').format(parsedDate); // Format date
-        }
-        resgatePendente = valorPendente != 'R\$ 0,00';
-        setState(() {
-          saldo = 'R\$ ${saldoNum.toStringAsFixed(2)}';
-          valorDebitado = 'R\$ ${debito.toStringAsFixed(2)}';
-          valorResgate = 'R\$ ${valorAResgatar.toStringAsFixed(2)}';
-        });
-      } catch (e) {
-        print('Erro ao buscar saldo: $e');
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getInt('idUser');
+    if (userId == null) {
+      print("UserID não encontrado. Faça login novamente.");
+      return;
+    }
+
+    try {
+      // ------ saldo ---------------------------------------------------------
+      final raw = await API.saldo(userId); // sempre String
+      final saldoNum =
+          double.tryParse(raw.replaceAll(',', '.')) ?? 0.0; // "123,45" → 123.45
+
+      // ------ débito --------------------------------------------------------
+      final debito = saldoNum >= 500 ? 1.0 : 2.0;
+      final valorAResgatar = saldoNum - debito;
+
+      // ------ pendente ------------------------------------------------------
+      final pendenteInt = prefs.getInt('Pendente') ?? 0; // agora lê como int
+      valorPendente = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$')
+          .format(pendenteInt.toDouble()); // R$ 0,00 ou outro
+
+      // ------ data resgate --------------------------------------------------
+      dataResgatePendente = prefs.getString('DtaPedResg') ?? '';
+      if (dataResgatePendente.isNotEmpty) {
+        final parsedDate = DateTime.parse(dataResgatePendente);
+        dataResgateFormatada =
+            DateFormat('dd/MM/yyyy HH:mm').format(parsedDate);
       }
-    } else {
-      print("UserID não encontrado. Por favor, faça login novamente.");
+      resgatePendente = pendenteInt > 0;
+
+      // ------ exibir --------------------------------------------------------
+      if (!mounted) return;
+      setState(() {
+        saldo = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$')
+            .format(saldoNum);
+        valorDebitado = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$')
+            .format(debito);
+        valorResgate = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$')
+            .format(valorAResgatar);
+      });
+    } catch (e) {
+      print('Erro ao buscar saldo: $e');
     }
   }
+
+  // void fetchSaldo() async {
+  //   print('fetchSaldo');
+  //   SharedPreferences prefs = await SharedPreferences.getInstance();
+  //   int? userId = prefs.getInt('idUser');
+  //   if (userId != null) {
+  //     try {
+  //       String newSaldo = await API.saldo(userId);
+  //       double saldoNum = double.parse(newSaldo);
+  //       double debito = saldoNum >= 500 ? 1.0 : 2.0;
+  //       double valorAResgatar = saldoNum - debito;
+  //       valorPendente = prefs.getString('Pendente') ?? 'R\$ 0,00';
+  //       dataResgatePendente = prefs.getString('DtaPedResg') ?? '';
+  //       if (dataResgatePendente.isNotEmpty) {
+  //         DateTime parsedDate = DateTime.parse(dataResgatePendente);
+  //         dataResgateFormatada =
+  //             DateFormat('dd/MM/yyyy HH:mm').format(parsedDate); // Format date
+  //       }
+  //       resgatePendente = valorPendente != 'R\$ 0,00';
+  //       setState(() {
+  //         saldo = 'R\$ ${saldoNum.toStringAsFixed(2)}';
+  //         valorDebitado = 'R\$ ${debito.toStringAsFixed(2)}';
+  //         valorResgate = 'R\$ ${valorAResgatar.toStringAsFixed(2)}';
+  //       });
+  //     } catch (e) {
+  //       print('Erro ao buscar saldo: $e');
+  //     }
+  //   } else {
+  //     print("UserID não encontrado. Por favor, faça login novamente.");
+  //   }
+  // }
 
   void confirmResgate() {
     if (!resgatePendente) {

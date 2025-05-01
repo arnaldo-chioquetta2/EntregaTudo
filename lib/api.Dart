@@ -362,10 +362,13 @@ class API {
       body: json.encode({'userid': userId}),
     );
     if (response.statusCode == 200) {
+      // print("response.body =");
+      // print(response.body);      
       var data = json.decode(response.body);
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       if (data['Erro'] == 0) {
-        await prefs.setString('Pendente', data['Pendente']);
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setInt   ('Pendente',  data['Pendente'] as int);
         await prefs.setString('DtaPedResg', data['DtaPedResg']);
         return data['Saldo'].toString();
       } else {
