@@ -246,21 +246,30 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void handleDeliveryResponse(bool accept) {
-    if (accept) {
+  void handleDeliveryResponse(bool accept) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    int? userId = prefs.getInt('idUser');
+    int? deliveryId = deliveryData?['chamado']; // ou o nome correto do campo do ID
+    if (userId == null || deliveryId == null) {
       setState(() {
-        hasAcceptedDelivery = true;
+        statusMessage = "Erro: Dados da entrega não encontrados.";
+      });
+      return;
+    }
+    bool sucesso = await API.respondToDelivery(userId, deliveryId, accept);
+    if (sucesso) {
+      setState(() {
+        hasAcceptedDelivery = accept;
         hasPickedUp = false;
-        statusMessage = "Entrega aceita. A caminho do fornecedor.";
+        deliveryCompleted = !accept; // Se recusou, já marca como concluída
+        statusMessage = accept
+            ? "Entrega aceita. A caminho do fornecedor."
+            : "Entrega recusada.";
         deliveryData = null;
       });
     } else {
       setState(() {
-        hasAcceptedDelivery = false;
-        hasPickedUp = false;
-        deliveryCompleted = true;
-        statusMessage = "Entrega recusada.";
-        deliveryData = null;
+        statusMessage = "Erro ao comunicar resposta ao servidor.";
       });
     }
   }

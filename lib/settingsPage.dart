@@ -72,16 +72,16 @@ class _SettingsPageState extends State<SettingsPage> {
               : 0.0;
 
       // Chama o método para salvar as configurações na API
-      final result = null;
-      // final result = await API.saveConfigurations(
-      //   minValue,
-      //   kmRate,
-      //   rainSurcharge,
-      //   nightSurcharge,
-      //   dawnSurcharge,
-      //   weightSurcharge,
-      //   customDeliverySurcharge,
-      // );
+      // final result = null;
+      final result = await API.saveConfigurations(
+         minValue,
+         kmRate,
+         rainSurcharge,
+         nightSurcharge,
+         dawnSurcharge,
+         weightSurcharge,
+         customDeliverySurcharge,
+      );
 
       // Exibe a mensagem de confirmação
       if (result['success']) {

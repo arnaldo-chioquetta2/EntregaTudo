@@ -18,11 +18,19 @@ class _RegisterPageState extends State<RegisterPage> {
   final _cnhController = TextEditingController();
   final _placaController = TextEditingController();
   final _pix = TextEditingController();
+  final _usuarioController = TextEditingController();
+  final _distanciaMaximaController = TextEditingController();
   bool JaMostrouCnhInv = false;
   bool JaMostrouPlaca = false;
 
   @override
-  void dispose() {
+  void initState() {
+    super.initState();
+    _distanciaMaximaController.text = '30';
+  }
+
+  @override
+    void dispose() {
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -30,6 +38,8 @@ class _RegisterPageState extends State<RegisterPage> {
     _cnhController.dispose();
     _placaController.dispose();
     _pix.dispose();
+    _usuarioController.dispose();
+    _distanciaMaximaController.dispose();
     super.dispose();
   }
 
@@ -44,6 +54,12 @@ class _RegisterPageState extends State<RegisterPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+
+            TextField(
+              controller: _usuarioController,
+              decoration: const InputDecoration(labelText: 'Usuário'),
+            ),
+
             TextField(
               controller: _nameController,
               decoration: const InputDecoration(labelText: 'Nome Completo'),
@@ -75,6 +91,16 @@ class _RegisterPageState extends State<RegisterPage> {
               controller: _pix,
               decoration: const InputDecoration(labelText: 'PIX'),
             ),
+
+            TextField(
+              controller: _distanciaMaximaController,
+              decoration: const InputDecoration(
+                labelText: 'Distância Máxima (km)',
+                helperText: 'Valor entre 1 e 30',
+              ),
+              keyboardType: TextInputType.number,
+            ),
+
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () async {
@@ -102,25 +128,40 @@ class _RegisterPageState extends State<RegisterPage> {
                   return;
                 }
 
-                if (JaMostrouCnhInv == false) {
-                  if (!await validarEProcessarCnh()) return;
-                }
-                if (JaMostrouCnhInv && !await validarCNH(cnh)) {
-                  erroCodigo += 1;
+                // if (JaMostrouCnhInv == false) {
+                //   if (!await validarEProcessarCnh()) return;
+                // }
+                // if (JaMostrouCnhInv && !await validarCNH(cnh)) {
+                //   erroCodigo += 1;
+                // }
+
+                if (placa.isNotEmpty) {
+                  if (JaMostrouPlaca && !validarPlaca(placa)) {
+                    erroCodigo += 2;
+                  }
+                  if (!validarPlaca(placa)) {
+                    mostrarMensagem(context, 'Por favor, insira uma placa válida.');
+                    return;
+                  }
                 }
 
-                if (JaMostrouPlaca && !validarPlaca(placa)) {
-                  erroCodigo += 2;
+                String usuario = _usuarioController.text.trim();
+                String distanciaMaxStr = _distanciaMaximaController.text.trim();
+
+                if (usuario.isEmpty) {
+                  mostrarMensagem(context, 'Por favor, insira o nome de usuário.');
+                  return;
                 }
 
-                if (!validarPlaca(placa)) {
-                  mostrarMensagem(
-                      context, 'Por favor, insira uma placa válida.');
+                int? distanciaMaxima = int.tryParse(distanciaMaxStr);
+                if (distanciaMaxima == null || distanciaMaxima < 1 || distanciaMaxima > 30) {
+                  mostrarMensagem(context, 'Digite uma distância máxima entre 1 e 30 km.');
                   return;
                 }
 
                 final resultado = await API.registerUser(
                   nome,
+                  usuario,
                   email,
                   senha,
                   telefone,
@@ -128,6 +169,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   placa,
                   PIX,
                   erroCodigo,
+                  distanciaMaxima,
                 );
 
                 if (resultado['success']) {
@@ -138,6 +180,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 } else {
                   mostrarMensagem(context, resultado['message']);
                 }
+
               },
               child: const Text("Cadastrar"),
             ),
@@ -147,20 +190,20 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  Future<bool> validarEProcessarCnh() async {
-    bool cnhValida = await validarCNH(_cnhController.text);
-    if (!cnhValida) {
-      if (deixaPassarCnhInv) {
-        // CNH inválida, mas configurado para perguntar ao usuário
-        return await mostrarDialogoCNHInvalida();
-      } else {
-        mostrarMensagem(context,
-            "A CNH informada é inválida e não é possível continuar o cadastro.");
-        return false;
-      }
-    }
-    return true; // CNH válida
-  }
+  // Future<bool> validarEProcessarCnh() async {
+  //   bool cnhValida = await validarCNH(_cnhController.text);
+  //   if (!cnhValida) {
+  //     if (deixaPassarCnhInv) {
+  //       // CNH inválida, mas configurado para perguntar ao usuário
+  //       return await mostrarDialogoCNHInvalida();
+  //     } else {
+  //       mostrarMensagem(context,
+  //           "A CNH informada é inválida e não é possível continuar o cadastro.");
+  //       return false;
+  //     }
+  //   }
+  //   return true; // CNH válida
+  // }
 
   bool validarPlaca(String placa) {
     RegExp regex = RegExp(r'^[A-Z]{3}-\d{4}$|^[A-Z]{3}\d[A-Z]\d{2}$');
@@ -194,28 +237,28 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  Future<bool> validarCNH(String cnh) async {
-    String cnhSemFormatacao = cnh.replaceAll(RegExp(r'\D'), '');
-    if (cnhSemFormatacao.length != 11 || cnhSemFormatacao == "00000000000") {
-      return false;
-    }
-    int soma = 0;
-    for (int i = 0; i < 9; i++) {
-      soma += int.parse(cnhSemFormatacao[i]) * (9 - i);
-    }
-    int d1 = soma % 11;
-    d1 = d1 < 10 ? d1 : 0;
-    soma = 0;
-    for (int i = 0; i < 9; i++) {
-      soma += int.parse(cnhSemFormatacao[i]) * (10 - i);
-    }
-    soma += d1 * 2;
-    int d2 = soma % 11;
-    d2 = d2 < 10 ? d2 : 0;
-    bool valido = d1 == int.parse(cnhSemFormatacao[9]) &&
-        d2 == int.parse(cnhSemFormatacao[10]);
-    return valido;
-  }
+  // Future<bool> validarCNH(String cnh) async {
+  //   String cnhSemFormatacao = cnh.replaceAll(RegExp(r'\D'), '');
+  //   if (cnhSemFormatacao.length != 11 || cnhSemFormatacao == "00000000000") {
+  //     return false;
+  //   }
+  //   int soma = 0;
+  //   for (int i = 0; i < 9; i++) {
+  //     soma += int.parse(cnhSemFormatacao[i]) * (9 - i);
+  //   }
+  //   int d1 = soma % 11;
+  //   d1 = d1 < 10 ? d1 : 0;
+  //   soma = 0;
+  //   for (int i = 0; i < 9; i++) {
+  //     soma += int.parse(cnhSemFormatacao[i]) * (10 - i);
+  //   }
+  //   soma += d1 * 2;
+  //   int d2 = soma % 11;
+  //   d2 = d2 < 10 ? d2 : 0;
+  //   bool valido = d1 == int.parse(cnhSemFormatacao[9]) &&
+  //       d2 == int.parse(cnhSemFormatacao[10]);
+  //   return valido;
+  // }
 
   Future<bool> mostrarDialogoCNHInvalida() async {
     return await showDialog<bool>(

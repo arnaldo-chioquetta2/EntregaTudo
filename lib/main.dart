@@ -1,6 +1,8 @@
 import 'login_page.dart';
 import 'package:flutter/material.dart';
 
+// 1.2 Campos de usuário e máximo de distância de entrega
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());

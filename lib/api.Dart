@@ -94,15 +94,17 @@ class API {
   }
 
   static Future<Map<String, dynamic>> registerUser(
-    String nome,
-    String email,
-    String senha,
-    String telefone,
-    String cnh,
-    String placa,
-    String PIX,
-    int erroCodigo
-  ) async {
+      String nome,
+      String usuario,           // NOVO
+      String email,
+      String senha,
+      String telefone,
+      String cnh,
+      String placa,
+      String PIX,
+      int erroCodigo,
+      int distanciaMaxima       // NOVO
+      ) async {
     String baseUrl = "https://teletudo.com/api/cadboy";
     try {
       final response = await http.post(
@@ -113,6 +115,7 @@ class API {
         },
         body: json.encode({
           'nome_completo': nome,
+          'usuario': usuario,
           'email': email,
           'senha': senha,
           'telefone': telefone,
@@ -120,6 +123,7 @@ class API {
           'placa': placa,
           'PIX': PIX,
           'erroCodigo': erroCodigo,
+          'distanciaMaxima': distanciaMaxima,
           'versaoApp': AppConfig.versaoApp,
         }),
       );
