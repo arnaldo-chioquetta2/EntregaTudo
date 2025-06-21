@@ -30,7 +30,7 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   @override
-    void dispose() {
+  void dispose() {
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -54,12 +54,10 @@ class _RegisterPageState extends State<RegisterPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-
             TextField(
               controller: _usuarioController,
               decoration: const InputDecoration(labelText: 'Usuário'),
             ),
-
             TextField(
               controller: _nameController,
               decoration: const InputDecoration(labelText: 'Nome Completo'),
@@ -91,7 +89,6 @@ class _RegisterPageState extends State<RegisterPage> {
               controller: _pix,
               decoration: const InputDecoration(labelText: 'PIX'),
             ),
-
             TextField(
               controller: _distanciaMaximaController,
               decoration: const InputDecoration(
@@ -100,7 +97,6 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
               keyboardType: TextInputType.number,
             ),
-
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () async {
@@ -140,7 +136,8 @@ class _RegisterPageState extends State<RegisterPage> {
                     erroCodigo += 2;
                   }
                   if (!validarPlaca(placa)) {
-                    mostrarMensagem(context, 'Por favor, insira uma placa válida.');
+                    mostrarMensagem(
+                        context, 'Por favor, insira uma placa válida.');
                     return;
                   }
                 }
@@ -149,13 +146,17 @@ class _RegisterPageState extends State<RegisterPage> {
                 String distanciaMaxStr = _distanciaMaximaController.text.trim();
 
                 if (usuario.isEmpty) {
-                  mostrarMensagem(context, 'Por favor, insira o nome de usuário.');
+                  mostrarMensagem(
+                      context, 'Por favor, insira o nome de usuário.');
                   return;
                 }
 
                 int? distanciaMaxima = int.tryParse(distanciaMaxStr);
-                if (distanciaMaxima == null || distanciaMaxima < 1 || distanciaMaxima > 30) {
-                  mostrarMensagem(context, 'Digite uma distância máxima entre 1 e 30 km.');
+                if (distanciaMaxima == null ||
+                    distanciaMaxima < 1 ||
+                    distanciaMaxima > 30) {
+                  mostrarMensagem(
+                      context, 'Digite uma distância máxima entre 1 e 30 km.');
                   return;
                 }
 
@@ -180,7 +181,6 @@ class _RegisterPageState extends State<RegisterPage> {
                 } else {
                   mostrarMensagem(context, resultado['message']);
                 }
-
               },
               child: const Text("Cadastrar"),
             ),
@@ -190,29 +190,16 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  // Future<bool> validarEProcessarCnh() async {
-  //   bool cnhValida = await validarCNH(_cnhController.text);
-  //   if (!cnhValida) {
-  //     if (deixaPassarCnhInv) {
-  //       // CNH inválida, mas configurado para perguntar ao usuário
-  //       return await mostrarDialogoCNHInvalida();
-  //     } else {
-  //       mostrarMensagem(context,
-  //           "A CNH informada é inválida e não é possível continuar o cadastro.");
-  //       return false;
-  //     }
-  //   }
-  //   return true; // CNH válida
-  // }
-
   bool validarPlaca(String placa) {
-    RegExp regex = RegExp(r'^[A-Z]{3}-\d{4}$|^[A-Z]{3}\d[A-Z]\d{2}$');
-    bool valida = regex.hasMatch(placa);
+    RegExp regex = RegExp(
+      r'^[A-Z]{3}(-\d{4}|\d{4}|\d[A-Z]\d{2})$',
+      caseSensitive: false,
+    );
 
+    bool valida = regex.hasMatch(placa);
     if (!valida && deixaPassarCnhInv && !JaMostrouPlaca) {
       JaMostrouPlaca = true;
     }
-
     return valida;
   }
 
