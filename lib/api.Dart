@@ -7,6 +7,9 @@ import 'package:entregatudo/constants.dart';
 import 'package:entregatudo/models/delivery_details.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.2.7 Ajuste no Crud da configuração de valores
+// 1.2.6 Copia o erro de cadastro para a memória se houver
+
 class API {
   static final LocationService _locationService = LocationService();
 
@@ -20,6 +23,7 @@ class API {
     double customDeliverySurcharge,
   ) async {
     String baseUrl = "https://teletudo.com/api/saveConfigurations";
+    print("Vai acionar https://teletudo.com/api/saveConfigurations");
     try {
       final prefs = await SharedPreferences.getInstance();
       int? userid = prefs.getInt('idUser');
@@ -27,6 +31,7 @@ class API {
       if (userid == null) {
         return {'success': false, 'message': 'Usuário não autenticado'};
       }
+      print("userid = ${userid}");
 
       final response = await http.post(
         Uri.parse(baseUrl),
@@ -67,45 +72,63 @@ class API {
     }
   }
 
+// curl -k -X POST https://teletudo.com/api/obtemCfgValores -H "Content-Type: application/json" -H "Accept: application/json" -d "{\"userid\": 21, \"lat\": -23.55052, \"lon\": -46.633308}"
   static Future<Map<String, dynamic>> obtemCfgValores(double lat, double lon) async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    int? userid = prefs.getInt('idUser');
-    print('User ID: $userid'); // Log do userid
-    print('Latitude: $lat, Longitude: $lon'); // Log das coordenadas
+    try {
+      // Obter o userid das SharedPreferences
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      int? userid = prefs.getInt('idUser');
 
-    final response = await http.post(
-      Uri.parse('https://teletudo.com/api/obtemCfgValores'),
-      body: jsonEncode({
+      print('User ID: $userid'); // Log do userid
+      print('Latitude: $lat, Longitude: $lon'); // Log das coordenadas
+
+      // Preparar a URL e os dados da requisição
+      final url = 'https://teletudo.com/api/obtemCfgValores';
+      print('Acionando Endpoint: $url'); // Log da URL
+
+      final requestBody = jsonEncode({
         'userid': userid,
         'lat': lat,
         'lon': lon,
-      }),
-      headers: {'Content-Type': 'application/json'},
-    );
+      });
+      print('Request Body: $requestBody'); // Log do corpo da requisição
 
-    print('Response Status Code: ${response.statusCode}'); // Log do status code
-    print('Response Body: ${response.body}'); // Log do corpo da resposta
+      // Fazer a requisição POST
+      final response = await http.post(
+        Uri.parse(url),
+        body: requestBody,
+        headers: {'Content-Type': 'application/json'},
+      );
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception('Failed to load data');
+      // Log do status code e do corpo da resposta
+      print('Response Status Code: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+
+      // Verificar se a requisição foi bem-sucedida
+      if (response.statusCode == 200) {
+        final responseBody = jsonDecode(response.body);
+        print('Response Body Decoded: $responseBody'); // Log do corpo da resposta decodificado
+        return responseBody;
+      } else {
+        throw Exception('Failed to load data: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error: $e'); // Log de qualquer erro que ocorra
+      throw Exception('Failed to load data: $e');
     }
   }
 
-  static Future<Map<String, dynamic>> registerUser(
-      String nome,
-      String usuario,           // NOVO
-      String email,
-      String senha,
-      String telefone,
-      String cnh,
-      String placa,
-      String PIX,
-      int erroCodigo,
-      int distanciaMaxima       // NOVO
-      ) async {
+  static Future<Map<String, dynamic>> registerUser(String nome, String usuario, String email, String senha, String telefone, String cnh, String placa, String PIX,
+      int erroCodigo, int distanciaMaxima) async {
     String baseUrl = "https://teletudo.com/api/cadboy";
+
+    // return {
+    //   'success': false,
+    //   'message': 'Falha no servidor (500)',
+    //   'details':
+    //   'Código HTTP: 500\nResposta do servidor: {"error":"Internal Server Error","message":"Erro simulado para teste."}',
+    // };
+
     try {
       final response = await http.post(
         Uri.parse(baseUrl),
@@ -127,6 +150,7 @@ class API {
           'versaoApp': AppConfig.versaoApp,
         }),
       );
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         final ret = json.decode(response.body);
         if (ret['success'] == true) {
@@ -136,17 +160,24 @@ class API {
         } else {
           return {
             'success': false,
-            'message': ret['message'] ?? 'Erro desconhecido ao cadastrar'
+            'message': ret['message'] ?? 'Erro desconhecido ao cadastrar',
+            'details': 'Resposta do servidor: ${response.body}',
           };
         }
       } else {
         return {
           'success': false,
-          'message': 'Falha no servidor (${response.statusCode})'
+          'message': 'Falha no servidor (${response.statusCode})',
+          'details':
+          'Código HTTP: ${response.statusCode}\nResposta do servidor: ${response.body}',
         };
       }
     } catch (e) {
-      return {'success': false, 'message': 'Erro de conexão com o servidor'};
+      return {
+        'success': false,
+        'message': 'Erro de conexão com o servidor',
+        'details': 'Exceção capturada: $e',
+      };
     }
   }
 
@@ -183,8 +214,14 @@ class API {
     return null;
   }
 
+// curl -X POST https://teletudo.com/api/login -H "Content-Type: application/json" -H "Accept: application/json" -d "{\"user\": \"teste\", \"password\": \"teste\", \"lat\": -23.55052, \"lon\": -46.633308}" -k
   static Future<String> veLogin(String user, String password, double lat, double lon) async {
     String baseUrl = "https://teletudo.com/api/login";
+
+    print('Iniciando requisição de login...');
+    print('Usuário: $user');
+    print('Latitude: $lat, Longitude: $lon');
+
     final response = await http.post(
       Uri.parse(baseUrl),
       headers: {
@@ -198,19 +235,32 @@ class API {
         'lon': lon,
       }),
     );
+
+    print('Requisição concluída com status code: ${response.statusCode}');
+
     if (response.statusCode == 200) {
-      print('200');
+      print('Resposta recebida com sucesso!');
       var ret = json.decode(response.body);
+      print('Resposta JSON: $ret');
+
       final int erro = ret["Erro"] ?? 1;
+      print('Código de erro: $erro');
+
       if (erro == 0) {
         final int idUser = ret["id"] ?? 0;
+        print('ID do usuário: $idUser');
+
         final SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setInt('idUser', idUser);
+        print('ID do usuário salvo nas preferências compartilhadas.');
+
         return "";
       } else {
+        print('Erro ao realizar login!');
         return "ERRO";
       }
     } else {
+      print('Falha ao realizar requisição!');
       return "ERRO";
     }
   }

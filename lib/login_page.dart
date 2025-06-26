@@ -34,8 +34,8 @@ class _LoginPageState extends State<LoginPage> {
   void initState() {
     super.initState();
     if (kIsWeb) {
-      _userController.text = "Xevious";
-      _passwordController.text = "ufrs3753";
+      _userController.text = "teste";
+      _passwordController.text = "teste";
     }
   }
 

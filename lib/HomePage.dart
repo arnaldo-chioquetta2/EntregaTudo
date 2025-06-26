@@ -9,6 +9,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:entregatudo/models/delivery_details.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.2.4 Conserto do link para as configurações
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -56,7 +58,8 @@ class _HomePageState extends State<HomePage> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => ResgatePage()),
+                  MaterialPageRoute(builder: (context) => SettingsPage()),
+                  // MaterialPageRoute(builder: (context) => ResgatePage()),
                 );
               },
               child: const Text('Configurações'),
@@ -315,25 +318,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // Future<void> updateSaldo() async {
-  //   print("updateSaldo");
-  //   SharedPreferences prefs = await SharedPreferences.getInstance();
-  //   int? userId = prefs.getInt('idUser');
-  //   if (userId != null) {
-  //     try {
-  //       String newSaldo = await API.saldo(userId);
-  //       print("Saldo = " + newSaldo);
-  //       setState(() {
-  //         saldo = 'R\$ $newSaldo';
-  //         String valorStr = newSaldo.replaceAll('R\$', '').replaceAll(',', '.');
-  //         saldoNum = double.tryParse(valorStr) ?? 0.0;
-  //       });
-  //     } catch (e) {
-  //       saldo = "0";
-  //     }
-  //   }
-  // }
-
   Future<void> updateSaldo() async {
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getInt('idUser');
@@ -371,5 +355,4 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  //
 }

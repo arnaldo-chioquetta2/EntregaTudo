@@ -1,6 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:entregatudo/HomePage.dart';
 import 'package:entregatudo/api.Dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:entregatudo/HomePage.dart';
+
+// 1.2.6 Copia o erro de cadastro para a memória se houver
+// 1.2.5 Retirei o teste da gravação do cadastro novo
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -160,6 +164,8 @@ class _RegisterPageState extends State<RegisterPage> {
                   return;
                 }
 
+                // mostrarMensagem(context, 'Iria gravar');
+
                 final resultado = await API.registerUser(
                   nome,
                   usuario,
@@ -179,7 +185,11 @@ class _RegisterPageState extends State<RegisterPage> {
                   Navigator.of(context).pushReplacement(MaterialPageRoute(
                       builder: (context) => const HomePage()));
                 } else {
-                  mostrarMensagem(context, resultado['message']);
+                  mostrarMensagem(
+                    context,
+                    resultado['message'],
+                    details: resultado['details'], // Passa os detalhes do erro
+                  );
                 }
               },
               child: const Text("Cadastrar"),
@@ -218,33 +228,56 @@ class _RegisterPageState extends State<RegisterPage> {
     return regex.hasMatch(email);
   }
 
-  void mostrarMensagem(BuildContext context, String mensagem) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensagem)),
-    );
+  void mostrarMensagem(BuildContext context, String mensagem, {String? details}) {
+    if (details == null) {
+      // Exibe apenas o SnackBar se não houver detalhes
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(mensagem)),
+      );
+    } else {
+      // Exibe um AlertDialog com os detalhes e botão para copiar
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Erro'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(mensagem),
+              const SizedBox(height: 10),
+              Text(
+                'Detalhes:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 5),
+              SelectableText(details), // Permite selecionar o texto
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: details));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Detalhes copiados para a memória')),
+                );
+              },
+              child: const Text('Copiar detalhes para a memória'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
-  // Future<bool> validarCNH(String cnh) async {
-  //   String cnhSemFormatacao = cnh.replaceAll(RegExp(r'\D'), '');
-  //   if (cnhSemFormatacao.length != 11 || cnhSemFormatacao == "00000000000") {
-  //     return false;
-  //   }
-  //   int soma = 0;
-  //   for (int i = 0; i < 9; i++) {
-  //     soma += int.parse(cnhSemFormatacao[i]) * (9 - i);
-  //   }
-  //   int d1 = soma % 11;
-  //   d1 = d1 < 10 ? d1 : 0;
-  //   soma = 0;
-  //   for (int i = 0; i < 9; i++) {
-  //     soma += int.parse(cnhSemFormatacao[i]) * (10 - i);
-  //   }
-  //   soma += d1 * 2;
-  //   int d2 = soma % 11;
-  //   d2 = d2 < 10 ? d2 : 0;
-  //   bool valido = d1 == int.parse(cnhSemFormatacao[9]) &&
-  //       d2 == int.parse(cnhSemFormatacao[10]);
-  //   return valido;
+  // void mostrarMensagem(BuildContext context, String mensagem) {
+  //   ScaffoldMessenger.of(context).showSnackBar(
+  //     SnackBar(content: Text(mensagem)),
+  //   );
   // }
 
   Future<bool> mostrarDialogoCNHInvalida() async {

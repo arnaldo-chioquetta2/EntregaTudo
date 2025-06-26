@@ -10,21 +10,20 @@ class _SettingsPageState extends State<SettingsPage> {
   // Controladores para os campos de texto
   final TextEditingController _minValueController = TextEditingController();
   final TextEditingController _kmRateController = TextEditingController();
-  final TextEditingController _rainSurchargeController =
-      TextEditingController();
-  final TextEditingController _nightSurchargeController =
-      TextEditingController();
-  final TextEditingController _dawnSurchargeController =
-      TextEditingController();
-  final TextEditingController _weightSurchargeController =
-      TextEditingController();
-  final TextEditingController _customDeliverySurchargeController =
-      TextEditingController();
+  final TextEditingController _rainSurchargeController = TextEditingController();
+  final TextEditingController _nightSurchargeController = TextEditingController();
+  final TextEditingController _dawnSurchargeController = TextEditingController();
+  final TextEditingController _weightSurchargeController = TextEditingController();
+  final TextEditingController _customDeliverySurchargeController = TextEditingController();
 
   // Chave global do formulário
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
+  // Variável para armazenar o valor que vem da API
   int _vazio = 0;
+
+  // Variável para controlar o estado do botão
+  bool _isSaved = false;
 
   // Função para validar os campos
   String? _validateInput(String? value, {bool isRequired = false}) {
@@ -46,6 +45,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return value.toStringAsFixed(2).replaceAll('.', ',');
   }
 
+  // Função para salvar as configurações
   void _saveSettings() async {
     if (_formKey.currentState!.validate()) {
       // Converte os valores dos controladores para double
@@ -66,25 +66,27 @@ class _SettingsPageState extends State<SettingsPage> {
           ? double.parse(_weightSurchargeController.text.replaceAll(',', '.'))
           : 0.0;
       double customDeliverySurcharge =
-          _customDeliverySurchargeController.text.isNotEmpty
-              ? double.parse(
-                  _customDeliverySurchargeController.text.replaceAll(',', '.'))
-              : 0.0;
+      _customDeliverySurchargeController.text.isNotEmpty
+          ? double.parse(
+          _customDeliverySurchargeController.text.replaceAll(',', '.'))
+          : 0.0;
 
       // Chama o método para salvar as configurações na API
-      // final result = null;
       final result = await API.saveConfigurations(
-         minValue,
-         kmRate,
-         rainSurcharge,
-         nightSurcharge,
-         dawnSurcharge,
-         weightSurcharge,
-         customDeliverySurcharge,
+        minValue,
+        kmRate,
+        rainSurcharge,
+        nightSurcharge,
+        dawnSurcharge,
+        weightSurcharge,
+        customDeliverySurcharge,
       );
 
       // Exibe a mensagem de confirmação
       if (result['success']) {
+        setState(() {
+          _isSaved = true;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(result['message'])),
         );
@@ -110,7 +112,7 @@ class _SettingsPageState extends State<SettingsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content:
-                Text('Por favor, revise os valores nos campos em vermelho.')),
+            Text('Por favor, revise os valores nos campos em vermelho.')),
       );
     }
   }
@@ -118,37 +120,38 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
+    print('Iniciando _loadSettings...'); // Log para verificar se a função está sendo chamada
     _loadSettings();
   }
 
   Future<void> _loadSettings() async {
     try {
+      print('Chamando API.obtemCfgValores...'); // Log para verificar se a API está sendo chamada
       final result = await API.obtemCfgValores(-23.5505, -46.6333);
+      print('Resultado da API: $result'); // Log para verificar o resultado da API
+
       setState(() {
         _vazio = result['vazio'];
-        _minValueController.text =
-            result['minValue'] == 0 ? '' : _formatValue(result['minValue']);
-        _kmRateController.text =
-            result['kmRate'] == 0 ? '' : _formatValue(result['kmRate']);
-        _rainSurchargeController.text = result['rainSurcharge'] == 0
-            ? ''
-            : _formatValue(result['rainSurcharge']);
-        _nightSurchargeController.text = result['nightSurcharge'] == 0
-            ? ''
-            : _formatValue(result['nightSurcharge']);
-        _dawnSurchargeController.text = result['dawnSurcharge'] == 0
-            ? ''
-            : _formatValue(result['dawnSurcharge']);
-        _weightSurchargeController.text = result['weightSurcharge'] == 0
-            ? ''
-            : _formatValue(result['weightSurcharge']);
-        _customDeliverySurchargeController.text =
-            result['customDeliverySurcharge'] == 0
-                ? ''
-                : _formatValue(result['customDeliverySurcharge']);
+        print('Valor de _vazio: $_vazio'); // Log para verificar o valor de _vazio
+
+        _minValueController.text = result['minValue'] == 0 ? '' : _formatValue(result['minValue']);
+        _kmRateController.text = result['kmRate'] == 0 ? '' : _formatValue(result['kmRate']);
+        _rainSurchargeController.text = result['rainSurcharge'] == 0 ? '' : _formatValue(result['rainSurcharge']);
+        _nightSurchargeController.text = result['nightSurcharge'] == 0 ? '' : _formatValue(result['nightSurcharge']);
+        _dawnSurchargeController.text = result['dawnSurcharge'] == 0 ? '' : _formatValue(result['dawnSurcharge']);
+        _weightSurchargeController.text = result['weightSurcharge'] == 0 ? '' : _formatValue(result['weightSurcharge']);
+        _customDeliverySurchargeController.text = result['customDeliverySurcharge'] == 0 ? '' : _formatValue(result['customDeliverySurcharge']);
+
+        print('Valor de _minValueController: ${_minValueController.text}'); // Log para verificar o valor de _minValueController
+        print('Valor de _kmRateController: ${_kmRateController.text}'); // Log para verificar o valor de _kmRateController
+        print('Valor de _rainSurchargeController: ${_rainSurchargeController.text}'); // Log para verificar o valor de _rainSurchargeController
+        print('Valor de _nightSurchargeController: ${_nightSurchargeController.text}'); // Log para verificar o valor de _nightSurchargeController
+        print('Valor de _dawnSurchargeController: ${_dawnSurchargeController.text}'); // Log para verificar o valor de _dawnSurchargeController
+        print('Valor de _weightSurchargeController: ${_weightSurchargeController.text}'); // Log para verificar o valor de _weightSurchargeController
+        print('Valor de _customDeliverySurchargeController: ${_customDeliverySurchargeController.text}'); // Log para verificar o valor de _customDeliverySurchargeController
       });
     } catch (e) {
-      print('Error loading settings: $e');
+      print('Erro ao carregar configurações: $e'); // Log para verificar qualquer erro que ocorra
     }
   }
 
@@ -162,6 +165,11 @@ class _SettingsPageState extends State<SettingsPage> {
         padding: EdgeInsets.all(16),
         child: Form(
           key: _formKey,
+          onChanged: () {
+            setState(() {
+              _isSaved = false;
+            });
+          },
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -175,7 +183,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         color: Colors.orange, width: 2), // Borda laranja
                   ),
                   child: Text(
-                    'Estes são valores médios utilizados na sua região. Voce pode alterar como quiser.',
+                    'Estes são valores médios utilizados na sua região. Você pode alterar como quiser.',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -201,7 +209,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                 ),
-
               SizedBox(height: 16),
               // Valor Mínimo
               TextFormField(
@@ -214,7 +221,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 validator: (value) => _validateInput(value), // Não obrigatório
               ),
               SizedBox(height: 16),
-
               // Valor por Km Rodado
               TextFormField(
                 controller: _kmRateController,
@@ -223,11 +229,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   labelText: "Valor por Km Rodado",
                   border: OutlineInputBorder(),
                 ),
-                validator: (value) =>
-                    _validateInput(value, isRequired: true), // Obrigatório
+                validator: (value) => _validateInput(value, isRequired: true), // Obrigatório
               ),
               SizedBox(height: 16),
-
               // Adicional por Chuva
               TextFormField(
                 controller: _rainSurchargeController,
@@ -239,7 +243,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 validator: (value) => _validateInput(value), // Não obrigatório
               ),
               SizedBox(height: 16),
-
               // Adicional Noturno
               TextFormField(
                 controller: _nightSurchargeController,
@@ -251,7 +254,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 validator: (value) => _validateInput(value), // Não obrigatório
               ),
               SizedBox(height: 16),
-
               // Adicional Madrugada
               TextFormField(
                 controller: _dawnSurchargeController,
@@ -263,7 +265,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 validator: (value) => _validateInput(value), // Não obrigatório
               ),
               SizedBox(height: 16),
-
               // Adicional por Peso Maior
               TextFormField(
                 controller: _weightSurchargeController,
@@ -275,7 +276,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 validator: (value) => _validateInput(value), // Não obrigatório
               ),
               SizedBox(height: 16),
-
               // Adicional por Entrega Personalizada
               TextFormField(
                 controller: _customDeliverySurchargeController,
@@ -288,11 +288,16 @@ class _SettingsPageState extends State<SettingsPage> {
                 validator: (value) => _validateInput(value), // Não obrigatório
               ),
               SizedBox(height: 32),
-
               // Botão para Salvar
               ElevatedButton(
-                onPressed: _saveSettings,
-                child: Text("Salvar Configurações"),
+                onPressed: () {
+                  if (_isSaved) {
+                    Navigator.pop(context); // Redireciona para a página principal
+                  } else {
+                    _saveSettings();
+                  }
+                },
+                child: Text(_isSaved ? "OK" : "Salvar Configurações"),
                 style: ElevatedButton.styleFrom(
                   minimumSize: Size(double.infinity, 50),
                   backgroundColor: Colors.blue,
@@ -319,3 +324,4 @@ class _SettingsPageState extends State<SettingsPage> {
     super.dispose();
   }
 }
+
