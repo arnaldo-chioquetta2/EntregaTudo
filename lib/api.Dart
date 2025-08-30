@@ -13,26 +13,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 class API {
   static final LocationService _locationService = LocationService();
 
-  static Future<Map<String, dynamic>> saveConfigurations(
-    double minValue,
-    double kmRate,
-    double rainSurcharge,
-    double nightSurcharge,
-    double dawnSurcharge,
-    double weightSurcharge,
-    double customDeliverySurcharge,
+  static Future<Map<String, dynamic>> saveConfigurations(double minValue, double kmRate, double rainSurcharge, double nightSurcharge, double dawnSurcharge, double weightSurcharge, double customDeliverySurcharge,
   ) async {
     String baseUrl = "https://teletudo.com/api/saveConfigurations";
     print("Vai acionar https://teletudo.com/api/saveConfigurations");
     try {
       final prefs = await SharedPreferences.getInstance();
       int? userid = prefs.getInt('idUser');
-
       if (userid == null) {
         return {'success': false, 'message': 'Usuário não autenticado'};
       }
       print("userid = ${userid}");
-
       final response = await http.post(
         Uri.parse(baseUrl),
         headers: {

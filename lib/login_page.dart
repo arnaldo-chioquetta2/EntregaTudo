@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:entregatudo/HomePage.dart';
 import 'package:entregatudo/constants.dart';
+import 'package:entregatudo/auth_service.dart';
 import 'package:entregatudo/register_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 void main() => runApp(const MyApp());
 
@@ -57,27 +59,46 @@ class _LoginPageState extends State<LoginPage> {
               decoration: const InputDecoration(labelText: 'Password'),
               obscureText: true,
             ),
+
             ElevatedButton(
               onPressed: () async {
                 try {
+                  final AuthService _authService = AuthService();
                   String user = _userController.text;
                   String password = _passwordController.text;
-                  double lat = 0.0;
-                  double lon = 0.0;
-                  String result = await API.veLogin(user, password, lat, lon);
-                  if (result == "") {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (context) => const HomePage()),
-                    );
-                  } else {
-                    showErrorDialog(result);
-                  }
+                  final UserCredential userCredential = await _authService
+                      .signInWithEmailAndPassword(user, password);
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (context) => const HomePage()),
+                  );
                 } catch (e) {
                   showErrorDialog("Erro durante o login: $e");
                 }
               },
               child: const Text("Login"),
             ),
+
+            // ElevatedButton(
+            //   onPressed: () async {
+            //     try {
+            //       String user = _userController.text;
+            //       String password = _passwordController.text;
+            //       double lat = 0.0;
+            //       double lon = 0.0;
+            //       String result = await API.veLogin(user, password, lat, lon);
+            //       if (result == "") {
+            //         Navigator.of(context).pushReplacement(
+            //           MaterialPageRoute(builder: (context) => const HomePage()),
+            //         );
+            //       } else {
+            //         showErrorDialog(result);
+            //       }
+            //     } catch (e) {
+            //       showErrorDialog("Erro durante o login: $e");
+            //     }
+            //   },
+            //   child: const Text("Login"),
+            // ),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () {
