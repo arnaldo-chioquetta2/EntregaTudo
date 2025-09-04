@@ -1,13 +1,26 @@
-import 'package:entregatudo/api.Dart';
+// register_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // <-- para fallback
 import 'package:entregatudo/HomePage.dart';
-
-// 1.2.6 Copia o erro de cadastro para a memória se houver
-// 1.2.5 Retirei o teste da gravação do cadastro novo
+import 'package:entregatudo/api.dart'; // <-- corrige caixa: .dart
 
 class RegisterPage extends StatefulWidget {
-  const RegisterPage({super.key});
+  // ✅ NOVO: parâmetros opcionais para pré-preencher
+  final String? prefillName;
+  final String? prefillEmail;
+  final String? prefillGoogleId;
+  final String? prefillPhone; // se quiser
+  final String? prefillUsername; // se quiser
+
+  const RegisterPage({
+    super.key,
+    this.prefillName,
+    this.prefillEmail,
+    this.prefillGoogleId,
+    this.prefillPhone,
+    this.prefillUsername,
+  });
 
   @override
   _RegisterPageState createState() => _RegisterPageState();
@@ -15,6 +28,7 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage> {
   final bool deixaPassarCnhInv = true;
+
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -24,6 +38,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _pix = TextEditingController();
   final _usuarioController = TextEditingController();
   final _distanciaMaximaController = TextEditingController();
+
   bool JaMostrouCnhInv = false;
   bool JaMostrouPlaca = false;
 
@@ -31,6 +46,59 @@ class _RegisterPageState extends State<RegisterPage> {
   void initState() {
     super.initState();
     _distanciaMaximaController.text = '30';
+    _aplicarPrefill(); // <- aplica params imediatamente
+    _carregarFallbackDosPrefs(); // <- se não vier por params, busca prefs
+  }
+
+  // ✅ aplica imediatamente o que veio por parâmetro
+  void _aplicarPrefill() {
+    if (widget.prefillName?.isNotEmpty ?? false) {
+      _nameController.text = widget.prefillName!;
+    }
+    if (widget.prefillEmail?.isNotEmpty ?? false) {
+      _emailController.text = widget.prefillEmail!;
+    }
+    if (widget.prefillPhone?.isNotEmpty ?? false) {
+      _phoneController.text = widget.prefillPhone!;
+    }
+    if (widget.prefillUsername?.isNotEmpty ?? false) {
+      _usuarioController.text = widget.prefillUsername!;
+    } else if (_usuarioController.text.isEmpty && widget.prefillEmail != null) {
+      // sugestão de usuário a partir do email (antes do @)
+      final at = widget.prefillEmail!.indexOf('@');
+      if (at > 0)
+        _usuarioController.text = widget.prefillEmail!.substring(0, at);
+    }
+  }
+
+  // ✅ tenta preencher a partir dos SharedPreferences, se necessário
+  Future<void> _carregarFallbackDosPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // só preenche se estiver vazio (não sobrescreve o que já veio por parâmetro)
+    if (_nameController.text.isEmpty) {
+      final name = prefs.getString('userName');
+      if (name != null && name.isNotEmpty) _nameController.text = name;
+    }
+    if (_emailController.text.isEmpty) {
+      final email = prefs.getString('userEmail');
+      if (email != null && email.isNotEmpty) _emailController.text = email;
+    }
+    // opcional: sugerir usuário pelo email
+    if (_usuarioController.text.isEmpty) {
+      final email = _emailController.text;
+      final at = email.indexOf('@');
+      if (at > 0) _usuarioController.text = email.substring(0, at);
+    }
+
+    // se quiser exibir/guardar googleId pra uso interno:
+    final googleId = prefs.getString('googleId'); // se o AuthService salvou
+    if (googleId != null) {
+      // você pode mostrar num Text abaixo do título, por exemplo:
+      // setState(() => _googleId = googleId);
+      // (ou apenas guardar para envio junto do cadastro)
+    }
+    if (mounted) setState(() {});
   }
 
   @override
@@ -49,6 +117,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
+    // (Opcional) você pode mostrar o aviso de que “email/nome vieram do Google”
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cadastro de Motoboy'),
@@ -58,6 +127,10 @@ class _RegisterPageState extends State<RegisterPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // (opcional) dica visual:
+            // if (widget.prefillEmail != null || _emailController.text.isNotEmpty)
+            //   Text('Dados carregados do Google', style: TextStyle(color: Colors.green)),
+
             TextField(
               controller: _usuarioController,
               decoration: const InputDecoration(labelText: 'Usuário'),
@@ -103,95 +176,7 @@ class _RegisterPageState extends State<RegisterPage> {
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () async {
-                String nome = _nameController.text;
-                String email = _emailController.text;
-                String senha = _passwordController.text;
-                String cnh = _cnhController.text;
-                String telefone = _phoneController.text;
-                String placa = _placaController.text;
-                String PIX = _pix.text;
-                int erroCodigo = 0;
-                if (!validarNome(nome)) {
-                  mostrarMensagem(
-                      context, 'Por favor, insira o nome completo.');
-                  return;
-                }
-                if (!validarEmail(email)) {
-                  mostrarMensagem(
-                      context, 'Por favor, insira um email válido.');
-                  return;
-                }
-                if (!validarSenha(senha)) {
-                  mostrarMensagem(context,
-                      'A senha não pode ser vazia e deve ter no mínimo 6 caracteres.');
-                  return;
-                }
-
-                // if (JaMostrouCnhInv == false) {
-                //   if (!await validarEProcessarCnh()) return;
-                // }
-                // if (JaMostrouCnhInv && !await validarCNH(cnh)) {
-                //   erroCodigo += 1;
-                // }
-
-                if (placa.isNotEmpty) {
-                  if (JaMostrouPlaca && !validarPlaca(placa)) {
-                    erroCodigo += 2;
-                  }
-                  if (!validarPlaca(placa)) {
-                    mostrarMensagem(
-                        context, 'Por favor, insira uma placa válida.');
-                    return;
-                  }
-                }
-
-                String usuario = _usuarioController.text.trim();
-                String distanciaMaxStr = _distanciaMaximaController.text.trim();
-
-                if (usuario.isEmpty) {
-                  mostrarMensagem(
-                      context, 'Por favor, insira o nome de usuário.');
-                  return;
-                }
-
-                int? distanciaMaxima = int.tryParse(distanciaMaxStr);
-                if (distanciaMaxima == null ||
-                    distanciaMaxima < 1 ||
-                    distanciaMaxima > 30) {
-                  mostrarMensagem(
-                      context, 'Digite uma distância máxima entre 1 e 30 km.');
-                  return;
-                }
-
-                // mostrarMensagem(context, 'Iria gravar');
-
-                final resultado = await API.registerUser(
-                  nome,
-                  usuario,
-                  email,
-                  senha,
-                  telefone,
-                  cnh,
-                  placa,
-                  PIX,
-                  erroCodigo,
-                  distanciaMaxima,
-                );
-
-                if (resultado['success']) {
-                  mostrarMensagem(context, 'Cadastro bem-sucedido');
-                  print('Cadastro bem-sucedido');
-                  Navigator.of(context).pushReplacement(MaterialPageRoute(
-                      builder: (context) => const HomePage()));
-                } else {
-                  mostrarMensagem(
-                    context,
-                    resultado['message'],
-                    details: resultado['details'], // Passa os detalhes do erro
-                  );
-                }
-              },
+              onPressed: _enviarCadastro,
               child: const Text("Cadastrar"),
             ),
           ],
@@ -200,42 +185,107 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  bool validarPlaca(String placa) {
-    RegExp regex = RegExp(
-      r'^[A-Z]{3}(-\d{4}|\d{4}|\d[A-Z]\d{2})$',
-      caseSensitive: false,
+  Future<void> _enviarCadastro() async {
+    String nome = _nameController.text.trim();
+    String email = _emailController.text.trim();
+    String senha = _passwordController.text;
+    String cnh = _cnhController.text.trim();
+    String telefone = _phoneController.text.trim();
+    String placa = _placaController.text.trim().toUpperCase();
+    String PIX = _pix.text.trim();
+    int erroCodigo = 0;
+
+    if (!validarNome(nome)) {
+      mostrarMensagem(context, 'Por favor, insira o nome completo.');
+      return;
+    }
+    if (!validarEmail(email)) {
+      mostrarMensagem(context, 'Por favor, insira um email válido.');
+      return;
+    }
+    if (!validarSenha(senha)) {
+      mostrarMensagem(context,
+          'A senha não pode ser vazia e deve ter no mínimo 6 caracteres.');
+      return;
+    }
+
+    if (placa.isNotEmpty) {
+      if (JaMostrouPlaca && !validarPlaca(placa)) {
+        erroCodigo += 2;
+      }
+      if (!validarPlaca(placa)) {
+        mostrarMensagem(context, 'Por favor, insira uma placa válida.');
+        return;
+      }
+    }
+
+    String usuario = _usuarioController.text.trim();
+    String distanciaMaxStr = _distanciaMaximaController.text.trim();
+
+    if (usuario.isEmpty) {
+      mostrarMensagem(context, 'Por favor, insira o nome de usuário.');
+      return;
+    }
+
+    int? distanciaMaxima = int.tryParse(distanciaMaxStr);
+    if (distanciaMaxima == null ||
+        distanciaMaxima < 1 ||
+        distanciaMaxima > 30) {
+      mostrarMensagem(context, 'Digite uma distância máxima entre 1 e 30 km.');
+      return;
+    }
+
+    final resultado = await API.registerUser(
+      nome,
+      usuario,
+      email,
+      senha,
+      telefone,
+      cnh,
+      placa,
+      PIX,
+      erroCodigo,
+      distanciaMaxima,
     );
 
-    bool valida = regex.hasMatch(placa);
+    if (resultado['success']) {
+      mostrarMensagem(context, 'Cadastro bem-sucedido');
+      Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const HomePage()));
+    } else {
+      mostrarMensagem(
+        context,
+        resultado['message'],
+        details: resultado['details'],
+      );
+    }
+  }
+
+  bool validarPlaca(String placa) {
+    final regex =
+        RegExp(r'^[A-Z]{3}(-\d{4}|\d{4}|\d[A-Z]\d{2})$', caseSensitive: false);
+    final valida = regex.hasMatch(placa);
     if (!valida && deixaPassarCnhInv && !JaMostrouPlaca) {
       JaMostrouPlaca = true;
     }
     return valida;
   }
 
-  bool validarNome(String nome) {
-    return nome.isNotEmpty;
-  }
-
-  bool validarSenha(String senha) {
-    return senha.isNotEmpty && senha.length >= 6;
-  }
+  bool validarNome(String nome) => nome.isNotEmpty;
+  bool validarSenha(String senha) => senha.isNotEmpty && senha.length >= 6;
 
   bool validarEmail(String email) {
-    Pattern pattern =
-        r'^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$';
-    RegExp regex = RegExp(pattern.toString());
+    final regex = RegExp(
+        r'^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$');
     return regex.hasMatch(email);
   }
 
-  void mostrarMensagem(BuildContext context, String mensagem, {String? details}) {
+  void mostrarMensagem(BuildContext context, String mensagem,
+      {String? details}) {
     if (details == null) {
-      // Exibe apenas o SnackBar se não houver detalhes
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(mensagem)),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(mensagem)));
     } else {
-      // Exibe um AlertDialog com os detalhes e botão para copiar
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -246,12 +296,10 @@ class _RegisterPageState extends State<RegisterPage> {
             children: [
               Text(mensagem),
               const SizedBox(height: 10),
-              Text(
-                'Detalhes:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              const Text('Detalhes:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 5),
-              SelectableText(details), // Permite selecionar o texto
+              SelectableText(details),
             ],
           ),
           actions: [
@@ -259,7 +307,8 @@ class _RegisterPageState extends State<RegisterPage> {
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: details));
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Detalhes copiados para a memória')),
+                  const SnackBar(
+                      content: Text('Detalhes copiados para a memória')),
                 );
               },
               child: const Text('Copiar detalhes para a memória'),
@@ -274,36 +323,24 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
-  // void mostrarMensagem(BuildContext context, String mensagem) {
-  //   ScaffoldMessenger.of(context).showSnackBar(
-  //     SnackBar(content: Text(mensagem)),
-  //   );
-  // }
-
   Future<bool> mostrarDialogoCNHInvalida() async {
     return await showDialog<bool>(
           context: context,
-          barrierDismissible: false, // O usuário precisa selecionar uma opção
-          builder: (BuildContext dialogContext) {
-            return AlertDialog(
-              title: const Text("CNH Inválida"),
-              content: const Text(
-                  "A CNH informada é inválida. Deseja continuar com o cadastro mesmo assim?"),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: () =>
-                      Navigator.of(dialogContext).pop(false), // Retorna false
-                  child: const Text("Não"),
-                ),
-                TextButton(
-                  onPressed: () =>
-                      Navigator.of(dialogContext).pop(true), // Retorna true
-                  child: const Text("Sim"),
-                ),
-              ],
-            );
-          },
+          barrierDismissible: false,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text("CNH Inválida"),
+            content: const Text(
+                "A CNH informada é inválida. Deseja continuar com o cadastro mesmo assim?"),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text("Não")),
+              TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: const Text("Sim")),
+            ],
+          ),
         ) ??
-        false; // Garante que um valor booleano seja retornado mesmo se o diálogo for fechado de outra forma
+        false;
   }
 }

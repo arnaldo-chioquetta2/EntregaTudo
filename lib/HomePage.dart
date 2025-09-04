@@ -252,14 +252,17 @@ class _HomePageState extends State<HomePage> {
   void handleDeliveryResponse(bool accept) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     int? userId = prefs.getInt('idUser');
-    int? deliveryId = deliveryData?['chamado']; // ou o nome correto do campo do ID
+    int? deliveryId =
+        deliveryData?['chamado']; // ou o nome correto do campo do ID
     if (userId == null || deliveryId == null) {
       setState(() {
         statusMessage = "Erro: Dados da entrega não encontrados.";
       });
       return;
     }
+
     bool sucesso = await API.respondToDelivery(userId, deliveryId, accept);
+
     if (sucesso) {
       setState(() {
         hasAcceptedDelivery = accept;
@@ -354,5 +357,4 @@ class _HomePageState extends State<HomePage> {
       });
     }
   }
-
 }
