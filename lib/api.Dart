@@ -427,77 +427,30 @@ class API {
     // return "";
   }
 
-  // Dispara o fluxo do Google no backend (mesmo callback do site),
-  // passando ?ID=1 e enviando { "idToken": "..." } via POST.
-  // Retorno esperado (ex.): { "success": true, "message": "processing" }
-  static Future<Map<String, dynamic>> googleLoginInit({
-    required String idToken,
-    int userIdForQuery = 1, // por enquanto fixo 1 (como você pediu)
-  }) async {
-    final url = Uri.parse('https://teletudo.com/login/google/callback')
-        .replace(queryParameters: {'ID': userIdForQuery.toString()});
-    try {
-      print('Acionando googleLoginInit em: $url');
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: json.encode({'idToken': idToken}),
-      );
-      print('googleLoginInit status: ${response.statusCode}');
-      print('googleLoginInit body: ${response.body}');
-      if (response.statusCode == 200) {
-        return json.decode(response.body) as Map<String, dynamic>;
-      } else {
-        return {
-          'success': false,
-          'message': 'Falha no servidor (${response.statusCode})'
-        };
-      }
-    } catch (e) {
-      print('googleLoginInit erro: $e');
-      return {'success': false, 'message': 'Erro de conexão com o servidor'};
-    }
-  }
 
-  // Consulta o status do login Google em loop externo (polling fora).
-  // Endpoint sugerido: GET /api/login/status?ID=1
-  // Retornos esperados:
-  //   { "done": false }
-  //   { "done": true, "success": true, "user_id": 123, "is_new_user": false, "access_token":"...", "refresh_token":"...", "message":"ok" }
-  //   { "done": true, "success": true, "user_id": 999, "is_new_user": true, "message":"Cadastro inicial criado" }
-  //   { "done": true, "success": false, "message": "motivo" }
+  
+  /// GET /api/login/status?ID=<id>  → status do processamento (polling)
   static Future<Map<String, dynamic>> googleLoginStatus({
-    int userIdForQuery = 1,
+    required int userIdForQuery,
   }) async {
     final url = Uri.parse('https://teletudo.com/api/login/status')
         .replace(queryParameters: {'ID': userIdForQuery.toString()});
+
     try {
-      print('Consultando googleLoginStatus: $url');
-      final response = await http.get(
-        url,
-        headers: {
-          'Accept': 'application/json',
-        },
-      );
-      print('googleLoginStatus status: ${response.statusCode}');
-      print('googleLoginStatus body: ${response.body}');
-      if (response.statusCode == 200) {
-        return json.decode(response.body) as Map<String, dynamic>;
+      final resp = await http.get(url, headers: {'Accept': 'application/json'});
+      if (resp.statusCode == 200) {
+        return json.decode(resp.body) as Map<String, dynamic>;
       } else {
         return {
           'done': true,
           'success': false,
-          'message': 'Falha no servidor (${response.statusCode})'
+          'message': 'HTTP ${resp.statusCode}: ${resp.body}',
         };
       }
     } catch (e) {
-      print('googleLoginStatus erro: $e');
       return {'done': true, 'success': false, 'message': 'Erro de rede: $e'};
     }
- }
+  }
 
   static Future<int?> nextUserId() async {
     final url = Uri.parse('https://teletudo.com/api/next-user-id');
@@ -506,16 +459,62 @@ class API {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true && data['nextId'] != null) {
-          return data['nextId'] is int
-              ? data['nextId'] as int
-              : int.tryParse(data['nextId'].toString());
+          if (data['nextId'] is int) return data['nextId'] as int;
+          return int.tryParse(data['nextId'].toString());
         }
       }
       return null;
     } catch (e) {
-      print("Erro em nextUserId: $e");
+      // Log opcional
       return null;
     }
   }
+
+  /// POST /login/google/callback?ID=<id>
+  /// Envia idToken OU accessToken (envia o que existir)
+  static Future<Map<String, dynamic>> googleLoginInit({
+    String? idToken,
+    String? accessToken,
+    required int userIdForQuery,
+  }) async {
+    final url = Uri.parse('https://teletudo.com/login/google/callback')
+        .replace(queryParameters: {'ID': userIdForQuery.toString()});
+
+    final Map<String, dynamic> body = {};
+    if (idToken != null && idToken.isNotEmpty) {
+      body['idToken'] = idToken;
+    } else if (accessToken != null && accessToken.isNotEmpty) {
+      body['accessToken'] = accessToken;
+    }
+
+    if (body.isEmpty) {
+      return {
+        'success': false,
+        'message': 'Nenhuma credencial (idToken/accessToken) para enviar.'
+      };
+    }
+
+    try {
+      final resp = await http.post(
+        url,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode(body),
+      );
+
+      if (resp.statusCode == 200) {
+        return json.decode(resp.body) as Map<String, dynamic>;
+      } else {
+        return {
+          'success': false,
+          'message': 'HTTP ${resp.statusCode}: ${resp.body}',
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de rede ao chamar callback: $e'};
+    }
+  }  
 
 }

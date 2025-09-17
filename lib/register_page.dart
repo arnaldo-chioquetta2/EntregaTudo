@@ -1,17 +1,15 @@
-// register_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // <-- para fallback
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:entregatudo/HomePage.dart';
-import 'package:entregatudo/api.dart'; // <-- corrige caixa: .dart
+import 'package:entregatudo/api.dart';
 
 class RegisterPage extends StatefulWidget {
-  // ✅ NOVO: parâmetros opcionais para pré-preencher
   final String? prefillName;
   final String? prefillEmail;
   final String? prefillGoogleId;
-  final String? prefillPhone; // se quiser
-  final String? prefillUsername; // se quiser
+  final String? prefillPhone;
+  final String? prefillUsername;
 
   const RegisterPage({
     super.key,

@@ -14,6 +14,9 @@ class AuthResult {
   final String? refreshToken;
   final bool? isNewUser;
   final int? queryId;
+  final String? email;
+  final String? displayName;
+  final String? googleId;
 
   AuthResult({
     required this.success,
@@ -22,7 +25,10 @@ class AuthResult {
     this.accessToken,
     this.refreshToken,
     this.isNewUser,
-    this.queryId, // <--
+    this.queryId,
+    this.email,
+    this.displayName,
+    this.googleId,
   });
 }
 
@@ -32,11 +38,16 @@ class AuthService {
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     clientId: kIsWeb ? _webClientId : null,
-    scopes: <String>['email', 'profile'],
+    scopes: const <String>[
+      'email',
+      'profile',
+      'openid',
+    ],
   );
 
   final _secure = const FlutterSecureStorage();
   int? _lastQueryId;
+  int? get lastQueryId => _lastQueryId;
 
   /// Dispara o fluxo de login com Google:
   /// 1) pede ao backend o próximo ID de usuário (next-user-id) para usar na query ?ID=
@@ -48,56 +59,115 @@ class AuthService {
   ///    - se vier erro, encerra com mensagem apropriada.
 
   Future<AuthResult> signInWithGoogle() async {
+    print('Versão 1');
+
     try {
       print('[Auth] signInWithGoogle() INÍCIO');
 
+      // (1) Pede ao backend o próximo ID para amarrar o fluxo (?ID=...)
       final int? maybeId = await API.nextUserId();
       print('[Auth] nextUserId -> $maybeId');
 
       if (maybeId == null) {
-        print('[Auth] nextUserId = null (ABORTAR)');
-        return AuthResult(success: false, message: 'Falha no next-user-id');
+        return AuthResult(
+          success: false,
+          message:
+              'Não foi possível obter o próximo ID de usuário (next-user-id).',
+        );
       }
 
+      // (1.b) Define non-nullable e guarda pra polling depois
       final int queryId = maybeId;
       _lastQueryId = queryId;
-      print('[Auth] queryId definido = $_lastQueryId');
+      print('[Auth] queryId definido = $queryId');
 
+      // (2) Abre o fluxo de seleção de conta Google
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      print('[Auth] googleUser = ${googleUser?.email ?? '(null)'}');
       if (googleUser == null) {
-        print('[Auth] Usuário cancelou o login Google');
+        print('[Auth] googleUser == null (cancelado pelo usuário)');
         return AuthResult(
-            success: false, message: 'Cancelado', queryId: queryId);
+          success: false,
+          message: 'Login cancelado pelo usuário.',
+          queryId: queryId,
+        );
       }
 
+      // (2.a) Tokens do Google
       final googleAuth = await googleUser.authentication;
-      final idToken = googleAuth.idToken;
-      print('[Auth] idToken isNull? ${idToken == null}');
-      if (idToken == null) {
+      final String? idToken = googleAuth.idToken;
+      print('[Auth] idToken: ${idToken == null ? 'NULO' : 'obtido'}');
+
+      final String? accessToken = googleAuth.accessToken;
+      print('[Auth] accessToken: ${accessToken == null ? 'NULO' : 'obtido'}');
+
+      if (idToken == null && accessToken == null) {
+        print('idToken == null');
         await _googleSignIn.signOut();
-        print('[Auth] idToken nulo -> signOut() e aborta');
         return AuthResult(
-            success: false, message: 'idToken ausente', queryId: queryId);
+          success: false,
+          message:
+              'Não foi possível obter credenciais do Google (idToken/accessToken).',
+          queryId: queryId,
+        );
       }
 
-      print('[Auth] Chamando API.googleLoginInit(ID=$queryId)');
-      final init =
-          await API.googleLoginInit(idToken: idToken, userIdForQuery: queryId);
-      print('[Auth] googleLoginInit => $init');
+      // if (idToken == null) {
+      //   await _googleSignIn.signOut();
+      //   return AuthResult(
+      //     success: false,
+      //     message: 'Não foi possível obter o idToken do Google.',
+      //     queryId: queryId,
+      //   );
+      // }
 
-      final ok = init['success'] == true;
+      // (2.b) Salva dados de perfil para prefill (mesmo antes de concluir no server)
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('userEmail', googleUser.email);
+        if (googleUser.displayName != null) {
+          await prefs.setString('userName', googleUser.displayName!);
+        }
+        if (googleUser.photoUrl != null) {
+          await prefs.setString('userAvatar', googleUser.photoUrl!);
+        }
+        // guardar googleId para uso interno (se quiser usar no app)
+        // (RegisterPage já tenta ler 'googleId', então é útil salvar)
+        if (googleUser.id.isNotEmpty) {
+          await prefs.setString('googleId', googleUser.id);
+        }
+      } catch (e) {
+        print('[Auth] aviso: falhou ao salvar prefill local: $e');
+      }
 
+      // (3) Chama o callback do server com ?ID=<queryId> + { idToken }
+      print('[Auth] chamando API.googleLoginInit (queryId=$queryId)');
+
+      final Map<String, dynamic> init = await API.googleLoginInit(
+        idToken: idToken,
+        accessToken: accessToken,
+        userIdForQuery: queryId,
+      );
+
+      // final Map<String, dynamic> init = await API.googleLoginInit(
+      //   idToken: idToken,
+      //   accessToken: accessToken,
+      //   userIdForQuery: queryId,
+      // );
+
+      print('[Auth] googleLoginInit retorno: $init');
+
+      final bool ok = init['success'] == true;
+
+      // (4) Server já finalizou e devolveu user_id (e possivelmente tokens)
       if (ok && init.containsKey('user_id')) {
-        print('[Auth] Resposta já contém user_id (finalização direta)');
         final int? userId = (init['user_id'] is int)
             ? init['user_id'] as int
             : int.tryParse('${init['user_id']}');
+
         final String? access = init['access_token'] as String?;
         final String? refresh = init['refresh_token'] as String?;
 
         if (userId != null) {
-          print('[Auth] Persistindo sessão userId=$userId');
           await _persistSession(
             userId: userId,
             accessToken: access,
@@ -108,6 +178,7 @@ class AuthService {
           );
         }
 
+        print('[Auth] sucesso imediato. is_new_user=${init['is_new_user']}');
         return AuthResult(
           success: true,
           message: init['message']?.toString() ?? 'ok',
@@ -119,8 +190,9 @@ class AuthService {
         );
       }
 
+      // (5) Server sinalizou apenas "processing" → App deve fazer polling em /api/login/status
       if (ok) {
-        print('[Auth] Backend respondeu success, mas sem user_id (PROCESSING)');
+        print('[Auth] processamento em andamento (usar trazCredenciais)');
         return AuthResult(
           success: true,
           message: init['message']?.toString() ?? 'processing',
@@ -128,102 +200,66 @@ class AuthService {
         );
       }
 
-      print('[Auth] Falha no init: ${init['message']}');
+      // (6) Erro imediato do server
+      print('[Auth] falha imediata: ${init['message']}');
       return AuthResult(
         success: false,
         message: init['message']?.toString() ?? 'Falha ao iniciar login Google',
         queryId: queryId,
       );
     } catch (e) {
-      print('[Auth] EXCEPTION em signInWithGoogle: $e');
-      return AuthResult(success: false, message: 'Erro: $e');
+      print('[Auth] EXCEPTION signInWithGoogle: $e');
+      return AuthResult(
+        success: false,
+        message: 'Erro durante o login: $e',
+      );
     }
   }
 
   Future<AuthResult> trazCredenciais({
-    int? userIdForQuery,
+    int? userIdForQuery, // agora opcional
     Duration interval = const Duration(milliseconds: 500),
     Duration timeout = const Duration(seconds: 20),
-
-    // MOCK
-    bool mock = false,
-    String? mockEmail,
-    String? mockGoogleId,
-    String? mockDisplayName,
-    bool mockIsNewUser = false,
   }) async {
-    final start = DateTime.now();
-    final int queryId = userIdForQuery ?? (_lastQueryId ?? 999999);
-
-    print('[Auth] trazCredenciais() INÍCIO | queryId=$queryId | mock=$mock');
-
-    // --- MODO MOCK: SEM consultar servidor, espera 10 ciclos ---
-    if (mock) {
-      for (int i = 1; i <= 5; i++) {
-        print(
-            '[Auth][MOCK] tentativa $i/10 (interval=${interval.inMilliseconds}ms)');
-        await Future.delayed(interval);
-      }
-
-      final int fakeUserId = queryId;
-      print(
-          '[Auth][MOCK] 10/10 atingido. Persistindo sessão fakeUserId=$fakeUserId');
-
-      await _persistSession(
-        userId: fakeUserId,
-        email: mockEmail ?? 'xeviousbr@gmail.com',
-        displayName: mockDisplayName ?? 'Arnaldo (Mock)',
-      );
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-          'googleId', mockGoogleId ?? '0108000582172014674272');
-
-      print('[Auth][MOCK] Retornando sucesso isNewUser=$mockIsNewUser');
+    // Usa o mesmo ID que foi usado no callback
+    final qid = userIdForQuery ?? _lastQueryId;
+    if (qid == null) {
       return AuthResult(
-        success: true,
-        message: 'mock: login concluído',
-        userId: fakeUserId,
-        isNewUser: mockIsNewUser, // false => Home; true => cadastro
-        accessToken: null,
-        refreshToken: null,
-        queryId: queryId,
-      );
+          success: false, message: 'queryId ausente para polling.');
     }
 
-    // --- FLUXO REAL: consulta servidor ---
+    final started = DateTime.now();
+    var attempt = 0;
+
     while (true) {
-      final elapsed = DateTime.now().difference(start);
+      final elapsed = DateTime.now().difference(started);
       if (elapsed >= timeout) {
-        print('[Auth] TIMEOUT ($elapsed)');
+        print(
+            '[Auth][poll] TIMEOUT após ${elapsed.inMilliseconds}ms (tries=$attempt)');
         return AuthResult(
           success: false,
           message: 'Tempo esgotado aguardando confirmação do login.',
-          queryId: queryId,
         );
       }
 
-      print('[Auth] Chamando API.googleLoginStatus(ID=$queryId)');
-      final status = await API.googleLoginStatus(userIdForQuery: queryId);
-      print('[Auth] status => $status');
+      attempt++;
+      print('[Auth][poll] try=$attempt qid=$qid GET /api/login/status?ID=$qid');
+
+      final status = await API.googleLoginStatus(userIdForQuery: qid);
+      print('[Auth][poll] status=$status');
 
       final done = status['done'] == true;
       if (!done) {
-        print(
-            '[Auth] done=false -> aguardando ${interval.inMilliseconds}ms...');
         await Future.delayed(interval);
         continue;
       }
 
       final success = status['success'] == true;
       final message = status['message']?.toString();
-      print('[Auth] done=true | success=$success | message=$message');
 
       if (!success) {
         return AuthResult(
-          success: false,
-          message: message ?? 'Falha no login.',
-          queryId: queryId,
-        );
+            success: false, message: message ?? 'Falha no login.');
       }
 
       final int? userId = (status['user_id'] is int)
@@ -233,14 +269,10 @@ class AuthService {
       final String? access = status['access_token'] as String?;
       final String? refresh = status['refresh_token'] as String?;
 
-      print('[Auth] userId=$userId | isNewUser=$isNew');
-
       if (userId == null) {
-        print('[Auth] ERRO: user_id ausente');
         return AuthResult(
           success: false,
           message: 'Resposta inválida do servidor: user_id ausente.',
-          queryId: queryId,
         );
       }
 
@@ -249,7 +281,6 @@ class AuthService {
         accessToken: access,
         refreshToken: refresh,
       );
-      print('[Auth] Sessão persistida (userId=$userId)');
 
       return AuthResult(
         success: true,
@@ -258,7 +289,7 @@ class AuthService {
         accessToken: access,
         refreshToken: refresh,
         isNewUser: isNew,
-        queryId: queryId,
+        queryId: qid,
       );
     }
   }
@@ -277,15 +308,40 @@ class AuthService {
     String? email,
     String? displayName,
     String? photoUrl,
+    String? googleId, // <-- novo
   }) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('idUser', userId);
-    if (accessToken != null)
-      await _secure.write(key: 'access_token', value: accessToken);
-    if (refreshToken != null)
-      await _secure.write(key: 'refresh_token', value: refreshToken);
-    if (email != null) await prefs.setString('userEmail', email);
-    if (displayName != null) await prefs.setString('userName', displayName);
-    if (photoUrl != null) await prefs.setString('userAvatar', photoUrl);
+    print('[Auth] _persistSession START (userId=$userId)');
+
+    try {
+      // SharedPreferences: dados “não sensíveis”
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('idUser', userId);
+
+      if (email != null && email.isNotEmpty) {
+        await prefs.setString('userEmail', email);
+      }
+      if (displayName != null && displayName.isNotEmpty) {
+        await prefs.setString('userName', displayName);
+      }
+      if (photoUrl != null && photoUrl.isNotEmpty) {
+        await prefs.setString('userAvatar', photoUrl);
+      }
+      if (googleId != null && googleId.isNotEmpty) {
+        await prefs.setString('googleId', googleId);
+      }
+
+      // FlutterSecureStorage: dados sensíveis
+      if (accessToken != null && accessToken.isNotEmpty) {
+        await _secure.write(key: 'access_token', value: accessToken);
+      }
+      if (refreshToken != null && refreshToken.isNotEmpty) {
+        await _secure.write(key: 'refresh_token', value: refreshToken);
+      }
+
+      print('[Auth] _persistSession DONE');
+    } catch (e) {
+      print('[Auth] _persistSession ERROR: $e');
+      // não lança de novo para não quebrar o fluxo de login
+    }
   }
 }
