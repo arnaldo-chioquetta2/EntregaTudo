@@ -20,7 +20,7 @@ dependencies:
   intl: ^0.17.0
   geolocator: ^13.0.2
   permission_handler: ^11.0.1
-  flutter_secure_storage: ^9.2.2   # <-- ADICIONE ISTO
+  flutter_secure_storage: ^9.2.2
 
 dev_dependencies:
   flutter_test:

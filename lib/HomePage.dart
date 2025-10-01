@@ -252,8 +252,7 @@ class _HomePageState extends State<HomePage> {
   void handleDeliveryResponse(bool accept) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     int? userId = prefs.getInt('idUser');
-    int? deliveryId =
-        deliveryData?['chamado']; // ou o nome correto do campo do ID
+    int? deliveryId = deliveryData?['chamado'];
     if (userId == null || deliveryId == null) {
       setState(() {
         statusMessage = "Erro: Dados da entrega não encontrados.";

@@ -1,8 +1,8 @@
+import 'package:entregatudo/api.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:entregatudo/HomePage.dart';
-import 'package:entregatudo/api.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RegisterPage extends StatefulWidget {
   final String? prefillName;
@@ -36,9 +36,47 @@ class _RegisterPageState extends State<RegisterPage> {
   final _pix = TextEditingController();
   final _usuarioController = TextEditingController();
   final _distanciaMaximaController = TextEditingController();
+  final _inviteController = TextEditingController();
+
+  final _formKey = GlobalKey<FormState>();
 
   bool JaMostrouCnhInv = false;
   bool JaMostrouPlaca = false;
+  String? _inviteStatus;
+  bool _inviteValid = false;
+  String? _inviterName;
+
+  Future<void> _verifyInvite() async {
+    final code = _inviteController.text.trim();
+    if (code.isEmpty) {
+      setState(() {
+        _inviteStatus = "Digite o código de convite.";
+        _inviteValid = false;
+      });
+      return;
+    }
+
+    try {
+      final result = await API.verifyInviteCode(code);
+      if (result['success'] == true) {
+        setState(() {
+          _inviteValid = true;
+          _inviterName = result['inviter_name'];
+          _inviteStatus = "Convite válido! Captador: $_inviterName";
+        });
+      } else {
+        setState(() {
+          _inviteValid = false;
+          _inviteStatus = result['error'] ?? "Convite inválido.";
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _inviteValid = false;
+        _inviteStatus = "Erro ao validar convite.";
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -110,6 +148,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _pix.dispose();
     _usuarioController.dispose();
     _distanciaMaximaController.dispose();
+    _inviteController.dispose();
     super.dispose();
   }
 
@@ -176,6 +215,34 @@ class _RegisterPageState extends State<RegisterPage> {
             ElevatedButton(
               onPressed: _enviarCadastro,
               child: const Text("Cadastrar"),
+            ),
+            TextFormField(
+              controller: _inviteController,
+              decoration: InputDecoration(
+                labelText: "Código de Convite",
+                suffixIcon: IconButton(
+                  icon: Icon(Icons.check_circle),
+                  onPressed: _verifyInvite,
+                ),
+              ),
+            ),
+            if (_inviteStatus != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Text(
+                  _inviteStatus!,
+                  style: TextStyle(
+                    color: _inviteValid ? Colors.green : Colors.red,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+
+            SizedBox(height: 20),
+
+            ElevatedButton(
+              onPressed: _submitForm,
+              child: Text("Cadastrar"),
             ),
           ],
         ),
@@ -340,5 +407,21 @@ class _RegisterPageState extends State<RegisterPage> {
           ),
         ) ??
         false;
+  }
+
+  void _submitForm() {
+    if (!_inviteValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content:
+                Text("Você precisa de um convite válido para se cadastrar")),
+      );
+      return;
+    }
+
+    if (_formKey.currentState!.validate()) {
+      // aqui você continua o fluxo de cadastro normal
+      // exemplo: enviar dados + código de convite para backend
+    }
   }
 }

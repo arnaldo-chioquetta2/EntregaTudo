@@ -427,8 +427,6 @@ class API {
     // return "";
   }
 
-
-  
   /// GET /api/login/status?ID=<id>  → status do processamento (polling)
   static Future<Map<String, dynamic>> googleLoginStatus({
     required int userIdForQuery,
@@ -516,5 +514,17 @@ class API {
       return {'success': false, 'message': 'Erro de rede ao chamar callback: $e'};
     }
   }  
+
+  static Future<Map<String, dynamic>> verifyInviteCode(String code) async {
+    final response = await http.get(
+      Uri.parse('https://teletudo.com/api/verify-invite-code')
+          .replace(queryParameters: {'code': code}),
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Erro ao verificar convite');
+    }
+  }
 
 }

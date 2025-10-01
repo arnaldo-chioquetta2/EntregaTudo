@@ -45,7 +45,46 @@ class _LoginPageState extends State<LoginPage> {
       _userController.text = "teste";
       _passwordController.text = "teste";
     }
+    _tentarSilent();
   }
+
+  Future<void> _tentarSilent() async {
+    setState(() => _loadingGoogle = true);
+    try {
+      final auth = AuthService();
+      final res = await auth.trySilentGoogleLogin();
+
+      print(
+          '[UI] silent => success=${res.success} isNew=${res.isNewUser} userId=${res.userId}');
+
+      if (!res.success) {
+        // não navega; só deixa o botão visível pra login “normal”
+        return;
+      }
+
+      // sucesso: roteia como de costume
+      if (res.isNewUser == true) {
+        Navigator.pushReplacement(
+            context, MaterialPageRoute(builder: (_) => const RegisterPage()));
+      } else {
+        Navigator.pushReplacement(
+            context, MaterialPageRoute(builder: (_) => const HomePage()));
+      }
+    } catch (e) {
+      print('[UI] silent EXCEPTION: $e');
+      // segue a vida, mostra botão
+    } finally {
+      if (mounted) setState(() => _loadingGoogle = false);
+    }
+  }
+
+  // void initState() {
+  //   super.initState();
+  //   if (kIsWeb) {
+  //     _userController.text = "teste";
+  //     _passwordController.text = "teste";
+  //   }
+  // }
 
   @override
   void dispose() {
@@ -166,30 +205,23 @@ class _LoginPageState extends State<LoginPage> {
               onPressed: () async {
                 if (!_isMounted) return;
                 try {
-                  final auth = AuthService();
-                  final init = await auth.signInWithGoogle();
-                  if (!init.success) {}
-                  final cred = await auth.trazCredenciais();
+                  final user = _userController.text.trim();
+                  final password = _passwordController.text.trim();
 
-                  if (_isMounted) {
+                  if (user.isEmpty || password.isEmpty) {
+                    showErrorDialog("Preencha usuário e senha.");
+                    return;
+                  }
+                  double lat = 0.0;
+                  double lon = 0.0;
+                  String result = await API.veLogin(user, password, lat, lon);
+                  if (result == "") {
                     Navigator.of(context).pushReplacement(
                       MaterialPageRoute(builder: (context) => const HomePage()),
                     );
+                  } else {
+                    showErrorDialog(result);
                   }
-
-                  // final AuthService _authService = AuthService();
-                  // String user = _userController.text;
-                  // String password = _passwordController.text;
-
-                  // // Mantido: seu fluxo de e-mail/senha (assumindo que seu AuthService expõe este método)
-                  // final UserCredential userCredential = await _authService
-                  //     .signInWithEmailAndPassword(user, password);
-
-                  // if (_isMounted) {
-                  //   Navigator.of(context).pushReplacement(
-                  //     MaterialPageRoute(builder: (context) => const HomePage()),
-                  //   );
-                  // }
                 } catch (e) {
                   if (_isMounted) {
                     showErrorDialog("Erro durante o login: $e");

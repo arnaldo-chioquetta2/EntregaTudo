@@ -344,4 +344,116 @@ class AuthService {
       // não lança de novo para não quebrar o fluxo de login
     }
   }
+
+  Future<AuthResult> trySilentGoogleLogin() async {
+    print('[Auth] trySilentGoogleLogin() START');
+
+    try {
+      // 1) tenta resgatar a conta silenciosamente
+      final GoogleSignInAccount? googleUser =
+          await _googleSignIn.signInSilently(suppressErrors: true);
+
+      if (googleUser == null) {
+        print('[Auth] signInSilently => null (sem sessão Google disponível)');
+        return AuthResult(success: false, message: 'Sem sessão Google');
+      }
+
+      // 2) tokens
+      final googleAuth = await googleUser.authentication;
+      final String? idToken = googleAuth.idToken; // pode ser null no Web
+      final String? accessToken = googleAuth.accessToken;
+
+      print(
+          '[Auth] silent idToken: ${idToken == null ? 'NULO' : 'ok'} | accessToken: ${accessToken == null ? 'NULO' : 'ok'}');
+
+      if (idToken == null && accessToken == null) {
+        return AuthResult(success: false, message: 'Sem credenciais Google');
+      }
+
+      // 3) prefill local (igual ao seu fluxo atual)
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('userEmail', googleUser.email);
+        if (googleUser.displayName != null) {
+          await prefs.setString('userName', googleUser.displayName!);
+        }
+        if (googleUser.photoUrl != null) {
+          await prefs.setString('userAvatar', googleUser.photoUrl!);
+        }
+        if (googleUser.id.isNotEmpty) {
+          await prefs.setString('googleId', googleUser.id);
+        }
+      } catch (e) {
+        print('[Auth] aviso: falhou ao salvar prefill local (silent): $e');
+      }
+
+      // 4) precisa do queryId mesmo no modo silent (mesmo fluxo do callback)
+      final int? maybeId = await API.nextUserId();
+      if (maybeId == null) {
+        return AuthResult(
+            success: false, message: 'Falha ao obter next-user-id');
+      }
+      final int queryId = maybeId;
+      _lastQueryId = queryId;
+      print('[Auth] (silent) queryId = $queryId');
+
+      // 5) chama callback do servidor com o accessToken/idToken silenciosamente
+      final init = await API.googleLoginInit(
+        idToken: idToken,
+        accessToken: accessToken,
+        userIdForQuery: queryId,
+      );
+      print('[Auth] (silent) googleLoginInit => $init');
+
+      final ok = init['success'] == true;
+
+      if (ok && init.containsKey('user_id')) {
+        // sucesso imediato
+        final int? userId = (init['user_id'] is int)
+            ? init['user_id'] as int
+            : int.tryParse('${init['user_id']}');
+
+        final String? access = init['access_token'] as String?;
+        final String? refresh = init['refresh_token'] as String?;
+
+        if (userId != null) {
+          await _persistSession(
+            userId: userId,
+            accessToken: access,
+            refreshToken: refresh,
+            email: googleUser.email,
+            displayName: googleUser.displayName,
+            photoUrl: googleUser.photoUrl,
+            googleId: googleUser.id,
+          );
+        }
+
+        return AuthResult(
+          success: true,
+          message: init['message']?.toString() ?? 'ok',
+          userId: userId,
+          accessToken: access,
+          refreshToken: refresh,
+          isNewUser: init['is_new_user'] == true,
+          queryId: queryId,
+        );
+      }
+
+      if (ok) {
+        // processing → polling
+        final cred = await trazCredenciais(userIdForQuery: queryId);
+        return cred;
+      }
+
+      return AuthResult(
+        success: false,
+        message: init['message']?.toString() ??
+            'Falha ao iniciar login Google (silent)',
+        queryId: queryId,
+      );
+    } catch (e) {
+      print('[Auth] trySilentGoogleLogin() EXCEPTION: $e');
+      return AuthResult(success: false, message: 'Erro no silent: $e');
+    }
+  }
 }
