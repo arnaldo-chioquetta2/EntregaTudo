@@ -1,5 +1,5 @@
 class AppConfig {
-  static const String versaoApp = '1.2.7';
+  static const String versaoApp = '1.2.8';
 }
 
 // 1.2.8 Login Google
@@ -14,4 +14,3 @@ class AppConfig {
 // 1.2.0 Retirei a crítica do CNH
 // 1.1.9 Ajustes na mostragem do Saldo
 // 1.1.8 Adição de permissão para internet
-

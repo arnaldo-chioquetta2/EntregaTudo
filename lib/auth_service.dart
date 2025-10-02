@@ -34,10 +34,10 @@ class AuthResult {
 
 class AuthService {
   static const _webClientId =
-      '1092224573691-fo0hh8apcun2mllc9bk26s92330q5kus.apps.googleusercontent.com';
+      '1092224573691-fo0hh8apcun2mllc9bk26s92330q5kus.apps.googleusercontent.com'; // <-- este é o de Web
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    clientId: kIsWeb ? _webClientId : null,
+    clientId: kIsWeb ? _webClientId : null, // <-- Android não precisa
     scopes: const <String>[
       'email',
       'profile',
