@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "393650997319",
+    "project_id": "entregatudo-e695a",
+    "storage_bucket": "entregatudo-e695a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:393650997319:android:6c0de4d9bd579adf9b0962",
+        "android_client_info": {
+          "package_name": "com.teletudo.entregatudo"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "393650997319-htmu5iiijjsp7m9lefuivp9j6ijjq1uo.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.teletudo.entregatudo",
+            "certificate_hash": "c2be7806324aed8646ef56f5d9a40e06359cf3cc"
+          }
+        },
+        {
+          "client_id": "393650997319-q6hss4s920tgbl6up60qkkjfr53g29r8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCCY7BVBPZhMGgdDq0K4U_A-vQvE9fWqro"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "393650997319-q6hss4s920tgbl6up60qkkjfr53g29r8.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

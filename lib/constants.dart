@@ -1,5 +1,5 @@
 class AppConfig {
-  static const String versaoApp = '1.2.8';
+  static const String versaoApp = '1.2.9';
 }
 
 // 1.2.8 Login Google

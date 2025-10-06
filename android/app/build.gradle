@@ -13,7 +13,7 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "com.example.entregatudo"
     compileSdk = 35
-    ndkVersion = flutter.ndkVersion
+    ndkVersion "29.0.14033849"	
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
@@ -26,7 +26,7 @@ android {
 
     defaultConfig {
         applicationId = "com.teletudo.entregatudo"
-        minSdk = 23
+        minSdkVersion = flutter.minSdkVersion
         targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
