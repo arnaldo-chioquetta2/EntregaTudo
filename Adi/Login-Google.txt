@@ -1,0 +1,103 @@
+O que precisa ser feito**
+
+1. Configurar o **Firebase Authentication → Login Google** no projeto existente do Firebase “EntregaTudo”.
+2. Executar:
+
+   ```bash
+   flutterfire configure
+   ```
+
+   Isso gera automaticamente:
+
+   ```
+   lib/firebase_options.dart
+   ```
+3. No `main.dart`, inicializar o Firebase:
+
+   ```dart
+   await Firebase.initializeApp(
+     options: DefaultFirebaseOptions.currentPlatform,
+   );
+   ```
+4. Substituir o uso manual do `GoogleSignIn` em `auth_service.dart` por integração via:
+
+   ```dart
+   final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+   final GoogleSignInAuthentication googleAuth = await googleUser!.authentication;
+   final credential = GoogleAuthProvider.credential(
+     accessToken: googleAuth.accessToken,
+     idToken: googleAuth.idToken,
+   );
+   await FirebaseAuth.instance.signInWithCredential(credential);
+   ```
+5. Após autenticação, obter `idToken` e enviar normalmente ao backend PHP:
+
+   ```dart
+   final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+   ```
+
+   → este token substituirá o `idToken` antigo.
+
+Relação com o servidor PHP
+
+`/api/login/google/callback`**
+
+1. Recebe via `POST` o `idToken` e o parâmetro `?ID=<queryId>`
+2. Usa o SDK do Google (`Google\Client`) para **validar o token** e extrair os dados:
+   * `email`
+   * `name`
+   * `sub` (ID único do Google)
+   * `picture`
+
+3. Verifica no banco se o usuário Google já está cadastrado:
+
+   * Se **sim**, retorna `user_id` e os tokens de sessão da API.
+   * Se **não**, cria o novo usuário (inserindo `name`, `email`, `google_id`, etc.).
+4. Salva o estado da autenticação na tabela (ex.: `users`, `google_sessions`, etc.).
+5. Retorna JSON como:
+
+   ```json
+   {
+     "success": true,
+     "message": "Login concluído",
+     "user_id": 469,
+     "is_new_user": false,
+     "access_token": "xxxxx",
+     "refresh_token": "xxxxx"
+   }
+   ```
+
+---
+
+/api/login/next-user-id`
+USADO DE FORMA AUXILIAR QUANDO É FEITO UM NOVO CADASTRO PELO LOGIN-GOOGLE
+
+**Função:** gerar um `queryId` sequencial ou temporário para identificar cada tentativa de login do app.
+   ```json
+   { "success": true, "next_user_id": 470 }
+   ```
+
+FONTES ENVOLVIDOS
+lib/auth_service.dart
+	signInWithGoogle() → dispara o fluxo de login.
+	trazCredenciais() → (antiga função de polling, hoje desnecessária com Firebase).
+	_persistSession() → grava dados localmente (SharedPreferences + SecureStorage).
+	trySilentGoogleLogin() → tenta login automático se o usuário já estiver autenticado.
+	
+lib/api.dart
+	nextUserId() → obtém o ID para o fluxo ?ID=.
+	googleLoginInit() → envia o idToken e accessToken para /login/google/callback.
+	googleLoginStatus() → verificava o status do login (antigo, pode ser removido).
+	
+register_page.dart
+		usa o e-mail retornado do Google para completar cadastro.
+	
+lib/login_page.dart
+lib/main.dart
+lib/firebase_options.dart
+
+android/app/google-services.json	Configura o app Android com o Firebase
+android/build.gradle				Adiciona plugin com.google.gms.google-services
+android/app/build.gradle			Habilita o Firebase e aponta para o google-services.json
+key.properties						Guarda as senhas e caminho da entregatudo-release-key.jks
+entregatudo-release-key.jks			Chave de assinatura usada para o SHA1 do Firebase
