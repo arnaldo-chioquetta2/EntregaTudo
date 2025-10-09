@@ -212,16 +212,14 @@ class _RegisterPageState extends State<RegisterPage> {
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _enviarCadastro,
-              child: const Text("Cadastrar"),
-            ),
+
+// Campo de código de convite
             TextFormField(
               controller: _inviteController,
               decoration: InputDecoration(
                 labelText: "Código de Convite",
                 suffixIcon: IconButton(
-                  icon: Icon(Icons.check_circle),
+                  icon: const Icon(Icons.check_circle),
                   onPressed: _verifyInvite,
                 ),
               ),
@@ -237,13 +235,46 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                 ),
               ),
+            const SizedBox(height: 20),
 
-            SizedBox(height: 20),
-
+            // Botão único de cadastro
             ElevatedButton(
-              onPressed: _submitForm,
-              child: Text("Cadastrar"),
+              onPressed: _enviarCadastro,
+              child: const Text("Cadastrar"),
             ),
+
+            // ElevatedButton(
+            //   onPressed: _enviarCadastro,
+            //   child: const Text("Cadastrar"),
+            // ),
+            // TextFormField(
+            //   controller: _inviteController,
+            //   decoration: InputDecoration(
+            //     labelText: "Código de Convite",
+            //     suffixIcon: IconButton(
+            //       icon: Icon(Icons.check_circle),
+            //       onPressed: _verifyInvite,
+            //     ),
+            //   ),
+            // ),
+            // if (_inviteStatus != null)
+            //   Padding(
+            //     padding: const EdgeInsets.only(top: 8.0),
+            //     child: Text(
+            //       _inviteStatus!,
+            //       style: TextStyle(
+            //         color: _inviteValid ? Colors.green : Colors.red,
+            //         fontWeight: FontWeight.bold,
+            //       ),
+            //     ),
+            //   ),
+
+            // SizedBox(height: 20),
+
+            // ElevatedButton(
+            //   onPressed: _submitForm,
+            //   child: Text("Cadastrar"),
+            // ),
           ],
         ),
       ),
@@ -251,6 +282,12 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _enviarCadastro() async {
+    if (!_inviteValid) {
+      mostrarMensagem(
+          context, "Você precisa de um convite válido para se cadastrar.");
+      return;
+    }
+
     String nome = _nameController.text.trim();
     String email = _emailController.text.trim();
     String senha = _passwordController.text;

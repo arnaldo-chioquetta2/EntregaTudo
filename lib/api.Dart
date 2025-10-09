@@ -11,10 +11,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 // 1.2.6 Copia o erro de cadastro para a memória se houver
 
 class API {
-
   static final LocationService _locationService = LocationService();
 
-  static Future<Map<String, dynamic>> saveConfigurations(double minValue, double kmRate, double rainSurcharge, double nightSurcharge, double dawnSurcharge, double weightSurcharge, double customDeliverySurcharge,
+  static Future<Map<String, dynamic>> saveConfigurations(
+    double minValue,
+    double kmRate,
+    double rainSurcharge,
+    double nightSurcharge,
+    double dawnSurcharge,
+    double weightSurcharge,
+    double customDeliverySurcharge,
   ) async {
     String baseUrl = "https://teletudo.com/api/saveConfigurations";
     print("Vai acionar https://teletudo.com/api/saveConfigurations");
@@ -46,11 +52,15 @@ class API {
       if (response.statusCode == 200 || response.statusCode == 201) {
         final ret = json.decode(response.body);
         if (ret['success'] == true) {
-          return {'success': true, 'message': 'Configurações salvas com sucesso'};
+          return {
+            'success': true,
+            'message': 'Configurações salvas com sucesso'
+          };
         } else {
           return {
             'success': false,
-            'message': ret['message'] ?? 'Erro desconhecido ao salvar configurações'
+            'message':
+                ret['message'] ?? 'Erro desconhecido ao salvar configurações'
           };
         }
       } else {
@@ -65,7 +75,8 @@ class API {
   }
 
 // curl -k -X POST https://teletudo.com/api/obtemCfgValores -H "Content-Type: application/json" -H "Accept: application/json" -d "{\"userid\": 21, \"lat\": -23.55052, \"lon\": -46.633308}"
-  static Future<Map<String, dynamic>> obtemCfgValores(double lat, double lon) async {
+  static Future<Map<String, dynamic>> obtemCfgValores(
+      double lat, double lon) async {
     try {
       // Obter o userid das SharedPreferences
       SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -99,7 +110,8 @@ class API {
       // Verificar se a requisição foi bem-sucedida
       if (response.statusCode == 200) {
         final responseBody = jsonDecode(response.body);
-        print('Response Body Decoded: $responseBody'); // Log do corpo da resposta decodificado
+        print(
+            'Response Body Decoded: $responseBody'); // Log do corpo da resposta decodificado
         return responseBody;
       } else {
         throw Exception('Failed to load data: ${response.statusCode}');
@@ -110,8 +122,17 @@ class API {
     }
   }
 
-  static Future<Map<String, dynamic>> registerUser(String nome, String usuario, String email, String senha, String telefone, String cnh, String placa, String PIX,
-      int erroCodigo, int distanciaMaxima) async {
+  static Future<Map<String, dynamic>> registerUser(
+      String nome,
+      String usuario,
+      String email,
+      String senha,
+      String telefone,
+      String cnh,
+      String placa,
+      String PIX,
+      int erroCodigo,
+      int distanciaMaxima) async {
     String baseUrl = "https://teletudo.com/api/cadboy";
 
     // return {
@@ -161,7 +182,7 @@ class API {
           'success': false,
           'message': 'Falha no servidor (${response.statusCode})',
           'details':
-          'Código HTTP: ${response.statusCode}\nResposta do servidor: ${response.body}',
+              'Código HTTP: ${response.statusCode}\nResposta do servidor: ${response.body}',
         };
       }
     } catch (e) {
@@ -186,12 +207,8 @@ class API {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: json.encode({
-          'userid': userid,
-          'lat': lat,
-          'lon': lon,
-          'vez': vez
-        }),
+        body:
+            json.encode({'userid': userid, 'lat': lat, 'lon': lon, 'vez': vez}),
       );
       if (response.statusCode == 200) {
         print('Response Body: ${response.body}');
@@ -207,7 +224,8 @@ class API {
   }
 
 // curl -X POST https://teletudo.com/api/login -H "Content-Type: application/json" -H "Accept: application/json" -d "{\"user\": \"teste\", \"password\": \"teste\", \"lat\": -23.55052, \"lon\": -46.633308}" -k
-  static Future<String> veLogin(String user, String password, double lat, double lon) async {
+  static Future<String> veLogin(
+      String user, String password, double lat, double lon) async {
     String baseUrl = "https://teletudo.com/api/login";
 
     print('Iniciando requisição de login...');
@@ -259,7 +277,8 @@ class API {
 
   static Future<Position> getCurrentLocation() async {
     await _locationService.requestPermissions();
-    return await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+    return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high);
   }
 
   static Future<bool> sacar(int userId) async {
@@ -288,7 +307,8 @@ class API {
     // return true;
   }
 
-  static Future<bool> respondToDelivery(int userId, int deliveryId, bool accept) async {
+  static Future<bool> respondToDelivery(
+      int userId, int deliveryId, bool accept) async {
     try {
       var url = Uri.parse("https://teletudo.com/api/respondToDelivery");
       var payload = json.encode({
@@ -309,7 +329,8 @@ class API {
         print("Envio de respondToDelivery com sucesso");
         return true;
       } else {
-        print("Falha ao enviar resposta: ${response.statusCode}, ${response.body.length > 300 ? response.body.substring(0, 300) : response.body}");
+        print(
+            "Falha ao enviar resposta: ${response.statusCode}, ${response.body.length > 300 ? response.body.substring(0, 300) : response.body}");
         return false;
       }
     } catch (e) {
@@ -349,9 +370,7 @@ class API {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: json.encode({
-          'chamado': currentChamado
-        }),
+        body: json.encode({'chamado': currentChamado}),
       );
       if (response.statusCode == 200) {
         return true;
@@ -370,16 +389,14 @@ class API {
       String baseUrl = "https://teletudo.com/api/notifyDeliveryCompleted";
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       int? currentChamado = prefs.getInt('currentChamado');
-      print("chamado = "+currentChamado.toString());
+      print("chamado = " + currentChamado.toString());
       final response = await http.post(
         Uri.parse(baseUrl),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: json.encode({
-          'chamado': currentChamado
-        }),
+        body: json.encode({'chamado': currentChamado}),
       );
       print(response.statusCode);
       if (response.statusCode == 200) {
@@ -409,12 +426,12 @@ class API {
     );
     if (response.statusCode == 200) {
       // print("response.body =");
-      // print(response.body);      
+      // print(response.body);
       var data = json.decode(response.body);
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       if (data['Erro'] == 0) {
         final SharedPreferences prefs = await SharedPreferences.getInstance();
-        await prefs.setInt   ('Pendente',  data['Pendente'] as int);
+        await prefs.setInt('Pendente', data['Pendente'] as int);
         await prefs.setString('DtaPedResg', data['DtaPedResg']);
         return data['Saldo'].toString();
       } else {
@@ -453,7 +470,8 @@ class API {
   static Future<int?> nextUserId() async {
     final url = Uri.parse('https://teletudo.com/api/next-user-id');
     try {
-      final response = await http.get(url, headers: {'Accept': 'application/json'});
+      final response =
+          await http.get(url, headers: {'Accept': 'application/json'});
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true && data['nextId'] != null) {
@@ -511,9 +529,12 @@ class API {
         };
       }
     } catch (e) {
-      return {'success': false, 'message': 'Erro de rede ao chamar callback: $e'};
+      return {
+        'success': false,
+        'message': 'Erro de rede ao chamar callback: $e'
+      };
     }
-  }  
+  }
 
   static Future<Map<String, dynamic>> verifyInviteCode(String code) async {
     final response = await http.get(
@@ -527,4 +548,70 @@ class API {
     }
   }
 
+  static Future<Map<String, dynamic>> generateInviteCode() async {
+    final url =
+        Uri.parse('https://teletudo.com/api/generate-random-invite-code');
+    final response = await http.get(url);
+    return json.decode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> checkInviteAvailability(
+      String code, int userId) async {
+    final url = Uri.parse(
+        'https://teletudo.com/api/check-invite-code?code=$code&user_id=$userId');
+    final response = await http.get(url);
+    return json.decode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> setInvite(String code, int userId) async {
+    final url = Uri.parse('https://teletudo.com/api/set-invite');
+    final body = json.encode({'code': code, 'user_id': userId});
+    final response = await http.post(url,
+        headers: {'Content-Type': 'application/json'}, body: body);
+    return json.decode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> enableInviteEdit(int userId) async {
+    final url = Uri.parse('https://teletudo.com/api/enable-invite-edit');
+    final body = json.encode({'user_id': userId});
+    final response = await http.post(url,
+        headers: {'Content-Type': 'application/json'}, body: body);
+    return json.decode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> setInviteCode(
+      int userId, String code) async {
+    final response = await http.post(
+      Uri.parse('https://teletudo.com/api/set-invite'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'user_id': userId,
+        'code': code,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      return {
+        'success': false,
+        'message': 'Erro ao definir código de convite (${response.statusCode})'
+      };
+    }
+  }
+
+  static Future<Map<String, dynamic>> generateRandomInviteCode() async {
+    final response = await http.get(
+      Uri.parse('https://teletudo.com/api/generate-random-invite-code'),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      return {
+        'success': false,
+        'message': 'Erro ao gerar novo código (${response.statusCode})'
+      };
+    }
+  }
 }

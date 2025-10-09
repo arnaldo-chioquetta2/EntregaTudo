@@ -244,11 +244,12 @@ class _LoginPageState extends State<LoginPage> {
               child: const Text("Cadastrar Novo Usuário"),
             ),
             const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _loadingGoogle ? null : _loginComGoogle,
-              icon: const Icon(Icons.g_mobiledata),
-              label: googleButtonChild,
-            ),
+
+            // ElevatedButton.icon(
+            //   onPressed: _loadingGoogle ? null : _loginComGoogle,
+            //   icon: const Icon(Icons.g_mobiledata),
+            //   label: googleButtonChild,
+            // ),
           ],
         ),
       ),

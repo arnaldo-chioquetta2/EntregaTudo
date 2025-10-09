@@ -32,6 +32,20 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _verificarLoginOuCadastro();
+  }
+
+  Future<void> _verificarLoginOuCadastro() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getInt('idUser');
+
+    if (userId == null || userId == 0) {
+      // usuário ainda não registrado — redireciona para tela de cadastro
+      if (!mounted) return;
+      Navigator.of(context).pushReplacementNamed('/register');
+      return;
+    }
+
     _locationService.requestPermissions();
     _scheduleNextHeartbeat(2);
     updateSaldo();
@@ -59,16 +73,15 @@ class _HomePageState extends State<HomePage> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => SettingsPage()),
-                  // MaterialPageRoute(builder: (context) => ResgatePage()),
                 );
               },
               child: const Text('Configurações'),
               style: ElevatedButton.styleFrom(
-                minimumSize: Size(150, 40),
+                minimumSize: const Size(150, 40),
                 backgroundColor: Colors.blue,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8), // Bordas arredondadas
+                  borderRadius: BorderRadius.circular(8),
                 ),
               ),
             ),
@@ -76,20 +89,23 @@ class _HomePageState extends State<HomePage> {
             if (deliveryData == null &&
                 (deliveryCompleted || !hasAcceptedDelivery)) ...[
               Padding(
-                padding: EdgeInsets.all(20),
-                child: Text("Saldo $saldo",
-                    style: TextStyle(fontSize: 18, color: Colors.black)),
+                padding: const EdgeInsets.all(20),
+                child: Text(
+                  "Saldo $saldo",
+                  style: const TextStyle(fontSize: 18, color: Colors.black),
+                ),
               ),
               ElevatedButton(
                 onPressed: null,
                 child: const Text('Detalhes'),
                 style: ElevatedButton.styleFrom(
-                    minimumSize: Size(150, 40), backgroundColor: Colors.grey),
+                  minimumSize: const Size(150, 40),
+                  backgroundColor: Colors.grey,
+                ),
               ),
-              SizedBox(height: 10),
+              const SizedBox(height: 10),
               ElevatedButton(
                 onPressed: saldoNum > 0
-                    // onPressed: 1 == 1
                     ? () {
                         Navigator.push(
                           context,
@@ -100,36 +116,50 @@ class _HomePageState extends State<HomePage> {
                     : null,
                 child: const Text('Resgate'),
                 style: ElevatedButton.styleFrom(
-                  minimumSize: Size(150, 40),
+                  minimumSize: const Size(150, 40),
                   backgroundColor: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 10),
+              // 🟣 Novo botão: Painel do Captador
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/captador-panel');
+                },
+                child: const Text('Painel do Captador'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(150, 40),
+                  backgroundColor: Colors.purple,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
             ],
             if (statusMessage != null)
               Padding(
-                padding: EdgeInsets.all(20),
-                child: Text(statusMessage!,
-                    style: TextStyle(fontSize: 18, color: Colors.red)),
+                padding: const EdgeInsets.all(20),
+                child: Text(
+                  statusMessage!,
+                  style: const TextStyle(fontSize: 18, color: Colors.red),
+                ),
               ),
             if (hasAcceptedDelivery && !hasPickedUp)
               ElevatedButton(
-                onPressed: () {
-                  handlePickedUp();
-                },
+                onPressed: handlePickedUp,
                 child: const Text('Cheguei no Fornecedor'),
                 style: ElevatedButton.styleFrom(
-                  minimumSize: Size(150, 40),
+                  minimumSize: const Size(150, 40),
                   backgroundColor: Colors.orange,
                 ),
               ),
             if (hasPickedUp && !deliveryCompleted)
               ElevatedButton(
-                onPressed: () {
-                  handleDeliveryCompleted();
-                },
+                onPressed: handleDeliveryCompleted,
                 child: const Text('Entrega Concluída'),
                 style: ElevatedButton.styleFrom(
-                  minimumSize: Size(150, 40),
+                  minimumSize: const Size(150, 40),
                   backgroundColor: Colors.green,
                 ),
               ),

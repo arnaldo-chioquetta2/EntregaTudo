@@ -1,15 +1,11 @@
-import 'package:flutter/material.dart';
-// import 'package:firebase_core/firebase_core.dart';
-// import 'firebase_options.dart';
+import 'HomePage.dart';
 import 'login_page.dart';
+import 'register_page.dart';
+import 'captador_panel.dart';
+import 'package:flutter/material.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // await Firebase.initializeApp(
-  //   options: DefaultFirebaseOptions.currentPlatform,
-  // );
-
   runApp(const MyApp());
 }
 
@@ -21,6 +17,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'TeleTudo App MotoBoys',
       home: const LoginPage(),
+      routes: {
+        '/register': (_) => const RegisterPage(),
+        '/home': (_) => const HomePage(),
+      },
       builder: (context, child) => child!,
     );
   }
