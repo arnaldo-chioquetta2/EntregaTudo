@@ -262,7 +262,12 @@ class API {
 
         final SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setInt('idUser', idUser);
-        print('ID do usuário salvo nas preferências compartilhadas.');
+
+        // ✅ novo: salvar o nome para gerar sugestão no painel
+        final String nomeUser = (ret["nome"] ?? "").toString();
+        await prefs.setString('nomeUser', nomeUser);
+        print(
+            '[API.veLogin] Salvo em prefs → idUser=$idUser, nomeUser="$nomeUser"');
 
         return "";
       } else {
@@ -551,7 +556,10 @@ class API {
   static Future<Map<String, dynamic>> generateInviteCode() async {
     final url =
         Uri.parse('https://teletudo.com/api/generate-random-invite-code');
+    print('[API.generateInviteCode] GET $url');
     final response = await http.get(url);
+    print(
+        '[API.generateInviteCode] HTTP ${response.statusCode} body=${response.body}');
     return json.decode(response.body);
   }
 
@@ -559,15 +567,20 @@ class API {
       String code, int userId) async {
     final url = Uri.parse(
         'https://teletudo.com/api/check-invite-code?code=$code&user_id=$userId');
+    print('[API.checkInviteAvailability] GET $url');
     final response = await http.get(url);
+    print(
+        '[API.checkInviteAvailability] HTTP ${response.statusCode} body=${response.body}');
     return json.decode(response.body);
   }
 
   static Future<Map<String, dynamic>> setInvite(String code, int userId) async {
     final url = Uri.parse('https://teletudo.com/api/set-invite');
     final body = json.encode({'code': code, 'user_id': userId});
+    print('[API.setInvite] POST $url body=$body');
     final response = await http.post(url,
         headers: {'Content-Type': 'application/json'}, body: body);
+    print('[API.setInvite] HTTP ${response.statusCode} body=${response.body}');
     return json.decode(response.body);
   }
 
@@ -613,5 +626,24 @@ class API {
         'message': 'Erro ao gerar novo código (${response.statusCode})'
       };
     }
+  }
+
+  static Future<String?> getUserInviteCode(int userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://teletudo.com/api/verify-invite-code')
+            .replace(queryParameters: {'user_id': userId.toString()}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true && data['inviter_name'] == null) {
+          return data['code'] ?? '';
+        }
+      }
+    } catch (e) {
+      print('Erro ao buscar código de convite do usuário: $e');
+    }
+    return null;
   }
 }

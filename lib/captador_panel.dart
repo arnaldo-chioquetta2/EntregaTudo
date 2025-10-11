@@ -10,7 +10,7 @@ class CaptadorPanelPage extends StatefulWidget {
 }
 
 class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
-  final TextEditingController _codeController = TextEditingController();
+  final TextEditingController _inviteController = TextEditingController();
   String? _statusMessage;
   Color _statusColor = Colors.black;
   bool _isLoading = false;
@@ -19,14 +19,17 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
   @override
   void initState() {
     super.initState();
-    _loadUserId();
+    print('[CAPTADOR] initState chamado');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      print('[CAPTADOR] PostFrameCallback → chamando _carregarCodigoInicial');
+      _carregarCodigoInicial();
+    });
   }
 
-  Future<void> _loadUserId() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _userId = prefs.getInt('idUser');
-    });
+  @override
+  void dispose() {
+    _inviteController.dispose();
+    super.dispose();
   }
 
   Future<void> _generateCode() async {
@@ -39,7 +42,7 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
     try {
       final result = await API.generateInviteCode();
       final code = result['code'] ?? 'ERRO';
-      _codeController.text = code;
+      _inviteController.text = code;
 
       setState(() {
         _statusMessage = "Código gerado com sucesso: $code";
@@ -56,7 +59,7 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
   }
 
   Future<void> _checkAvailability() async {
-    final code = _codeController.text.trim();
+    final code = _inviteController.text.trim();
     if (code.isEmpty || _userId == null) {
       setState(() {
         _statusMessage = "Informe um código e verifique se está disponível.";
@@ -92,7 +95,7 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
   }
 
   Future<void> _saveCode() async {
-    final code = _codeController.text.trim();
+    final code = _inviteController.text.trim();
     if (code.isEmpty || _userId == null) {
       setState(() {
         _statusMessage = "Preencha um código antes de salvar.";
@@ -117,6 +120,12 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
             : result['message'] ?? "Erro ao salvar código.";
         _statusColor = success ? Colors.green : Colors.red;
       });
+
+      if (success) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('inviteCode', code);
+        print('[CAPTADOR] inviteCode persistido nas prefs="$code"');
+      }
     } catch (e) {
       setState(() {
         _statusMessage = "Erro ao salvar código.";
@@ -125,6 +134,53 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _carregarCodigoInicial() async {
+    print('[CAPTADOR] Iniciando _carregarCodigoInicial()');
+
+    final prefs = await SharedPreferences.getInstance();
+    _userId = prefs.getInt('idUser');
+    final nomeUsuario = prefs.getString('nomeUser');
+
+    print('[CAPTADOR] prefs: idUser=$_userId, nomeUser="$nomeUsuario"');
+
+    // ⚠️ Se quiser adicionar o método getUserInviteCodeFromPrefs() em API, ok.
+    // Mas se ainda não existe, basta ler direto:
+    final localCode = prefs.getString('inviteCode');
+    print('[CAPTADOR] Código salvo localmente: "$localCode"');
+
+    String? codigoFinal;
+
+    if (localCode != null && localCode.isNotEmpty) {
+      codigoFinal = localCode;
+      print('[CAPTADOR] Usando código salvo: $codigoFinal');
+    } else if (nomeUsuario != null && nomeUsuario.isNotEmpty) {
+      codigoFinal = _gerarCodigoDeNome(nomeUsuario);
+      print('[CAPTADOR] Gerado a partir do nome: $codigoFinal');
+    } else {
+      print('[CAPTADOR] Nenhum nome salvo — campo ficará vazio.');
+      codigoFinal = '';
+    }
+
+    if (!mounted) {
+      print('[CAPTADOR] Widget desmontado, abortando atualização.');
+      return;
+    }
+
+    setState(() {
+      _inviteController.text = codigoFinal ?? '';
+    });
+
+    print('[CAPTADOR] Campo atualizado: "${_inviteController.text}"');
+  }
+
+  String _gerarCodigoDeNome(String nome) {
+    final limpo = nome.toUpperCase().replaceAll(RegExp(r'[^A-Z]'), '');
+    final gerado =
+        limpo.length >= 8 ? limpo.substring(0, 8) : limpo.padRight(8, 'X');
+    print('[CAPTADOR] _gerarCodigoDeNome("$nome") => "$gerado"');
+    return gerado;
   }
 
   @override
@@ -145,7 +201,7 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
             ),
             const SizedBox(height: 20),
             TextField(
-              controller: _codeController,
+              controller: _inviteController,
               decoration: const InputDecoration(
                 labelText: "Código do convite (8 letras maiúsculas)",
                 border: OutlineInputBorder(),

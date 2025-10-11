@@ -1,11 +1,10 @@
-import 'HomePage.dart';
+import 'package:flutter/material.dart';
 import 'login_page.dart';
 import 'register_page.dart';
+import 'HomePage.dart';
 import 'captador_panel.dart';
-import 'package:flutter/material.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+void main() {
   runApp(const MyApp());
 }
 
@@ -20,6 +19,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/register': (_) => const RegisterPage(),
         '/home': (_) => const HomePage(),
+        '/captador-panel': (_) => const CaptadorPanelPage(),
       },
       builder: (context, child) => child!,
     );
