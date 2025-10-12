@@ -5,11 +5,9 @@ import 'package:entregatudo/HomePage.dart';
 import 'package:entregatudo/constants.dart';
 import 'package:entregatudo/auth_service.dart';
 import 'package:entregatudo/register_page.dart';
-import 'package:firebase_core/firebase_core.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
   runApp(const MyApp());
 }
 

@@ -10,17 +10,19 @@ environment:
 dependencies:
   flutter:
     sdk: flutter  
-  firebase_core: ^4.1.1
-  google_sign_in: ^7.2.0
-  firebase_auth: ^6.1.0
-  cloud_firestore: ^6.0.0
+
+  # Core do app
   cupertino_icons: ^1.0.8
   http: ^1.1.0
-  shared_preferences: ^2.0.16
+  shared_preferences: ^2.2.2
   intl: ^0.17.0
   geolocator: ^13.0.2
   permission_handler: ^11.0.1
   flutter_secure_storage: ^9.2.2
+
+  # 🔹 Novos pacotes adicionados para o CaptadorPanel:
+  url_launcher: ^6.3.0
+  font_awesome_flutter: ^10.7.0
 
 dev_dependencies:
   flutter_test:

@@ -43,10 +43,24 @@
 
     </application>
 
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.PROCESS_TEXT"/>
-            <data android:mimeType="text/plain"/>
-        </intent>
-    </queries>
+	<queries>
+		<!-- Permite abrir URLs comuns -->
+		<intent>
+			<action android:name="android.intent.action.VIEW" />
+			<data android:scheme="https" />
+		</intent>
+
+		<!-- Permite abrir o aplicativo do WhatsApp -->
+		<intent>
+			<action android:name="android.intent.action.VIEW" />
+			<data android:scheme="whatsapp" />
+		</intent>
+
+		<!-- Opcional: mantém compatibilidade com intent de texto -->
+		<intent>
+			<action android:name="android.intent.action.PROCESS_TEXT" />
+			<data android:mimeType="text/plain" />
+		</intent>
+	</queries>
+
 </manifest>

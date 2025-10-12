@@ -1,6 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:entregatudo/api.dart';
+import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class CaptadorPanelPage extends StatefulWidget {
   const CaptadorPanelPage({super.key});
@@ -183,6 +185,37 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
     return gerado;
   }
 
+  Future<void> _enviarConviteWhatsApp() async {
+    final prefs = await SharedPreferences.getInstance();
+    final nomeUsuario = prefs.getString('nomeUser') ?? 'Um amigo';
+    final codigoConvite = _inviteController.text.trim();
+
+    if (codigoConvite.isEmpty) {
+      setState(() {
+        _statusMessage = "Gere ou salve um código antes de enviar o convite.";
+        _statusColor = Colors.red;
+      });
+      return;
+    }
+
+    final mensagem = Uri.encodeComponent(
+      "$nomeUsuario está lhe convidando para o TeleTudo, onde todos ganham!\n"
+      "https://teletudo.com/convite?id=$codigoConvite",
+    );
+
+    final whatsappUrl = Uri.parse("https://wa.me/?text=$mensagem");
+    print('[CAPTADOR] Enviando convite via WhatsApp: $whatsappUrl');
+
+    if (await canLaunchUrl(whatsappUrl)) {
+      await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+    } else {
+      setState(() {
+        _statusMessage = "Não foi possível abrir o WhatsApp.";
+        _statusColor = Colors.red;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -241,6 +274,16 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
                     label: const Text("Salvar código"),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
+                      minimumSize: const Size(double.infinity, 45),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ElevatedButton.icon(
+                    onPressed: _enviarConviteWhatsApp,
+                    icon: const FaIcon(FontAwesomeIcons.whatsapp),
+                    label: const Text("Enviar convite via WhatsApp"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF25D366),
                       minimumSize: const Size(double.infinity, 45),
                     ),
                   ),
