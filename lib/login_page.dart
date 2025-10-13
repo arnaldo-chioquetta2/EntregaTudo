@@ -182,73 +182,104 @@ class _LoginPageState extends State<LoginPage> {
           )
         : const Text("Login com Google");
 
+    // 🔹 Controle de visibilidade da senha
+    bool _senhaVisivel = false;
+
     return Scaffold(
       appBar: AppBar(
         title: Text('EntregaTudo ' + AppConfig.versaoApp),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: _userController,
-              decoration: const InputDecoration(labelText: 'User'),
-            ),
-            TextField(
-              controller: _passwordController,
-              decoration: const InputDecoration(labelText: 'Password'),
-              obscureText: true,
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (!_isMounted) return;
-                try {
-                  final user = _userController.text.trim();
-                  final password = _passwordController.text.trim();
+        child: StatefulBuilder(
+          builder: (context, setState) => Column(
+            children: [
+              TextField(
+                controller: _userController,
+                decoration: const InputDecoration(labelText: 'User'),
+              ),
 
-                  if (user.isEmpty || password.isEmpty) {
-                    showErrorDialog("Preencha usuário e senha.");
-                    return;
+              // 🔹 Campo de senha com ícone 👁️
+              TextField(
+                controller: _passwordController,
+                obscureText: !_senhaVisivel,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _senhaVisivel ? Icons.visibility : Icons.visibility_off,
+                      color: Colors.blueGrey,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _senhaVisivel = !_senhaVisivel;
+                      });
+                    },
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              ElevatedButton(
+                onPressed: () async {
+                  if (!_isMounted) return;
+                  try {
+                    final user = _userController.text.trim();
+                    final password = _passwordController.text.trim();
+
+                    if (user.isEmpty || password.isEmpty) {
+                      showErrorDialog("Preencha usuário e senha.");
+                      return;
+                    }
+
+                    double lat = 0.0;
+                    double lon = 0.0;
+                    String result = await API.veLogin(user, password, lat, lon);
+
+                    if (result == "") {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (context) => const HomePage(),
+                        ),
+                      );
+                    } else {
+                      showErrorDialog(result);
+                    }
+                  } catch (e) {
+                    if (_isMounted) {
+                      showErrorDialog("Erro durante o login: $e");
+                    }
                   }
-                  double lat = 0.0;
-                  double lon = 0.0;
-                  String result = await API.veLogin(user, password, lat, lon);
-                  if (result == "") {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (context) => const HomePage()),
-                    );
-                  } else {
-                    showErrorDialog(result);
-                  }
-                } catch (e) {
+                },
+                child: const Text("Login"),
+              ),
+
+              const SizedBox(height: 16),
+
+              ElevatedButton(
+                onPressed: () {
                   if (_isMounted) {
-                    showErrorDialog("Erro durante o login: $e");
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const RegisterPage(),
+                      ),
+                    );
                   }
-                }
-              },
-              child: const Text("Login"),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                if (_isMounted) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const RegisterPage()),
-                  );
-                }
-              },
-              child: const Text("Cadastrar Novo Usuário"),
-            ),
-            const SizedBox(height: 16),
+                },
+                child: const Text("Cadastrar Novo Usuário"),
+              ),
 
-            // ElevatedButton.icon(
-            //   onPressed: _loadingGoogle ? null : _loginComGoogle,
-            //   icon: const Icon(Icons.g_mobiledata),
-            //   label: googleButtonChild,
-            // ),
-          ],
+              const SizedBox(height: 16),
+
+              // ElevatedButton.icon(
+              //   onPressed: _loadingGoogle ? null : _loginComGoogle,
+              //   icon: const Icon(Icons.g_mobiledata),
+              //   label: googleButtonChild,
+              // ),
+            ],
+          ),
         ),
       ),
     );
