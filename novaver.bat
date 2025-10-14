@@ -1,62 +1,82 @@
 @echo off
-setlocal
-title 🚀 Build Release EntregaTudo + FTP Upload
+setlocal enabledelayedexpansion
+title COMPILA ENTREGATUDO
 color 0A
+
+set START_TIME=%TIME%
 
 echo ==================================================
 echo       🚀 INICIANDO BUILD RELEASE ENTREGATUDO
 echo ==================================================
 echo.
 
-REM === Caminho do Flutter ===
-set FLUTTER_PATH=C:\Flutter\bin\flutter.bat
-set APP_DIR=D:\Prog\entregatudo
-set APK_PATH=%APP_DIR%\build\app\outputs\flutter-apk\app-release.apk
-set FINAL_APK=%APP_DIR%\EntregaTudo.apk
+REM Caminho absoluto para o Flutter
+set "FLUTTER_PATH=C:\Flutter\bin\flutter.bat"
+set "APK_ORIG=build\app\outputs\flutter-apk\app-release.apk"
+set "APK_FINAL=D:\Prog\entregatudo\EntregaTudo.apk"
+set "UPA_BAT=D:\Prog\entregatudo\upa.bat"
 
-cd /d "%APP_DIR%"
-
-echo 🧹 Limpando projeto...
-call "%FLUTTER_PATH%" clean
-
-echo 📦 Obtendo dependências...
-call "%FLUTTER_PATH%" pub get
-
-echo 🔨 Gerando APK Release...
-call "%FLUTTER_PATH%" build apk --release --no-tree-shake-icons
-if %errorlevel% neq 0 (
+if not exist "%FLUTTER_PATH%" (
     color 0C
-    echo ❌ Erro ao gerar o APK!
+    echo ❌ ERRO: Flutter não encontrado em "%FLUTTER_PATH%"
     pause
     exit /b
 )
 
-echo 🔄 Renomeando APK...
-if exist "%FINAL_APK%" del "%FINAL_APK%"
-move "%APK_PATH%" "%FINAL_APK%"
+cd /d "D:\Prog\entregatudo"
 
-if not exist "%FINAL_APK%" (
+echo 🧹 Limpando build Flutter...
+call "%FLUTTER_PATH%" clean || goto :erro
+
+echo 📦 Instalando dependências...
+call "%FLUTTER_PATH%" pub get || goto :erro
+
+echo 🧱 Limpando Gradle...
+cd android
+if exist gradlew (
+    call .\gradlew clean
+) else (
+    gradle clean
+)
+if %errorlevel% neq 0 goto :erro
+
+cd ..
+
+echo 🚀 Gerando APK Release...
+call "%FLUTTER_PATH%" build apk --release --no-tree-shake-icons || goto :erro
+
+if not exist "%APK_ORIG%" (
     color 0C
-    echo ❌ APK não encontrado após build.
+    echo ❌ Não foi encontrado o APK esperado em "%APK_ORIG%"
     pause
     exit /b
 )
 
-echo 📤 Enviando para FTP...
+echo.
+echo 📦 Renomeando e movendo APK...
+copy /Y "%APK_ORIG%" "%APK_FINAL%"
+if %errorlevel% neq 0 goto :erro
 
-REM === Cria um arquivo temporário com os comandos de FTP ===
-set FTP_SCRIPT=%TEMP%\ftp_commands.txt
-echo open ftp.teletudo.com> "%FTP_SCRIPT%"
-echo user admin_segu ufrs3753!>> "%FTP_SCRIPT%"
-echo binary>> "%FTP_SCRIPT%"
-echo cd /public_html/public/download>> "%FTP_SCRIPT%"
-echo put "%FINAL_APK%">> "%FTP_SCRIPT%"
-echo bye>> "%FTP_SCRIPT%"
+echo --------------------------------------------------
+echo ✅ BUILD FINALIZADO COM SUCESSO!
+echo 📦 APK copiado para:
+echo   %APK_FINAL%
+echo --------------------------------------------------
+echo 🕒 Início: %START_TIME%
+echo 🕒 Término: %TIME%
+echo --------------------------------------------------
+echo Chamando UPA.BAT...
+echo --------------------------------------------------
 
-REM === Executa o envio ===
-ftp -n -s:"%FTP_SCRIPT%"
+call "%UPA_BAT%"
+goto :fim
 
-del "%FTP_SCRIPT%"
-
-echo ✅ Upload concluído com sucesso!
+:erro
+color 0C
+echo ❌ Erro durante a compilação.
 pause
+exit /b
+
+:fim
+pause
+exit /b

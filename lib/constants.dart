@@ -1,7 +1,9 @@
 class AppConfig {
-  static const String versaoApp = '1.2.9';
+  static const String versaoApp = '1.3.0';
 }
 
+// 1.3.0 Salvar senha e olhar a senha
+// 1.2.9 Convite
 // 1.2.8 Login Google
 // 1.2.7 Ajuste no Crud da configuração de valores
 // 1.2.6 Copia o erro de cadastro para a memória se houver

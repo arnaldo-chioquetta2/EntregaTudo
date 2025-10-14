@@ -1,0 +1,6 @@
+option batch abort
+option confirm off
+open sftp://admin_segu:ufrs3753@teletudo.com/
+cd /public_html/public/download
+put "D:\Prog\entregatudo\EntregaTudo.apk"
+exit

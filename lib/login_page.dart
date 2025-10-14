@@ -5,6 +5,7 @@ import 'package:entregatudo/HomePage.dart';
 import 'package:entregatudo/constants.dart';
 import 'package:entregatudo/auth_service.dart';
 import 'package:entregatudo/register_page.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,6 +36,9 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _passwordController = TextEditingController();
   bool _isMounted = true;
   bool _loadingGoogle = false;
+  final _storage = const FlutterSecureStorage();
+  bool _rememberPassword = true;
+  bool _obscurePassword = true;
 
   @override
   void initState() {
@@ -42,11 +46,23 @@ class _LoginPageState extends State<LoginPage> {
     if (kIsWeb) {
       _userController.text = "teste";
       _passwordController.text = "teste";
+    } else {
+      _loadSavedCredentials();
     }
-    _tentarSilent();
+    tentarSilent();
   }
 
-  Future<void> _tentarSilent() async {
+  Future<void> _loadSavedCredentials() async {
+    final savedUser = await _storage.read(key: 'user');
+    final savedPass = await _storage.read(key: 'password');
+
+    if (savedUser != null && savedPass != null) {
+      _userController.text = savedUser;
+      _passwordController.text = savedPass;
+    }
+  }
+
+  Future<void> tentarSilent() async {
     setState(() => _loadingGoogle = true);
     try {
       final auth = AuthService();
@@ -199,24 +215,34 @@ class _LoginPageState extends State<LoginPage> {
                 decoration: const InputDecoration(labelText: 'User'),
               ),
 
-              // 🔹 Campo de senha com ícone 👁️
               TextField(
                 controller: _passwordController,
-                obscureText: !_senhaVisivel,
                 decoration: InputDecoration(
                   labelText: 'Password',
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _senhaVisivel ? Icons.visibility : Icons.visibility_off,
-                      color: Colors.blueGrey,
+                      _obscurePassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
                     ),
                     onPressed: () {
                       setState(() {
-                        _senhaVisivel = !_senhaVisivel;
+                        _obscurePassword = !_obscurePassword;
                       });
                     },
                   ),
                 ),
+                obscureText: _obscurePassword,
+              ),
+
+              CheckboxListTile(
+                title: const Text('Lembrar senha'),
+                value: _rememberPassword,
+                onChanged: (val) {
+                  setState(() {
+                    _rememberPassword = val ?? false;
+                  });
+                },
               ),
 
               const SizedBox(height: 16),
@@ -238,10 +264,18 @@ class _LoginPageState extends State<LoginPage> {
                     String result = await API.veLogin(user, password, lat, lon);
 
                     if (result == "") {
+                      // ✅ Salva ou apaga conforme a opção
+                      if (_rememberPassword) {
+                        await _storage.write(key: 'user', value: user);
+                        await _storage.write(key: 'password', value: password);
+                      } else {
+                        await _storage.delete(key: 'user');
+                        await _storage.delete(key: 'password');
+                      }
+
                       Navigator.of(context).pushReplacement(
                         MaterialPageRoute(
-                          builder: (context) => const HomePage(),
-                        ),
+                            builder: (context) => const HomePage()),
                       );
                     } else {
                       showErrorDialog(result);

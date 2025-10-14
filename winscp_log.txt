@@ -1,0 +1,97 @@
+. 2025-10-13 01:37:01.026 --------------------------------------------------------------------------
+. 2025-10-13 01:37:01.027 WinSCP Versão 6.5.3 (Build 16364 2025-07-16) (OS 10.0.19044 – Windows 10 Pro)
+. 2025-10-13 01:37:01.028 Configuration: HKCU\Software\Martin Prikryl\WinSCP 2\
+. 2025-10-13 01:37:01.028 Log level: Normal
+. 2025-10-13 01:37:01.028 Local account: DESKTOP-1AQT483\Dayse
+. 2025-10-13 01:37:01.028 Working directory: D:\Prog\entregatudo
+. 2025-10-13 01:37:01.028 Process ID: 7640
+. 2025-10-13 01:37:01.045 Ancestor processes: WinSCP, cmd, explorer, ...
+. 2025-10-13 01:37:01.045 Command-line: "D:\Program Files (x86)\WinSCP\WinSCP.exe" /console=6.5.3 /consoleinstance=_9612_28 "/script=D:\Prog\entregatudo\upload_ftp.txt" "/log=D:\Prog\entregatudo\winscp_log.txt" 
+. 2025-10-13 01:37:01.046 Time zone: Current: GMT-3 (Hora oficial do Brasil), No DST
+. 2025-10-13 01:37:01.046 Login time: segunda-feira, 13 de outubro de 2025 01:37:01
+. 2025-10-13 01:37:01.046 --------------------------------------------------------------------------
+. 2025-10-13 01:37:01.046 Script: Retrospectively logging previous script records:
+> 2025-10-13 01:37:01.046 Script: option batch abort
+< 2025-10-13 01:37:01.046 Script: batch           abort     
+> 2025-10-13 01:37:01.046 Script: option confirm off
+< 2025-10-13 01:37:01.046 Script: confirm         off       
+> 2025-10-13 01:37:01.046 Script: open sftp://admin_segu:***@teletudo.com/
+. 2025-10-13 01:37:01.046 --------------------------------------------------------------------------
+. 2025-10-13 01:37:01.047 Session name: admin_segu@teletudo.com (Ad-Hoc site)
+. 2025-10-13 01:37:01.047 Host name: teletudo.com (Port: 22)
+. 2025-10-13 01:37:01.047 User name: admin_segu (Password: Yes, Key file: No, Passphrase: No)
+. 2025-10-13 01:37:01.047 Tunnel: No
+. 2025-10-13 01:37:01.047 Transfer Protocol: SFTP
+. 2025-10-13 01:37:01.047 Ping type: Off, Ping interval: 30 sec; Timeout: 15 sec
+. 2025-10-13 01:37:01.047 Disable Nagle: No
+. 2025-10-13 01:37:01.047 Proxy: None
+. 2025-10-13 01:37:01.047 Send buffer: 262144
+. 2025-10-13 01:37:01.047 Compression: No
+. 2025-10-13 01:37:01.047 Bypass authentication: No
+. 2025-10-13 01:37:01.047 Try agent: Yes; Agent forwarding: No; KI: Yes; GSSAPI: Yes
+. 2025-10-13 01:37:01.047 GSSAPI: KEX: No; Forwarding: No; Libs: gssapi32,sspi,custom; Custom: 
+. 2025-10-13 01:37:01.047 Ciphers: aes,chacha20,aesgcm,3des,WARN,des,blowfish,arcfour; Ssh2DES: No
+. 2025-10-13 01:37:01.047 KEX: ntru-curve25519,mlkem-curve25519,mlkem-nist,ecdh,dh-gex-sha1,dh-group18-sha512,dh-group17-sha512,dh-group16-sha512,dh-group15-sha512,dh-group14-sha1,rsa,WARN,dh-group1-sha1
+. 2025-10-13 01:37:01.047 SSH Bugs: Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto
+. 2025-10-13 01:37:01.047 Simple channel: Yes
+. 2025-10-13 01:37:01.047 Return code variable: Autodetect; Lookup user groups: Auto
+. 2025-10-13 01:37:01.047 Shell: default
+. 2025-10-13 01:37:01.047 EOL: LF, UTF: Auto
+. 2025-10-13 01:37:01.047 Clear aliases: Yes, Unset nat.vars: Yes, Resolve symlinks: Yes; Follow directory symlinks: No
+. 2025-10-13 01:37:01.047 LS: ls -la, Ign LS warn: Yes, Scp1 Comp: No; Exit code 1 is error: No
+. 2025-10-13 01:37:01.047 SFTP Bugs: Auto,Auto
+. 2025-10-13 01:37:01.047 SFTP Server: default
+. 2025-10-13 01:37:01.047 Local directory: default, Remote directory: home, Update: Yes, Cache: Yes
+. 2025-10-13 01:37:01.047 Cache directory changes: Yes, Permanent: Yes
+. 2025-10-13 01:37:01.047 Recycle bin: Delete to: No, Overwritten to: No, Bin path: 
+. 2025-10-13 01:37:01.047 DST mode: Unix
+. 2025-10-13 01:37:01.047 --------------------------------------------------------------------------
+< 2025-10-13 01:37:01.048 Script: Procurando pelo Host...
+. 2025-10-13 01:37:01.123 Looking up host "teletudo.com" for SSH connection
+. 2025-10-13 01:37:01.577 Connecting to 31.220.21.96 port 22
+. 2025-10-13 01:37:01.774 Connected to 31.220.21.96 (from 192.168.1.3:49895)
+< 2025-10-13 01:37:01.836 Script: Conectando no Host...
+. 2025-10-13 01:37:01.836 We claim version: SSH-2.0-WinSCP_release_6.5.3
+. 2025-10-13 01:37:01.836 Connected to 31.220.21.96 (from 192.168.1.3:49895)
+. 2025-10-13 01:37:01.982 Remote version: SSH-2.0-OpenSSH_7.4
+. 2025-10-13 01:37:01.982 We believe remote version has SSH-2 RSA/SHA-2/certificate userauth bug
+. 2025-10-13 01:37:01.982 Using SSH protocol version 2
+. 2025-10-13 01:37:02.268 Doing ECDH key exchange with curve Curve25519, using hash SHA-256
+. 2025-10-13 01:37:02.563 Server also has ecdsa-sha2-nistp256/ssh-dss/rsa-sha2-512/rsa-sha2-256/ssh-rsa host keys, but we don't know any of them
+. 2025-10-13 01:37:02.563 Host key fingerprint is:
+. 2025-10-13 01:37:02.563 ssh-ed25519 255 SHA256:9Wd36moVFGa7PQDW7sFdviVhmqZ2iwCEnucunjqO98w
+< 2025-10-13 01:37:02.563 Script: Autenticando...
+. 2025-10-13 01:37:02.600 Asking user:
+. 2025-10-13 01:37:02.600 **Deseja realmente continuar com a conexão a um servidor desconhecido e adicionar sua chave ao cofre?**
+. 2025-10-13 01:37:02.600 
+. 2025-10-13 01:37:02.600 A chave do host para este servidor não está armazenada:
+. 2025-10-13 01:37:02.600 teletudo.com (porta 22)
+. 2025-10-13 01:37:02.600 
+. 2025-10-13 01:37:02.600 Não há garantias de que o servidor será o computador que você espera.
+. 2025-10-13 01:37:02.600 
+. 2025-10-13 01:37:02.600     A impressão digital da chave ssh-ed25519 é:
+. 2025-10-13 01:37:02.600     ssh-ed25519 255 9Wd36moVFGa7PQDW7sFdviVhmqZ2iwCEnucunjqO98w
+. 2025-10-13 01:37:02.600 
+. 2025-10-13 01:37:02.600 Se você confia neste computador, pressione Aceitar para adicionar a chave ao armazenamento WinSCP e prosseguir com a conexão.
+. 2025-10-13 01:37:02.600 Se você quiser continuar a conexão só dessa vez, sem armazenar a chave, pressione Conectar desta vez.
+. 2025-10-13 01:37:02.600 Se você não confia neste computador, pressione Cancelar para abortar a conexão.
+. 2025-10-13 01:37:02.600 
+. 2025-10-13 01:37:02.600 Em script, você deve usar um modificador -hostkey para configurar a chave de host esperada. ()
+< 2025-10-13 01:37:02.610 Script: Deseja realmente continuar com a conexão a um servidor desconhecido e adicionar sua chave ao cofre?
+< 2025-10-13 01:37:02.610 A chave do host para este servidor não está armazenada:
+< 2025-10-13 01:37:02.610 teletudo.com (porta 22)
+< 2025-10-13 01:37:02.610 Não há garantias de que o servidor será o computador que você espera.
+< 2025-10-13 01:37:02.610     A impressão digital da chave ssh-ed25519 é:
+< 2025-10-13 01:37:02.610     ssh-ed25519 255 9Wd36moVFGa7PQDW7sFdviVhmqZ2iwCEnucunjqO98w
+< 2025-10-13 01:37:02.610 Se você confia neste computador, pressione Aceitar para adicionar a chave ao armazenamento WinSCP e prosseguir com a conexão.
+< 2025-10-13 01:37:02.610 Se você quiser continuar a conexão só dessa vez, sem armazenar a chave, pressione Conectar desta vez.
+< 2025-10-13 01:37:02.610 Se você não confia neste computador, pressione Cancelar para abortar a conexão.
+< 2025-10-13 01:37:02.610 Em script, você deve usar um modificador -hostkey para configurar a chave de host esperada.
+. 2025-10-13 01:37:15.160 Answer: Cancel
+. 2025-10-13 01:37:15.160 Attempt to close connection due to fatal exception:
+* 2025-10-13 01:37:15.160 Impressão digital do servidor é ssh-ed25519 255 9Wd36moVFGa7PQDW7sFdviVhmqZ2iwCEnucunjqO98w.
+* 2025-10-13 01:37:15.160 (Exception) **Chave do host não verificada!**
+. 2025-10-13 01:37:15.160 Closing connection.
+< 2025-10-13 01:37:15.227 Script: Chave do host não verificada!
+< 2025-10-13 01:37:15.227 Impressão digital do servidor é ssh-ed25519 255 9Wd36moVFGa7PQDW7sFdviVhmqZ2iwCEnucunjqO98w.
+< 2025-10-13 01:37:15.227 Autenticação falhou.
