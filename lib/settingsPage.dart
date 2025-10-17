@@ -1,6 +1,5 @@
 import 'package:entregatudo/api.dart';
 import 'package:flutter/material.dart';
-import 'package:entregatudo/profile_page.dart'; // ✅ novo import
 
 class SettingsPage extends StatefulWidget {
   @override
@@ -200,23 +199,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   foregroundColor: Colors.white,
                 ),
               ),
-              const SizedBox(height: 20),
-              // ✅ Novo botão para acessar perfil
-              ElevatedButton.icon(
-                icon: const Icon(Icons.person),
-                label: const Text("Meu Perfil"),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ProfilePage()),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 50),
-                  backgroundColor: Colors.purple,
-                  foregroundColor: Colors.white,
-                ),
-              ),
+              // const SizedBox(height: 20),
             ],
           ),
         ),
