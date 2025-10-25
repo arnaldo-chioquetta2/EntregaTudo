@@ -6,6 +6,7 @@ class DeliveryDetails {
   final double? peso;
   final int? modo;
   final int? chamado;
+  final int lojasNoRaio;
 
   DeliveryDetails(
       {this.enderIN,
@@ -14,7 +15,8 @@ class DeliveryDetails {
       this.valor,
       this.peso,
       this.modo,
-      this.chamado});
+      this.chamado,
+      required this.lojasNoRaio});
 
   factory DeliveryDetails.fromJson(Map<String, dynamic> json) {
     return DeliveryDetails(
@@ -25,6 +27,7 @@ class DeliveryDetails {
       peso: _parseDouble(json['peso']),
       modo: json['modo'],
       chamado: json['chamado'],
+      lojasNoRaio: json['lojas_no_raio'] ?? 0, 
     );
   }
 

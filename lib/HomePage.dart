@@ -28,6 +28,7 @@ class _HomePageState extends State<HomePage> {
   String saldo = 'R\$ 0,00';
   double saldoNum = 0.0;
   final LocationService _locationService = LocationService();
+  int lojasNoRaio = 0;
 
   @override
   void initState() {
@@ -61,13 +62,22 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Teletudo App - Entregas'),
+        title: const Text('Teletudo App - Entregas1'),
         centerTitle: true,
       ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // if (deliveryData != null) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                'Lojas Abertas: $lojasNoRaio', // Usando a variável atualizada
+                style: const TextStyle(fontSize: 14, color: Colors.black),
+              ),
+            ),
+            // ],
             ElevatedButton(
               onPressed: () {
                 Navigator.push(
@@ -103,6 +113,17 @@ class _HomePageState extends State<HomePage> {
                   backgroundColor: Colors.grey,
                 ),
               ),
+
+              // if (deliveryData != null) ...[
+              //   Padding(
+              //     padding: const EdgeInsets.all(20),
+              //     child: Text(
+              //       'Lojas Abertas: ${deliveryData!['lojasNoRaio']}',
+              //       style: const TextStyle(fontSize: 18, color: Colors.black),
+              //     ),
+              //   ),
+              // ],
+
               const SizedBox(height: 10),
               ElevatedButton(
                 onPressed: saldoNum > 0
@@ -121,7 +142,6 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
               const SizedBox(height: 10),
-              // 🟣 Novo botão: Painel do Captador
               ElevatedButton(
                 onPressed: () {
                   Navigator.pushNamed(context, '/captador-panel');
@@ -242,28 +262,41 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> chamaHeartbeat() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-
     Position? pos = _locationService.ultimaPosicao;
     double latitude = pos?.latitude ?? -30.1165;
     double longitude = pos?.longitude ?? -51.1355;
-    print("Enviando local: ${latitude}, ${longitude}");
+    print("Enviando local: $latitude, $longitude");
+
     DeliveryDetails? deliveryDetails =
         await API.sendHeartbeat(latitude, longitude);
+
     if (deliveryDetails != null) {
+      // Atualiza a variável lojasNoRaio aqui
+      int lojasNoRaio = deliveryDetails.lojasNoRaio;
       double valorDelivery = deliveryDetails.valor ?? 0.0;
       int? currentChamado = prefs.getInt('currentChamado');
-      if (deliveryDetails.chamado != currentChamado && valorDelivery > 0.0) {
+
+      print('Detalhes recebidos: $deliveryDetails');
+
+      // Atualiza a UI com o número de lojas no raio
+      setState(() {
+        this.lojasNoRaio = lojasNoRaio; // Atualizando a variável de estado
+        deliveryData = {
+          'enderIN': deliveryDetails.enderIN ?? 'Desconhecido',
+          'enderFN': deliveryDetails.enderFN ?? 'Desconhecido',
+          'dist': deliveryDetails.dist ?? 0.0,
+          'valor': valorDelivery,
+          'peso': deliveryDetails.peso ?? 'Não Informado',
+          'chamado': deliveryDetails.chamado,
+          'lojasNoRaio': lojasNoRaio,
+        };
+      });
+
+      print('Dados atualizados na UI com lojasNoRaio: $lojasNoRaio');
+
+      // Se quiser reportar a visualização, pode fazer isso aqui
+      if (currentChamado != deliveryDetails.chamado) {
         await prefs.setInt('currentChamado', deliveryDetails.chamado ?? 0);
-        setState(() {
-          deliveryData = {
-            'enderIN': deliveryDetails.enderIN ?? 'Desconhecido',
-            'enderFN': deliveryDetails.enderFN ?? 'Desconhecido',
-            'dist': deliveryDetails.dist ?? 0.0,
-            'valor': valorDelivery,
-            'peso': deliveryDetails.peso ?? 'Não Informado',
-            'chamado': deliveryDetails.chamado,
-          };
-        });
         int? userId = prefs.getInt('idUser');
         if (userId != null) {
           await API.reportViewToServer(userId, deliveryDetails.chamado);
@@ -271,6 +304,7 @@ class _HomePageState extends State<HomePage> {
               "Visualização reportada: chamado = ${deliveryDetails.chamado}, userId = $userId");
         }
       }
+
       int nextInterval = (deliveryDetails.modo ?? 3) == 3 ? 60 : 10;
       _scheduleNextHeartbeat(nextInterval);
     } else {
@@ -278,6 +312,46 @@ class _HomePageState extends State<HomePage> {
       _scheduleNextHeartbeat(60); // Usando 60 segundos como fallback
     }
   }
+
+  // Future<void> chamaHeartbeat() async {
+  //   SharedPreferences prefs = await SharedPreferences.getInstance();
+  //   Position? pos = _locationService.ultimaPosicao;
+  //   double latitude = pos?.latitude ?? -30.1165;
+  //   double longitude = pos?.longitude ?? -51.1355;
+  //   print("Enviando local: ${latitude}, ${longitude}");
+  //   DeliveryDetails? deliveryDetails =
+  //       await API.sendHeartbeat(latitude, longitude);
+  //   if (deliveryDetails != null) {
+  //     int lojasNoRaio = deliveryDetails.lojasNoRaio;
+  //     double valorDelivery = deliveryDetails.valor ?? 0.0;
+  //     int? currentChamado = prefs.getInt('currentChamado');
+  //     if (deliveryDetails.chamado != currentChamado && valorDelivery > 0.0) {
+  //       await prefs.setInt('currentChamado', deliveryDetails.chamado ?? 0);
+  //       setState(() {
+  //         deliveryData = {
+  //           'enderIN': deliveryDetails.enderIN ?? 'Desconhecido',
+  //           'enderFN': deliveryDetails.enderFN ?? 'Desconhecido',
+  //           'dist': deliveryDetails.dist ?? 0.0,
+  //           'valor': valorDelivery,
+  //           'peso': deliveryDetails.peso ?? 'Não Informado',
+  //           'chamado': deliveryDetails.chamado,
+  //           'lojasNoRaio': lojasNoRaio,
+  //         };
+  //       });
+  //       int? userId = prefs.getInt('idUser');
+  //       if (userId != null) {
+  //         await API.reportViewToServer(userId, deliveryDetails.chamado);
+  //         print(
+  //             "Visualização reportada: chamado = ${deliveryDetails.chamado}, userId = $userId");
+  //       }
+  //     }
+  //     int nextInterval = (deliveryDetails.modo ?? 3) == 3 ? 60 : 10;
+  //     _scheduleNextHeartbeat(nextInterval);
+  //   } else {
+  //     print("Erro ao receber dados de heartbeat");
+  //     _scheduleNextHeartbeat(60); // Usando 60 segundos como fallback
+  //   }
+  // }
 
   void handleDeliveryResponse(bool accept) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();

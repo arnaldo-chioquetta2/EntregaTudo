@@ -2,6 +2,7 @@ class AppConfig {
   static const String versaoApp = '1.3.0';
 }
 
+// 1.3.1 (em desenvolvimento) Mostras as lojas on-line
 // 1.3.0 Salvar senha e olhar a senha
 // 1.2.9 Convite
 // 1.2.8 Login Google

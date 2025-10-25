@@ -199,6 +199,7 @@ class API {
     int? userid = prefs.getInt('idUser');
     int vez = prefs.getInt('vez') ?? 0;
     await prefs.setInt('vez', vez + 1);
+
     if (userid != null) {
       String baseUrl = "https://teletudo.com/api/heartbeat";
       final response = await http.post(
@@ -210,15 +211,23 @@ class API {
         body:
             json.encode({'userid': userid, 'lat': lat, 'lon': lon, 'vez': vez}),
       );
+
+      print(
+          'Enviando heartbeat: lat: $lat, lon: $lon, userid: $userid, vez: $vez');
+
       if (response.statusCode == 200) {
         print('Response Body: ${response.body}');
         var data = json.decode(response.body);
         int modo = data['modo'] ?? 3;
         await prefs.setInt('modo', modo);
+        int lojasNoRaio = data['lojas_no_raio'] ?? 0;
+        print('Lojas no Raio: $lojasNoRaio');
         return DeliveryDetails.fromJson(data);
       } else {
-        print('Erro ao enviar heartbeat');
+        print('Erro ao enviar heartbeat: ${response.statusCode}');
       }
+    } else {
+      print('User ID não encontrado');
     }
     return null;
   }
