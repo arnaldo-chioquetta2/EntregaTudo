@@ -236,11 +236,6 @@ class API {
   static Future<String> veLogin(
       String user, String password, double lat, double lon) async {
     String baseUrl = "https://teletudo.com/api/login";
-
-    print('Iniciando requisição de login...');
-    print('Usuário: $user');
-    print('Latitude: $lat, Longitude: $lon');
-
     final response = await http.post(
       Uri.parse(baseUrl),
       headers: {
@@ -254,40 +249,86 @@ class API {
         'lon': lon,
       }),
     );
-
-    print('Requisição concluída com status code: ${response.statusCode}');
-
     if (response.statusCode == 200) {
-      print('Resposta recebida com sucesso!');
       var ret = json.decode(response.body);
-      print('Resposta JSON: $ret');
-
       final int erro = ret["Erro"] ?? 1;
-      print('Código de erro: $erro');
-
       if (erro == 0) {
         final int idUser = ret["id"] ?? 0;
-        print('ID do usuário: $idUser');
-
         final SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setInt('idUser', idUser);
-
-        // ✅ novo: salvar o nome para gerar sugestão no painel
         final String nomeUser = (ret["nome"] ?? "").toString();
         await prefs.setString('nomeUser', nomeUser);
-        print(
-            '[API.veLogin] Salvo em prefs → idUser=$idUser, nomeUser="$nomeUser"');
-
+        int idLoja = 0;
+        print("[API.veLogin] eh_fornecedor = $ret['eh_fornecedor']");
+        print("[API.veLogin] id_loja = $ret['id_loja']");
+        if (ret["eh_fornecedor"] == true) {
+          idLoja = ret["id_loja"];
+          print("[API.veLogin] Usuário é fornecedor. idLoja = $idLoja");
+        }
+        await prefs.setInt('idLoja', idLoja);
         return "";
       } else {
-        print('Erro ao realizar login!');
         return "ERRO";
       }
     } else {
-      print('Falha ao realizar requisição!');
       return "ERRO";
     }
   }
+  // static Future<String> veLogin(
+  //     String user, String password, double lat, double lon) async {
+  //   String baseUrl = "https://teletudo.com/api/login";
+
+  //   print('Iniciando requisição de login...');
+  //   print('Usuário: $user');
+  //   print('Latitude: $lat, Longitude: $lon');
+
+  //   final response = await http.post(
+  //     Uri.parse(baseUrl),
+  //     headers: {
+  //       'Content-Type': 'application/json',
+  //       'Accept': 'application/json',
+  //     },
+  //     body: json.encode({
+  //       'user': user,
+  //       'password': password,
+  //       'lat': lat,
+  //       'lon': lon,
+  //     }),
+  //   );
+
+  //   print('Requisição concluída com status code: ${response.statusCode}');
+
+  //   if (response.statusCode == 200) {
+  //     print('Resposta recebida com sucesso!');
+  //     var ret = json.decode(response.body);
+  //     print('Resposta JSON: $ret');
+
+  //     final int erro = ret["Erro"] ?? 1;
+  //     print('Código de erro: $erro');
+
+  //     if (erro == 0) {
+  //       final int idUser = ret["id"] ?? 0;
+  //       print('ID do usuário: $idUser');
+
+  //       final SharedPreferences prefs = await SharedPreferences.getInstance();
+  //       await prefs.setInt('idUser', idUser);
+
+  //       // ✅ novo: salvar o nome para gerar sugestão no painel
+  //       final String nomeUser = (ret["nome"] ?? "").toString();
+  //       await prefs.setString('nomeUser', nomeUser);
+  //       print(
+  //           '[API.veLogin] Salvo em prefs → idUser=$idUser, nomeUser="$nomeUser"');
+
+  //       return "";
+  //     } else {
+  //       print('Erro ao realizar login!');
+  //       return "ERRO";
+  //     }
+  //   } else {
+  //     print('Falha ao realizar requisição!');
+  //     return "ERRO";
+  //   }
+  // }
 
   static Future<Position> getCurrentLocation() async {
     await _locationService.requestPermissions();

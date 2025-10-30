@@ -1,8 +1,9 @@
 class AppConfig {
-  static const String versaoApp = '1.3.0';
+  static const String versaoApp = '1.3.2';
 }
 
-// 1.3.1 (em desenvolvimento) Mostras as lojas on-line
+// 1.3.2 Fornecedor (em desenvolvimento)
+// 1.3.1 Mostras as lojas on-line
 // 1.3.0 Salvar senha e olhar a senha
 // 1.2.9 Convite
 // 1.2.8 Login Google
@@ -14,6 +15,3 @@ class AppConfig {
 // 1.2.3 GPS
 // 1.2.3 Conserto da validação da placa Axo0498
 // 1.2.2 Reativação da API do Aceite e Recusa
-// 1.2.0 Retirei a crítica do CNH
-// 1.1.9 Ajustes na mostragem do Saldo
-// 1.1.8 Adição de permissão para internet
