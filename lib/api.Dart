@@ -264,6 +264,7 @@ class API {
         if (ret["eh_fornecedor"] == true) {
           idLoja = ret["id_loja"];
           print("[API.veLogin] Usuário é fornecedor. idLoja = $idLoja");
+          await prefs.setBool('isFornecedor', true);
         }
         await prefs.setInt('idLoja', idLoja);
         return "";

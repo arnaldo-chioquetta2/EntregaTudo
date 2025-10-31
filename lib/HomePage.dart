@@ -29,6 +29,8 @@ class _HomePageState extends State<HomePage> {
   double saldoNum = 0.0;
   final LocationService _locationService = LocationService();
   int lojasNoRaio = 0;
+  bool isFornecedor = false;
+  bool isSaldoAtualizado = false;
 
   @override
   void initState() {
@@ -37,11 +39,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _verificarLoginOuCadastro() async {
+    print("Iniciando verificação de login ou cadastro");
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getInt('idUser');
+    isFornecedor = prefs.getBool('isFornecedor') ?? false;
 
     if (userId == null || userId == 0) {
-      // usuário ainda não registrado — redireciona para tela de cadastro
+      print("Usuário não logado. Redirecionando para registro.");
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed('/register');
       return;
@@ -49,7 +53,10 @@ class _HomePageState extends State<HomePage> {
 
     _locationService.requestPermissions();
     _scheduleNextHeartbeat(2);
-    updateSaldo();
+
+    print("Chamando updateSaldo para o usuário: $userId");
+    await updateSaldo(); // Aguarde a atualização do saldo
+    print("Verificação de login ou cadastro concluída");
   }
 
   @override
@@ -62,128 +69,171 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Teletudo App - Entregas1'),
+        title: const Text('Teletudo App - Entregas'),
         centerTitle: true,
       ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // if (deliveryData != null) ...[
-            Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: Text(
-                'Lojas Abertas: $lojasNoRaio', // Usando a variável atualizada
-                style: const TextStyle(fontSize: 14, color: Colors.black),
-              ),
-            ),
-            // ],
-            ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => SettingsPage()),
-                );
-              },
-              child: const Text('Configurações'),
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(150, 40),
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-            if (deliveryData != null) _buildDeliveryDetails(),
-            if (deliveryData == null &&
-                (deliveryCompleted || !hasAcceptedDelivery)) ...[
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Text(
-                  "Saldo $saldo",
-                  style: const TextStyle(fontSize: 18, color: Colors.black),
-                ),
-              ),
-              ElevatedButton(
-                onPressed: null,
-                child: const Text('Detalhes'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(150, 40),
-                  backgroundColor: Colors.grey,
-                ),
-              ),
+        child: FutureBuilder<void>(
+          future: _verificarLoginOuCadastro(), // Chama a verificação
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const CircularProgressIndicator(); // Exibe um carregando
+            } else if (snapshot.hasError) {
+              return Text('Erro: ${snapshot.error}'); // Lida com erros
+            }
 
-              // if (deliveryData != null) ...[
-              //   Padding(
-              //     padding: const EdgeInsets.all(20),
-              //     child: Text(
-              //       'Lojas Abertas: ${deliveryData!['lojasNoRaio']}',
-              //       style: const TextStyle(fontSize: 18, color: Colors.black),
-              //     ),
-              //   ),
-              // ],
-
-              const SizedBox(height: 10),
-              ElevatedButton(
-                onPressed: saldoNum > 0
-                    ? () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => ResgatePage()),
-                        );
-                      }
-                    : null,
-                child: const Text('Resgate'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(150, 40),
-                  backgroundColor: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 10),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/captador-panel');
-                },
-                child: const Text('Painel do Captador'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(150, 40),
-                  backgroundColor: Colors.purple,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+            // Aqui, a verificação deve ser concluída
+            return Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (isFornecedor) ...[
+                  // Se for fornecedor, exibe apenas saldo e resgate
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(
+                      "Saldo $saldo",
+                      style: const TextStyle(fontSize: 18, color: Colors.black),
+                    ),
                   ),
-                ),
-              ),
-            ],
-            if (statusMessage != null)
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Text(
-                  statusMessage!,
-                  style: const TextStyle(fontSize: 18, color: Colors.red),
-                ),
-              ),
-            if (hasAcceptedDelivery && !hasPickedUp)
-              ElevatedButton(
-                onPressed: handlePickedUp,
-                child: const Text('Cheguei no Fornecedor'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(150, 40),
-                  backgroundColor: Colors.orange,
-                ),
-              ),
-            if (hasPickedUp && !deliveryCompleted)
-              ElevatedButton(
-                onPressed: handleDeliveryCompleted,
-                child: const Text('Entrega Concluída'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(150, 40),
-                  backgroundColor: Colors.green,
-                ),
-              ),
-          ],
+                  ElevatedButton(
+                    onPressed: saldoNum > 0
+                        ? () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => ResgatePage()),
+                            );
+                          }
+                        : null,
+                    child: const Text('Resgate'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(150, 40),
+                      backgroundColor: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/captador-panel');
+                    },
+                    child: const Text('Painel do Captador'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(150, 40),
+                      backgroundColor: Colors.purple,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  // Se não for fornecedor, exibe Lojas abertas e configurações
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 20),
+                    child: Text(
+                      'Lojas Abertas: $lojasNoRaio',
+                      style: const TextStyle(fontSize: 14, color: Colors.black),
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => SettingsPage()),
+                      );
+                    },
+                    child: const Text('Configurações'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(150, 40),
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                  if (deliveryData != null) _buildDeliveryDetails(),
+                  if (deliveryData == null &&
+                      (deliveryCompleted || !hasAcceptedDelivery)) ...[
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(
+                        "Saldo $saldo",
+                        style:
+                            const TextStyle(fontSize: 18, color: Colors.black),
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: null,
+                      child: const Text('Detalhes'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(150, 40),
+                        backgroundColor: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: saldoNum > 0
+                          ? () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) => ResgatePage()),
+                              );
+                            }
+                          : null,
+                      child: const Text('Resgate'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(150, 40),
+                        backgroundColor: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pushNamed(context, '/captador-panel');
+                      },
+                      child: const Text('Painel do Captador'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(150, 40),
+                        backgroundColor: Colors.purple,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (statusMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(
+                        statusMessage!,
+                        style: const TextStyle(fontSize: 18, color: Colors.red),
+                      ),
+                    ),
+                  if (hasAcceptedDelivery && !hasPickedUp)
+                    ElevatedButton(
+                      onPressed: handlePickedUp,
+                      child: const Text('Cheguei no Fornecedor'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(150, 40),
+                        backgroundColor: Colors.orange,
+                      ),
+                    ),
+                  if (hasPickedUp && !deliveryCompleted)
+                    ElevatedButton(
+                      onPressed: handleDeliveryCompleted,
+                      child: const Text('Entrega Concluída'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(150, 40),
+                        backgroundColor: Colors.green,
+                      ),
+                    ),
+                ],
+              ],
+            );
+          },
         ),
       ),
     );
@@ -313,46 +363,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // Future<void> chamaHeartbeat() async {
-  //   SharedPreferences prefs = await SharedPreferences.getInstance();
-  //   Position? pos = _locationService.ultimaPosicao;
-  //   double latitude = pos?.latitude ?? -30.1165;
-  //   double longitude = pos?.longitude ?? -51.1355;
-  //   print("Enviando local: ${latitude}, ${longitude}");
-  //   DeliveryDetails? deliveryDetails =
-  //       await API.sendHeartbeat(latitude, longitude);
-  //   if (deliveryDetails != null) {
-  //     int lojasNoRaio = deliveryDetails.lojasNoRaio;
-  //     double valorDelivery = deliveryDetails.valor ?? 0.0;
-  //     int? currentChamado = prefs.getInt('currentChamado');
-  //     if (deliveryDetails.chamado != currentChamado && valorDelivery > 0.0) {
-  //       await prefs.setInt('currentChamado', deliveryDetails.chamado ?? 0);
-  //       setState(() {
-  //         deliveryData = {
-  //           'enderIN': deliveryDetails.enderIN ?? 'Desconhecido',
-  //           'enderFN': deliveryDetails.enderFN ?? 'Desconhecido',
-  //           'dist': deliveryDetails.dist ?? 0.0,
-  //           'valor': valorDelivery,
-  //           'peso': deliveryDetails.peso ?? 'Não Informado',
-  //           'chamado': deliveryDetails.chamado,
-  //           'lojasNoRaio': lojasNoRaio,
-  //         };
-  //       });
-  //       int? userId = prefs.getInt('idUser');
-  //       if (userId != null) {
-  //         await API.reportViewToServer(userId, deliveryDetails.chamado);
-  //         print(
-  //             "Visualização reportada: chamado = ${deliveryDetails.chamado}, userId = $userId");
-  //       }
-  //     }
-  //     int nextInterval = (deliveryDetails.modo ?? 3) == 3 ? 60 : 10;
-  //     _scheduleNextHeartbeat(nextInterval);
-  //   } else {
-  //     print("Erro ao receber dados de heartbeat");
-  //     _scheduleNextHeartbeat(60); // Usando 60 segundos como fallback
-  //   }
-  // }
-
   void handleDeliveryResponse(bool accept) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     int? userId = prefs.getInt('idUser');
@@ -425,31 +435,29 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> updateSaldo() async {
+    if (isSaldoAtualizado) return;
+    print("Iniciando atualização do saldo");
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getInt('idUser');
     if (userId == null) return;
 
     try {
-      // 1) lê como String (já é o tipo de API.saldo)
+      print("Buscando saldo para o usuário: $userId");
       final raw = await API.saldo(userId); // ex.: "123" ou "R$ 123,45"
       print("Saldo bruto da API: '$raw'");
 
-      // 2) deixa só dígitos e separador decimal
-      final limpo = raw
-          .replaceAll(
-              RegExp(r'[^0-9,\.]'), '') // remove R$, espaços, quebras de linha
-          .replaceAll(',', '.') // vírgula → ponto
-          .trim(); // tira espaços
+      final limpo =
+          raw.replaceAll(RegExp(r'[^0-9,\.]'), '').replaceAll(',', '.').trim();
 
-      // 3) converte; se falhar cai pra 0.0
       final valor = double.tryParse(limpo) ?? 0.0;
       print("Saldo parseado: $valor");
 
       if (!mounted) return;
       setState(() {
         saldoNum = valor;
-        saldo = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$')
-            .format(valor); // R$ 123,45
+        saldo =
+            NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(valor);
+        isSaldoAtualizado = true;
       });
     } catch (e) {
       print("Erro ao atualizar saldo: $e");
@@ -458,6 +466,8 @@ class _HomePageState extends State<HomePage> {
         saldoNum = 0.0;
         saldo = 'R\$ 0,00';
       });
+    } finally {
+      print("Atualização do saldo concluída");
     }
   }
 }
