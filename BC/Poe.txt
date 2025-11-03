@@ -1,0 +1,94 @@
+# Documentação de Base de Conhecimento do Projeto "Entregatudo"
+
+## Índice
+1. [Introdução](#introdução)
+2. [Arquitetura do Sistema](#arquitetura-do-sistema)
+   - 2.1 [Camadas do Sistema](#camadas-do-sistema)
+3. [BackEnd](#backend)
+   - 3.1 [Estrutura de APIs](#estrutura-de-apis)
+   - 3.2 [Modelos de Dados](#modelos-de-dados)
+   - 3.3 [Métodos Internos](#metodos-internos)
+   - 3.4 [Processos de Autenticação](#processos-de-autenticacao)
+4. [FrontEnd](#frontend)
+   - 4.1 [Estrutura do Projeto](#estrutura-do-projeto)
+   - 4.2 [Widgets e Componentes](#widgets-e-componentes)
+   - 4.3 [Gerenciamento de Estado](#gerenciamento-de-estado)
+   - 4.4 [Integrações com o BackEnd](#integracoes-com-o-backend)
+5. [Considerações Finais](#consideracoes-finais)
+
+## Introdução
+Este documento serve como uma base de conhecimento para o projeto "Entregatudo". Ele contém informações sobre a codificação, métodos internos e processos utilizados tanto no BackEnd quanto no FrontEnd do sistema. O objetivo é facilitar a compreensão e a manutenção do código, além de servir como um guia para novos desenvolvedores que ingressarem no projeto.
+
+## Arquitetura do Sistema
+
+### Camadas do Sistema
+O sistema é estruturado em várias camadas, seguindo uma abordagem de desenvolvimento em camadas. As camadas são organizadas da seguinte forma:
+
+1. **Camada de Apresentação**: Responsável pela interface com o usuário (FrontEnd).
+2. **Camada de Lógica de Negócio**: Contém a lógica central do sistema, incluindo validações e manipulação de dados.
+3. **Camada de Acesso a Dados**: Interage com o banco de dados e as APIs externas.
+4. **Camada de Persistência**: Gerencia a persistência dos dados.
+
+## BackEnd
+
+### Estrutura de APIs
+O BackEnd é construído utilizando o padrão RESTful, onde cada endpoint representa um recurso do sistema. Os principais endpoints são:
+
+- `POST /api/login`: Autentica o usuário.
+- `POST /api/cadboy`: Cadastra um novo Motoboy.
+- `POST /api/heartbeat`: Envia um "heartbeat" com a localização do Motoboy.
+- `GET /api/obtemCfgValores`: Recupera as configurações do sistema.
+
+### Modelos de Dados
+Os dados são representados por classes que definem a estrutura dos objetos utilizados nas requisições e respostas. Exemplos de modelos incluem:
+
+- **NovaVenda**: Representa uma nova venda com propriedades como `hora`, `valor`, `cliente`, `idPed`, e `idAviso`.
+- **FornecedorHeartbeatResponse**: Representa a resposta do servidor ao heartbeat, com campos como `modo`, `lojasNoRaio`, `idLoja`, e `novaVenda`.
+
+### Métodos Internos
+Os métodos internos do BackEnd incluem funções que realizam operações específicas, como:
+
+- **saveConfigurations**: Salva as configurações do sistema.
+- **obtemCfgValores**: Retorna as configurações atuais, incluindo valores de taxa e distância.
+- **sendHeartbeat**: Envia a localização do Motoboy e recebe informações do servidor.
+
+### Processos de Autenticação
+O sistema utiliza autenticação baseada em token. O fluxo de autenticação é o seguinte:
+
+1. O usuário envia uma requisição de login com suas credenciais.
+2. O servidor valida as credenciais e retorna um token JWT.
+3. O token deve ser incluído em todas as requisições subsequentes que exigem autorização.
+
+## FrontEnd
+
+### Estrutura do Projeto
+O FrontEnd é desenvolvido em Flutter e segue uma estrutura modular, com pastas organizadas por funcionalidades:
+
+- `lib/models`: Contém os modelos de dados.
+- `lib/screens`: Contém as telas do aplicativo.
+- `lib/services`: Contém serviços de API e lógica de negócio.
+- `lib/widgets`: Contém widgets reutilizáveis.
+
+### Widgets e Componentes
+Os componentes do FrontEnd são construídos utilizando widgets do Flutter. Exemplos incluem:
+
+- **DeliveryCard**: Um widget que exibe informações sobre uma entrega.
+- **LoginForm**: Um formulário para autenticação do usuário.
+- **ConfigForm**: Um formulário para configuração de valores.
+
+### Gerenciamento de Estado
+O gerenciamento de estado é realizado utilizando o `Provider` ou `Bloc`, dependendo da complexidade da funcionalidade. O estado é gerenciado de forma a garantir que as alterações no estado sejam refletidas na interface do usuário.
+
+### Integrações com o BackEnd
+As integrações com o BackEnd são realizadas através de chamadas HTTP. O pacote `http` do Dart é utilizado para fazer requisições e manipular respostas. Exemplos de funções de integração:
+
+- **loginUser**: Realiza a autenticação do usuário.
+- **fetchConfigurations**: Recupera as configurações do sistema.
+- **sendHeartbeat**: Envia a localização do Motoboy.
+
+## Considerações Finais
+A documentação deve ser atualizada regularmente conforme novas funcionalidades são adicionadas ou mudanças são feitas no sistema. É importante que todos os desenvolvedores envolvidos no projeto sigam as convenções e padrões estabelecidos para garantir a manutenibilidade e a escalabilidade do código.
+
+---
+
+Essa base de conhecimento deve servir como um guia prático e abrangente para todos os aspectos do projeto "Entregatudo". Se houver novas informações ou alterações, elas devem ser documentadas de forma semelhante para garantir que o conhecimento esteja sempre acessível e atualizado.

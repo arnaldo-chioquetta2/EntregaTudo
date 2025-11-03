@@ -1,0 +1,242 @@
+# Base de Conhecimento do Projeto "Entregatudo"
+
+## Índice
+1. [Introdução](#introdução)
+2. [BackEnd](#backend)
+   - 2.1 [Estrutura de APIs](#estrutura-de-apis)
+   - 2.2 [Modelos de Dados](#modelos-de-dados)
+   - 2.3 [Métodos Internos](#metodos-internos)
+   - 2.4 [Processos de Autenticação](#processos-de-autenticacao)
+3. [FrontEnd](#frontend)
+   - 3.1 [Estrutura do Projeto](#estrutura-do-projeto)
+   - 3.2 [Widgets e Componentes](#widgets-e-componentes)
+   - 3.3 [Gerenciamento de Estado](#gerenciamento-de-estado)
+   - 3.4 [Integrações com o BackEnd](#integracoes-com-o-backend)
+4. [Considerações Finais](#consideracoes-finais)
+
+---
+
+## Introdução
+Este documento serve como uma base de conhecimento para o projeto "Entregatudo". Ele contém informações sobre a codificação, métodos internos e processos utilizados tanto no BackEnd quanto no FrontEnd do sistema. O objetivo é facilitar a compreensão e a manutenção do código, além de servir como um guia para novos desenvolvedores que ingressarem no projeto.
+
+As informações estão organizadas em camadas, começando pelas mais superficiais e avançando para as mais profundas. Dentro de cada seção, os tópicos são ordenados alfabeticamente para facilitar a consulta.
+
+---
+
+## BackEnd
+
+### Estrutura de APIs
+O BackEnd é construído utilizando o padrão RESTful, onde cada endpoint representa um recurso do sistema. Os principais endpoints incluem:
+
+- **`POST /api/login`**: Autentica o usuário.
+- **`POST /api/cadboy`**: Cadastra um novo Motoboy.
+- **`POST /api/heartbeat`**: Envia um "heartbeat" com a localização do Motoboy.
+- **`GET /api/obtemCfgValores`**: Recupera as configurações do sistema.
+
+**Exemplo de chamada à API para registrar um usuário:**
+```dart
+Future<void> registerUser(String name, String email, String password, String phone) async {
+  var url = 'https://teletudo.com/api/cadboy';
+  var response = await http.post(Uri.parse(url), body: {
+    'name': name,
+    'email': email,
+    'password': password,
+    'phone': phone
+  });
+  if (response.statusCode == 200) {
+    // Usuário registrado com sucesso
+  } else {
+    // Tratar erros
+  }
+}
+```
+
+### Modelos de Dados
+Os dados são representados por classes que definem a estrutura dos objetos utilizados nas requisições e respostas. Exemplos de modelos incluem:
+
+- **NovaVenda**: Representa uma nova venda com propriedades como `hora`, `valor`, `cliente`, `idPed`, e `idAviso`.
+- **FornecedorHeartbeatResponse**: Representa a resposta do servidor ao heartbeat, com campos como `modo`, `lojasNoRaio`, `idLoja`, e `novaVenda`.
+
+**Exemplo de modelo de dados:**
+```dart
+class NovaVenda {
+  final String hora;
+  final double valor;
+  final String cliente;
+  final int idPed;
+  final int idAviso;
+
+  NovaVenda({
+    required this.hora,
+    required this.valor,
+    required this.cliente,
+    required this.idPed,
+    required this.idAviso,
+  });
+
+  factory NovaVenda.fromJson(Map<String, dynamic> json) {
+    return NovaVenda(
+      hora: json['hora'],
+      valor: json['valor'],
+      cliente: json['cliente'],
+      idPed: json['idPed'],
+      idAviso: json['idAviso'],
+    );
+  }
+}
+```
+
+### Métodos Internos
+Os métodos internos do BackEnd incluem funções que realizam operações específicas, como:
+
+- **`saveConfigurations`**: Salva as configurações do sistema.
+- **`obtemCfgValores`**: Retorna as configurações atuais, incluindo valores de taxa e distância.
+- **`sendHeartbeat`**: Envia a localização do Motoboy e recebe informações do servidor.
+
+**Exemplo de método interno:**
+```dart
+Future<Map<String, dynamic>> obtemCfgValores() async {
+  var url = 'https://teletudo.com/api/obtemCfgValores';
+  var response = await http.get(Uri.parse(url));
+  if (response.statusCode == 200) {
+    return json.decode(response.body);
+  } else {
+    throw Exception('Falha ao obter configurações');
+  }
+}
+```
+
+### Processos de Autenticação
+O sistema utiliza autenticação baseada em token. O fluxo de autenticação é o seguinte:
+
+1. O usuário envia uma requisição de login com suas credenciais.
+2. O servidor valida as credenciais e retorna um token JWT.
+3. O token deve ser incluído em todas as requisições subsequentes que exigem autorização.
+
+**Exemplo de autenticação:**
+```dart
+Future<String> veLogin(String user, String password, double lat, double lon) async {
+  String baseUrl = "https://teletudo.com/api/login";
+  final response = await http.post(
+    Uri.parse(baseUrl),
+    headers: {'Content-Type': 'application/json'},
+    body: json.encode({
+      'user': user,
+      'password': password,
+      'lat': lat,
+      'lon': lon,
+    }),
+  );
+  if (response.statusCode == 200) {
+    var ret = json.decode(response.body);
+    final int erro = ret["Erro"] ?? 1;
+    if (erro == 0) {
+      final int idUser = ret["id"] ?? 0;
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('idUser', idUser);
+      return "";
+    } else {
+      return "ERRO";
+    }
+  } else {
+    return "ERRO";
+  }
+}
+```
+
+---
+
+## FrontEnd
+
+### Estrutura do Projeto
+O FrontEnd é desenvolvido em Flutter e segue uma estrutura modular, com pastas organizadas por funcionalidades:
+
+- **`lib/models`**: Contém os modelos de dados.
+- **`lib/screens`**: Contém as telas do aplicativo.
+- **`lib/services`**: Contém serviços de API e lógica de negócio.
+- **`lib/widgets`**: Contém widgets reutilizáveis.
+
+### Widgets e Componentes
+Os componentes do FrontEnd são construídos utilizando widgets do Flutter. Exemplos incluem:
+
+- **`DeliveryCard`**: Um widget que exibe informações sobre uma entrega.
+- **`LoginForm`**: Um formulário para autenticação do usuário.
+- **`ConfigForm`**: Um formulário para configuração de valores.
+
+**Exemplo de widget de formulário:**
+```dart
+class LoginForm extends StatelessWidget {
+  final TextEditingController _userController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        TextField(
+          controller: _userController,
+          decoration: InputDecoration(labelText: 'Usuário'),
+        ),
+        TextField(
+          controller: _passwordController,
+          decoration: InputDecoration(labelText: 'Senha'),
+          obscureText: true,
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            String user = _userController.text;
+            String password = _passwordController.text;
+            // Lógica de login
+          },
+          child: Text("Login"),
+        ),
+      ],
+    );
+  }
+}
+```
+
+### Gerenciamento de Estado
+O gerenciamento de estado é realizado utilizando o `Provider` ou `Bloc`, dependendo da complexidade da funcionalidade. O estado é gerenciado de forma a garantir que as alterações no estado sejam refletidas na interface do usuário.
+
+**Exemplo de uso do Provider:**
+```dart
+class AppState with ChangeNotifier {
+  String _user = "";
+
+  String get user => _user;
+
+  void setUser(String newUser) {
+    _user = newUser;
+    notifyListeners();
+  }
+}
+```
+
+### Integrações com o BackEnd
+As integrações com o BackEnd são realizadas através de chamadas HTTP. O pacote `http` do Dart é utilizado para fazer requisições e manipular respostas. Exemplos de funções de integração:
+
+- **`loginUser`**: Realiza a autenticação do usuário.
+- **`fetchConfigurations`**: Recupera as configurações do sistema.
+- **`sendHeartbeat`**: Envia a localização do Motoboy.
+
+**Exemplo de integração com o BackEnd:**
+```dart
+Future<void> sendHeartbeat(double lat, double lon) async {
+  var url = 'https://teletudo.com/api/heartbeat';
+  var response = await http.post(Uri.parse(url), body: {
+    'lat': lat.toString(),
+    'lon': lon.toString(),
+  });
+  if (response.statusCode != 200) {
+    throw Exception('Falha ao enviar heartbeat');
+  }
+}
+```
+
+---
+
+## Considerações Finais
+A documentação deve ser atualizada regularmente conforme novas funcionalidades são adicionadas ou mudanças são feitas no sistema. É importante que todos os desenvolvedores envolvidos no projeto sigam as convenções e padrões estabelecidos para garantir a manutenibilidade e a escalabilidade do código.
+
+Essa base de conhecimento deve servir como um guia prático e abrangente para todos os aspectos do projeto "Entregatudo". Se houver novas informações ou alterações, elas devem ser documentadas de forma semelhante para garantir que o conhecimento esteja sempre acessível e atualizado.

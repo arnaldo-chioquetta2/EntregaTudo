@@ -31,6 +31,7 @@ class _HomePageState extends State<HomePage> {
   int lojasNoRaio = 0;
   bool isFornecedor = false;
   bool isSaldoAtualizado = false;
+  bool isCheckingLogin = false;
 
   @override
   void initState() {
@@ -39,24 +40,25 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _verificarLoginOuCadastro() async {
+    if (isCheckingLogin) return;
+    isCheckingLogin = true;
     print("Iniciando verificação de login ou cadastro");
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getInt('idUser');
     isFornecedor = prefs.getBool('isFornecedor') ?? false;
-
     if (userId == null || userId == 0) {
       print("Usuário não logado. Redirecionando para registro.");
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed('/register');
+      isCheckingLogin = false;
       return;
     }
-
     _locationService.requestPermissions();
     _scheduleNextHeartbeat(2);
-
     print("Chamando updateSaldo para o usuário: $userId");
-    await updateSaldo(); // Aguarde a atualização do saldo
+    await updateSaldo();
     print("Verificação de login ou cadastro concluída");
+    isCheckingLogin = false;
   }
 
   @override
@@ -317,51 +319,143 @@ class _HomePageState extends State<HomePage> {
     double longitude = pos?.longitude ?? -51.1355;
     print("Enviando local: $latitude, $longitude");
 
-    DeliveryDetails? deliveryDetails =
-        await API.sendHeartbeat(latitude, longitude);
+    // Obtém o ID da loja para determinar o tipo de usuário
+    int? idLoja = prefs.getInt('idLoja'); // Obtém o id_loja
 
-    if (deliveryDetails != null) {
-      // Atualiza a variável lojasNoRaio aqui
-      int lojasNoRaio = deliveryDetails.lojasNoRaio;
-      double valorDelivery = deliveryDetails.valor ?? 0.0;
-      int? currentChamado = prefs.getInt('currentChamado');
+    if (idLoja != null && idLoja > 0) {
+      // Chama o sendHeartbeatF para fornecedores
+      FornecedorHeartbeatResponse? fornecedorDetails =
+          await API.sendHeartbeatF(latitude, longitude);
 
-      print('Detalhes recebidos: $deliveryDetails');
+      if (fornecedorDetails != null) {
+        // Processa os detalhes recebidos para fornecedores
+        int lojasNoRaio = fornecedorDetails.lojasNoRaio;
+        int idLoja = fornecedorDetails.idLoja;
 
-      // Atualiza a UI com o número de lojas no raio
-      setState(() {
-        this.lojasNoRaio = lojasNoRaio; // Atualizando a variável de estado
-        deliveryData = {
-          'enderIN': deliveryDetails.enderIN ?? 'Desconhecido',
-          'enderFN': deliveryDetails.enderFN ?? 'Desconhecido',
-          'dist': deliveryDetails.dist ?? 0.0,
-          'valor': valorDelivery,
-          'peso': deliveryDetails.peso ?? 'Não Informado',
-          'chamado': deliveryDetails.chamado,
-          'lojasNoRaio': lojasNoRaio,
-        };
-      });
-
-      print('Dados atualizados na UI com lojasNoRaio: $lojasNoRaio');
-
-      // Se quiser reportar a visualização, pode fazer isso aqui
-      if (currentChamado != deliveryDetails.chamado) {
-        await prefs.setInt('currentChamado', deliveryDetails.chamado ?? 0);
-        int? userId = prefs.getInt('idUser');
-        if (userId != null) {
-          await API.reportViewToServer(userId, deliveryDetails.chamado);
-          print(
-              "Visualização reportada: chamado = ${deliveryDetails.chamado}, userId = $userId");
+        // Se houver nova venda, salve as informações
+        if (fornecedorDetails.novaVenda != null) {
+          NovaVenda novaVenda = fornecedorDetails.novaVenda!;
+          await prefs.setString('hora', novaVenda.hora);
+          await prefs.setString('valor', novaVenda.valor);
+          await prefs.setString('cliente', novaVenda.cliente);
+          await prefs.setInt('idPed', novaVenda.idPed);
+          await prefs.setInt('idAviso', novaVenda.idAviso);
         }
-      }
 
-      int nextInterval = (deliveryDetails.modo ?? 3) == 3 ? 60 : 10;
-      _scheduleNextHeartbeat(nextInterval);
+        // Atualiza a UI com o número de lojas no raio
+        setState(() {
+          this.lojasNoRaio = lojasNoRaio;
+          deliveryData = {
+            'idLoja': idLoja,
+            // Adicione outros dados que você deseja atualizar na UI
+          };
+        });
+
+        print('Dados atualizados na UI com lojasNoRaio: $lojasNoRaio');
+      } else {
+        print("Erro ao receber dados de heartbeat do fornecedor");
+      }
     } else {
-      print("Erro ao receber dados de heartbeat");
-      _scheduleNextHeartbeat(60); // Usando 60 segundos como fallback
+      // Chama o sendHeartbeat para motoboys
+      DeliveryDetails? deliveryDetails =
+          await API.sendHeartbeat(latitude, longitude);
+
+      if (deliveryDetails != null) {
+        // Atualiza a variável lojasNoRaio aqui
+        int lojasNoRaio = deliveryDetails.lojasNoRaio;
+        double valorDelivery = deliveryDetails.valor ?? 0.0;
+        int? currentChamado = prefs.getInt('currentChamado');
+
+        print('Detalhes recebidos: $deliveryDetails');
+
+        // Atualiza a UI com o número de lojas no raio
+        setState(() {
+          this.lojasNoRaio = lojasNoRaio; // Atualizando a variável de estado
+          deliveryData = {
+            'enderIN': deliveryDetails.enderIN ?? 'Desconhecido',
+            'enderFN': deliveryDetails.enderFN ?? 'Desconhecido',
+            'dist': deliveryDetails.dist ?? 0.0,
+            'valor': valorDelivery,
+            'peso': deliveryDetails.peso ?? 'Não Informado',
+            'chamado': deliveryDetails.chamado,
+            'lojasNoRaio': lojasNoRaio,
+          };
+        });
+
+        print('Dados atualizados na UI com lojasNoRaio: $lojasNoRaio');
+
+        // Se quiser reportar a visualização, pode fazer isso aqui
+        if (currentChamado != deliveryDetails.chamado) {
+          await prefs.setInt('currentChamado', deliveryDetails.chamado ?? 0);
+          int? userId = prefs.getInt('idUser');
+          if (userId != null) {
+            await API.reportViewToServer(userId, deliveryDetails.chamado);
+            print(
+                "Visualização reportada: chamado = ${deliveryDetails.chamado}, userId = $userId");
+          }
+        }
+      } else {
+        print("Erro ao receber dados de heartbeat do motoboy");
+      }
     }
+
+    // Lógica de agendamento do próximo heartbeat
+    _scheduleNextHeartbeat(
+        60); // A lógica de intervalo pode ser ajustada conforme necessário
   }
+
+  // Future<void> chamaHeartbeat() async {
+  //   SharedPreferences prefs = await SharedPreferences.getInstance();
+  //   Position? pos = _locationService.ultimaPosicao;
+  //   double latitude = pos?.latitude ?? -30.1165;
+  //   double longitude = pos?.longitude ?? -51.1355;
+  //   print("Enviando local: $latitude, $longitude");
+
+  //   DeliveryDetails? deliveryDetails =
+  //       await API.sendHeartbeat(latitude, longitude);
+
+  //   if (deliveryDetails != null) {
+  //     // Atualiza a variável lojasNoRaio aqui
+  //     int lojasNoRaio = deliveryDetails.lojasNoRaio;
+  //     double valorDelivery = deliveryDetails.valor ?? 0.0;
+  //     int? currentChamado = prefs.getInt('currentChamado');
+
+  //     print('Detalhes recebidos: $deliveryDetails');
+
+  //     // Atualiza a UI com o número de lojas no raio
+  //     setState(() {
+  //       this.lojasNoRaio = lojasNoRaio; // Atualizando a variável de estado
+  //       deliveryData = {
+  //         'enderIN': deliveryDetails.enderIN ?? 'Desconhecido',
+  //         'enderFN': deliveryDetails.enderFN ?? 'Desconhecido',
+  //         'dist': deliveryDetails.dist ?? 0.0,
+  //         'valor': valorDelivery,
+  //         'peso': deliveryDetails.peso ?? 'Não Informado',
+  //         'chamado': deliveryDetails.chamado,
+  //         'lojasNoRaio': lojasNoRaio,
+  //       };
+  //     });
+
+  //     print('Dados atualizados na UI com lojasNoRaio: $lojasNoRaio');
+
+  //     // Se quiser reportar a visualização, pode fazer isso aqui
+  //     if (currentChamado != deliveryDetails.chamado) {
+  //       await prefs.setInt('currentChamado', deliveryDetails.chamado ?? 0);
+  //       int? userId = prefs.getInt('idUser');
+  //       if (userId != null) {
+  //         await API.reportViewToServer(userId, deliveryDetails.chamado);
+  //         print(
+  //             "Visualização reportada: chamado = ${deliveryDetails.chamado}, userId = $userId");
+  //       }
+  //     }
+
+  //     int nextInterval = (deliveryDetails.modo ?? 3) == 3 ? 60 : 10;
+  //     _scheduleNextHeartbeat(nextInterval);
+  //   } else {
+  //     print("Erro ao receber dados de heartbeat");
+  //     _scheduleNextHeartbeat(60); // Usando 60 segundos como fallback
+  //   }
+  // }
 
   void handleDeliveryResponse(bool accept) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();

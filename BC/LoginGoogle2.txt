@@ -1,0 +1,335 @@
+Perfeito, Arnaldo ✅
+A seguir está o **documento completo de base de conhecimento técnica do projeto TeleTudo / Entregatudo**, organizado conforme suas instruções —
+das camadas mais **superficiais para as mais profundas**, e **em ordem alfabética dentro de cada seção**.
+
+---
+
+# 🧭 Base de Conhecimento Técnica — Projeto **TeleTudo / Entregatudo**
+
+## 🔹 Introdução
+
+O sistema **TeleTudo / Entregatudo** é uma plataforma integrada de **marketplace, entregas e logística**, com camadas BackEnd em **Laravel/PHP** e FrontEnd em **Flutter**.
+Ele conecta **lojistas, motoboys e clientes**, gerenciando fluxos de pedidos, rastreamento de entregas, saldo financeiro e comunicação em tempo real.
+
+A arquitetura segue princípios **modulares e escaláveis**, permitindo integração com **APIs externas** (Google, OpenPix, OpenStreetMap, etc.) e serviços internos (TeleTudo Core API, LoggerService, etc.).
+
+---
+
+## 🏗️ ARQUITETURA GERAL DO SISTEMA
+
+### 🔸 Camadas
+
+1. **Apresentação (FrontEnd)**
+   Interface Flutter — apps Mobile, Web e Android TV.
+
+2. **Negócio (Lógica de Aplicação)**
+   Controladores e serviços em Laravel que processam dados, aplicam validações e coordenam chamadas externas.
+
+3. **Dados (Modelos e Repositórios)**
+   Estrutura relacional em MySQL, acessada por modelos Eloquent e consultas SQL diretas.
+
+4. **Infraestrutura (APIs e Serviços)**
+   Comunicação entre apps, endpoints REST, autenticação, logs, heartbeat e integração Google.
+
+---
+
+## ⚙️ BACKEND (LARAVEL)
+
+### 🔸 1. Estrutura e Padrões
+
+O backend está organizado segundo convenções do Laravel:
+
+```
+app/
+ ├── Http/
+ │    ├── Controllers/
+ │    │    ├── AppController.php
+ │    │    ├── EntregasController.php
+ │    │    ├── GoogleLoginController.php
+ │    │    ├── OrcamentoController.php
+ │    │    └── ...
+ │    ├── Middleware/
+ │    │    ├── VerifyCsrfToken.php
+ │    │    ├── OptionalBasicAuth.php
+ │    │    └── TrustProxies.php
+ │    └── Kernel.php
+ ├── Models/
+ ├── Services/
+ │    └── LoggerService.php
+ ├── Providers/
+ └── ...
+```
+
+#### 1.1 Configurações
+
+* `config/cors.php` — libera origens cruzadas (`allowed_origins=['*']`) para apps Flutter.
+* `config/app.php` — define timezone, locale e serviços principais.
+* `app/Http/Kernel.php` — registra middlewares (`cors`, `csrf`, `jwt`, etc.).
+* `routes/api.php` — expõe endpoints principais.
+
+---
+
+### 🔸 2. Principais Endpoints e Controladores
+
+| Endpoint                 | Controller              | Descrição                                                          |
+| ------------------------ | ----------------------- | ------------------------------------------------------------------ |
+| `/api/login`             | `AppController`         | Autenticação básica e login de motoboys                            |
+| `/api/cadboy`            | `AppController`         | Cadastro de entregador (divisão DDD/telefone, senha criptografada) |
+| `/api/heartbeat`         | `AppController`         | Atualiza geolocalização do motoboy periodicamente                  |
+| `/api/orcamento`         | `OrcamentoController`   | Calcula distância e taxa de entrega com base na origem/destino     |
+| `/login/google/callback` | `GoogleLoginController` | Login via OAuth2 com `accessToken` ou `idToken`                    |
+| `/api/login/status`      | `AppController::status` | Retorna status da autenticação Google (polling no app)             |
+
+---
+
+### 🔸 3. Métodos Internos
+
+#### 3.1 `AppController`
+
+* **`getNextUserId()`** — gera um ID sequencial para fluxo de login Google.
+* **`status(Request)`** — retorna status atual de login baseado em `ID` (polling).
+* **`heartbeat(Request)`** — registra posição GPS, calcula distância e responde modo de operação.
+* **`obtemCfgValores()`** — retorna parâmetros de configuração do sistema (taxas, distâncias, etc.).
+* **`Orcamento($qry1, $ConsF, $ConsC, $Teste, $distancia)`** — cálculo de orçamento e seleção automática de entregadora.
+
+#### 3.2 `GoogleLoginController`
+
+Gerencia autenticação via **OAuth2 Google Sign-In**:
+
+* Recebe `accessToken` ou `idToken`.
+* Consulta Google API `https://www.googleapis.com/oauth2/v3/userinfo`.
+* Cria ou vincula usuário na tabela `users`.
+* Atualiza status no Redis/DB para consulta posterior pelo app.
+
+#### 3.3 `LoggerService`
+
+Serviço central para registrar logs uniformemente:
+
+```php
+LoggerService::loga($m, $msg, $dadosOpc = []);
+```
+
+Registra no storage (`/storage/logs/laravel.log`) e identifica rotas, parâmetros e exceções.
+
+#### 3.4 `VerifyCsrfToken`
+
+Exclui endpoints como `/login/google/callback` da verificação de CSRF para compatibilidade com o app Flutter.
+
+---
+
+### 🔸 4. Processos Específicos
+
+#### 4.1 Heartbeat
+
+Fluxo contínuo de atualização de localização:
+
+1. App envia `lat`, `lon`, `userid`, `vez`.
+2. BackEnd grava coordenadas e responde com modo de operação (`modo`), nova venda ou instruções.
+
+#### 4.2 Login Google
+
+1. App Flutter obtém `accessToken` via Google Sign-In.
+2. Envia para `/login/google/callback?ID=###`.
+3. Servidor consulta `/userinfo`, valida e vincula conta.
+4. App realiza polling em `/api/login/status`.
+
+#### 4.3 Autenticação Tradicional
+
+Valida usuário e senha manualmente, retornando token JWT.
+
+---
+
+## 📱 FRONTEND (FLUTTER)
+
+### 🔸 1. Estrutura do Projeto
+
+```
+lib/
+ ├── api.dart
+ ├── auth_service.dart
+ ├── models/
+ │    ├── nova_venda.dart
+ │    └── fornecedor_heartbeat_response.dart
+ ├── screens/
+ │    ├── home_page.dart
+ │    ├── login_page.dart
+ │    ├── config_page.dart
+ │    └── ...
+ ├── widgets/
+ │    ├── delivery_card.dart
+ │    └── ...
+ └── main.dart
+```
+
+---
+
+### 🔸 2. Principais Classes e Serviços
+
+#### 2.1 `API`
+
+Classe responsável por requisições HTTP.
+Métodos principais:
+
+* `loginUser()`
+* `nextUserId()`
+* `googleLoginInit()`
+* `googleLoginStatus()`
+* `saldo()`
+* `sendHeartbeat()`
+
+#### 2.2 `AuthService`
+
+Gerencia fluxo de autenticação (login, logout, Google Sign-In, persistência).
+
+Trecho principal:
+
+```dart
+final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+final googleAuth = await googleUser?.authentication;
+final init = await API.googleLoginInit(
+  idToken: googleAuth?.idToken,
+  accessToken: googleAuth?.accessToken,
+  userIdForQuery: queryId,
+);
+```
+
+Também salva sessão localmente com `SharedPreferences`.
+
+#### 2.3 `HomePage` / `LoginPage`
+
+* `HomePage` exibe dados do motoboy, saldo e pedidos.
+* `LoginPage` faz autenticação via formulário ou Google Sign-In.
+
+---
+
+### 🔸 3. Processos Internos
+
+#### 3.1 Polling de Login Google
+
+Após envio do token, o app faz polling a cada 2s no endpoint `/api/login/status`.
+Assim que o backend marca `done=true`, a sessão é salva e o usuário é redirecionado para a tela principal.
+
+#### 3.2 Heartbeat Automático
+
+Um timer (`Timer.periodic`) envia a localização atual via `API.sendHeartbeat()` a cada intervalo fixo, incluindo `userid`, `idLoja`, `vez`, `lat`, `lon`.
+
+#### 3.3 Controle de Sessão
+
+* Sessões persistidas via `flutter_secure_storage` e `SharedPreferences`.
+* Tokens e dados do usuário armazenados localmente:
+
+  * `userId`
+  * `accessToken`
+  * `refreshToken`
+  * `googleId`
+  * `userEmail`
+
+---
+
+### 🔸 4. Gerenciamento de Estado
+
+Uso principal de `StatefulWidget` e `setState()` para telas simples.
+Em módulos mais avançados (TV e painel administrativo), o padrão `Provider` ou `Bloc` é usado.
+
+---
+
+### 🔸 5. Autenticação e Login Persistente
+
+* O método `trySilentGoogleLogin()` tenta restaurar a sessão automaticamente com `GoogleSignIn.signInSilently()`.
+* Caso falhe, exibe botão de login.
+
+---
+
+## 🧱 DETALHAMENTO PROFUNDO (por ordem alfabética)
+
+### A
+
+* **API.googleLoginInit** — envia token Google para backend.
+* **AppController** — controlador principal de fluxo app.
+* **AuthService** — autenticação Flutter (Google e manual).
+
+### B
+
+* **Backend** — Laravel 10+, PHP 8+, JWT, REST.
+* **Banco de Dados** — MySQL com tabelas `users`, `tt_pedidos`, `et_entregador`, `tt_lojas`.
+
+### C
+
+* **callback()** — recebe tokens OAuth2 e processa login.
+* **Configuração Gradle** — `compileSdk=35`, `minSdk=23`.
+
+### D
+
+* **DeliveryCard** — exibe dados de entrega na UI Flutter.
+
+### F
+
+* **Firebase** — não utilizado; autenticação via Google OAuth direto.
+* **Flutter** — versão 3.22.3; build Java 17 compatível.
+
+### G
+
+* **GoogleLoginController** — autenticação Google OAuth2.
+* **Gradle** — usa `key.properties` e `.jks` para assinatura release.
+
+### H
+
+* **heartbeat()** — monitora GPS do motoboy e envia atualizações.
+
+### J
+
+* **JWT** — usado para autenticação tradicional.
+
+### K
+
+* **key.properties** — define senhas e alias do keystore Android.
+
+### L
+
+* **LoggerService** — loga todas as etapas críticas.
+
+### M
+
+* **MainActivity** — activity principal Flutter Android.
+* **minSdkVersion 23** — mínimo exigido pelo Firebase Auth plugin.
+
+### N
+
+* **nextUserId()** — gera ID para polling de login Google.
+
+### O
+
+* **Orcamento()** — calcula custo de entrega e escolhe entregadora.
+
+### P
+
+* **polling login/status** — checa status de autenticação no app.
+
+### R
+
+* **Retrofit** — não utilizado; app usa `http` nativo.
+* **Release Build** — assinado via `entregatudo-release-key.jks`.
+
+### S
+
+* **SharedPreferences** — persistência de dados leves.
+* **sendHeartbeat()** — requisição HTTP com posição GPS.
+
+### V
+
+* **VerifyCsrfToken** — ignora `/login/google/callback`.
+* **ViewModel / Provider** — usado em versões TV/Admin.
+
+---
+
+## 🧩 CONCLUSÃO
+
+O projeto **TeleTudo / Entregatudo** é um ecossistema robusto e modular,
+unindo **Laravel + Flutter + Google OAuth2** com foco em entregas urbanas, controle logístico e integração em tempo real.
+
+Para manutenção:
+
+* Atualize a documentação sempre que endpoints ou modelos forem alterados.
+* Use o `LoggerService` como primeira fonte de diagnóstico.
+* Mantenha `key.properties` e `.jks` fora do controle de versão público.
+

@@ -1,0 +1,321 @@
+# Base de Conhecimento – Projeto Entregatudo  
+*Codificação, métodos internos e processos – ordenação crescente de profundidade e, dentro de cada nível, ordem alfabética.*
+
+---
+
+## NÍVEL SUPERFICIAL (visão geral)
+
+### BackEnd – visão geral  
+- **Tecnologia**: PHP/Laravel – APIs RESTful  
+- **Endpoints públicos** (ordem alfabética):  
+  - `/api/cadboy`  
+  - `/api/heartbeat`  
+  - `/api/login`  
+  - `/api/login/google/callback`  
+  - `/api/login/status`  
+  - `/api/next-user-id`  
+  - `/api/obtemCfgValores`  
+- **Autenticação**: JWT após validação de credenciais (login clássico ou Google)  
+- **Modelos JSON**: `FornecedorHeartbeatResponse`, `NovaVenda`, `Config`
+
+### FrontEnd – visão geral  
+- **Tecnologia**: Flutter 3.x – estrutura modular  
+- **Pastas principais** (ordem alfabética):  
+  - `lib/models`  
+  - `lib/screens`  
+  - `lib/services`  
+  - `lib/widgets`  
+- **Gerenciamento de estado**: Provider (escopo simples) ou Bloc (escopo complexo)  
+- **Integração**: pacote `http` – todas as chamadas REST  
+- **Widgets reutilizáveis** (ordem alfabética):  
+  - `ConfigForm`  
+  - `DeliveryCard`  
+  - `LoginForm`
+
+---
+
+## NÍVEL INTERMEDIÁRIO (estruturas e fluxos)
+
+### BackEnd – estruturas  
+**Endpoints detalhados (ordem alfabética)**  
+1. `/api/cadboy` – POST – body `{nome, cpf, placa, senha}` – retorna `{success, motoboy_id}`  
+2. `/api/heartbeat` – POST – header `Authorization: Bearer <JWT>` – body `{lat, lng}` – retorna `FornecedorHeartbeatResponse`  
+3. `/api/login` – POST – body `{email, senha}` – retorna `{token, refresh_token, user}`  
+4. `/api/login/google/callback?ID=<id>` – POST – body `{idToken}` – retorna `{success, message}`  
+5. `/api/login/status?ID=<id>` – GET – retorna `{done, success, user_id, is_new_user, message?}`  
+6. `/api/next-user-id` – GET – retorna `{success, nextId}`  
+7. `/api/obtemCfgValores` – GET – retorna `{taxa, distanciaMax, modos}`  
+
+**Modelos PHP (ordem alfabética)**  
+- `Config {taxa, distanciaMax, modos}`  
+- `FornecedorHeartbeatResponse {modo, lojasNoRaio[], idLoja, novaVenda?}`  
+- `NovaVenda {hora, valor, cliente, idPed, idAviso}`  
+
+**Processos internos (ordem alfabética)**  
+- `cadboy()` – valida JWT → insert motoboy → retorna id  
+- `googleLoginCallback()` – valida idToken Google → insert/update users → marca fila como “processing”  
+- `googleLoginStatus()` – polling na fila → retorna estado final  
+- `nextUserId()` – consulta `information_schema` para `AUTO_INCREMENT`  
+- `obtemCfgValores()` – SELECT na tabela `config`  
+- `saveConfigurations()` – UPDATE na tabela `config`  
+- `sendHeartbeat()` – grava posição → SELECT lojas dentro do raio → monta `FornecedorHeartbeatResponse`
+
+### FrontEnd – estruturas  
+**Integrações REST (ordem alfabética)**  
+- `fetchConfigurations()` – GET `/api/obtemCfgValores`  
+- `loginUser()` – POST `/api/login`  
+- `sendHeartbeat()` – POST `/api/heartbeat`  
+
+**Widgets (ordem alfabética)**  
+- `ConfigForm` – FormField duplo: taxa (double) + distância (int) – botão “Salvar” chama `saveConfigurations()`  
+- `DeliveryCard` – Card com leading foto da loja, title nome da loja, subtitle distância e tempo estimado  
+- `LoginForm` – campos email/senha – validação mín 3 chars – botão “Entrar” chama `loginUser()`
+
+---
+
+## NÍVEL PROFUNDO (código e métodos internos)
+
+### BackEnd – código PHP (ordem alfabética de métodos)  
+```php
+public function cadboy(Request $req) {
+    $data = $req->validate([...]);
+    $id = DB::table('motoboy')->insertGetId($data);
+    return response()->json(['success' => true, 'motoboy_id' => $id]);
+}
+
+public function googleLoginCallback(Request $req) {
+    $idToken = $req->input('idToken');
+    $googleId = $this->verifyGoogleToken($idToken);
+    $user = User::firstOrCreate(['google_id' => $googleId], [...]);
+    LoginQueue::updateOrCreate(['id' => $req->ID], ['done' => false, 'user_id' => $user->id]);
+    return response()->json(['success' => true, 'message' => 'processing']);
+}
+
+public function googleLoginStatus(Request $req) {
+    $q = LoginQueue::find($req->ID);
+    if (!$q || !$q->done) return response()->json(['done' => false]);
+    return response()->json([
+        'done' => true,
+        'success' => true,
+        'user_id' => $q->user_id,
+        'is_new_user' => $q->is_new_user
+    ]);
+}
+
+public function nextUserId() {
+    $next = DB::select("SELECT AUTO_INCREMENT as nextId FROM information_schema.tables WHERE table_name = 'users'")[0]->nextId;
+    return response()->json(['success' => true, 'nextId' => $next]);
+}
+
+public function obtemCfgValores() {
+    $cfg = Config::first();
+    return response()->json($cfg);
+}
+```
+
+### FrontEnd – código Dart (ordem alfabética de métodos)  
+**api.dart**  
+```dart
+class API {
+  static Future<int?> nextUserId() async {
+    final url = Uri.parse('https://teletudo.com/api/next-user-id');
+    final res = await http.get(url, headers: {'Accept':'application/json'});
+    if (res.statusCode == 200) {
+      final d = json.decode(res.body);
+      if (d['success'] == true) return d['nextId'] is int ? d['nextId'] : int.tryParse('${d['nextId']}');
+    }
+    return null;
+  }
+
+  static Future<Map<String,dynamic>> googleLoginInit({required String idToken, required int userIdForQuery}) async {
+    final url = Uri.parse('https://teletudo.com/api/login/google/callback?ID=$userIdForQuery');
+    final res = await http.post(url, body: {'idToken': idToken}, headers: {'Accept':'application/json'});
+    return json.decode(res.body);
+  }
+
+  static Future<Map<String,dynamic>> googleLoginStatus({required int userIdForQuery}) async {
+    final url = Uri.parse('https://teletudo.com/api/login/status?ID=$userIdForQuery');
+    final res = await http.get(url, headers: {'Accept':'application/json'});
+    return json.decode(res.body);
+  }
+}
+```
+
+**auth_service.dart**  
+```dart
+class AuthService {
+  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+  final FlutterSecureStorage _secure = FlutterSecureStorage();
+  final SharedPreferences _prefs = await SharedPreferences.getInstance();
+
+  Future<AuthResult> signInWithGoogle() async {
+    try {
+      final int? maybeId = await API.nextUserId();
+      if (maybeId == null) return AuthResult.error('Falha ao obter ID');
+      final GoogleSignInAccount? account = await _googleSignIn.signIn();
+      if (account == null) return AuthResult.cancelled();
+      final GoogleSignInAuthentication auth = await account.authentication;
+      await API.googleLoginInit(idToken: auth.idToken!, userIdForQuery: maybeId);
+      return await _trazCredenciais(maybeId);
+    } catch (e) {
+      return AuthResult.error(e.toString());
+    }
+  }
+
+  Future<AuthResult> _trazCredenciais(int id) async {
+    for (int i = 0; i < 40; i++) { // 40 * 500 ms = 20 s
+      final res = await API.googleLoginStatus(userIdForQuery: id);
+      if (res['done'] == true) {
+        if (res['success'] == true) {
+          final user = User.fromJson(res);
+          await _salvaLocal(user, res['accessToken'], res['refreshToken']);
+          return AuthResult.success(user, res['is_new_user']);
+        } else {
+          return AuthResult.error(res['message'] ?? 'Erro desconhecido');
+        }
+      }
+      await Future.delayed(Duration(milliseconds: 500));
+    }
+    return AuthResult.timeout();
+  }
+
+  Future<void> _salvaLocal(User u, String a, String r) async {
+    await _prefs.setInt('idUser', u.id);
+    await _prefs.setString('nome', u.nome);
+    await _prefs.setString('email', u.email);
+    await _prefs.setString('fotoUrl', u.fotoUrl);
+    await _secure.write(key: 'accessToken', value: a);
+    await _secure.write(key: 'refreshToken', value: r);
+  }
+}
+```
+
+**Models (ordem alfabética)**  
+```dart
+class AuthResult {
+  final bool success;
+  final User? user;
+  final bool? isNewUser;
+  final String? error;
+  AuthResult.success(this.user, this.isNewUser) : success = true, error = null;
+  AuthResult.error(this.error) : success = false, user = null, isNewUser = null;
+  AuthResult.cancelled() : success = false, user = null, isNewUser = null, error = 'cancelled';
+  AuthResult.timeout() : success = false, user = null, isNewUser = null, error = 'timeout';
+}
+
+class Config {
+  final double taxa;
+  final int distanciaMax;
+  final List<String> modos;
+  Config.fromJson(Map<String,dynamic> j)
+      : taxa = j['taxa'].toDouble(),
+        distanciaMax = j['distanciaMax'],
+        modos = List<String>.from(j['modos']);
+}
+
+class User {
+  final int id;
+  final String nome;
+  final String email;
+  final String fotoUrl;
+  final String? googleId;
+  User.fromJson(Map<String,dynamic> j)
+      : id = j['user_id'],
+        nome = j['nome'] ?? '',
+        email = j['email'] ?? '',
+        fotoUrl = j['fotoUrl'] ?? '',
+        googleId = j['google_id'];
+}
+```
+
+**Persistência local – chaves (ordem alfabética)**  
+- `SecureStorageKeys`: `accessToken`, `refreshToken`  
+- `SharedPrefsKeys`: `email`, `fotoUrl`, `idUser`, `isLogado`, `nome`
+
+**Tratamento de erros (ordem alfabética de cenários)**  
+- `Erro de rede`: catch em `http.get`/`post` → mensagem “Verifique sua conexão”  
+- `Timeout 20 s`: loop finaliza → `AuthResult.timeout()` → UI exibe “Tente novamente”  
+- `Token inválido`: backend retorna `success=false` → limpa sessão → redireciona para login  
+
+---
+
+## ÍNDICE REMISSIVO FINAL (ordem alfabética)
+
+A  
+– accessToken  
+– /api/cadboy  
+– /api/heartbeat  
+– /api/login  
+– /api/login/google/callback  
+– /api/login/status  
+– /api/next-user-id  
+– /api/obtemCfgValores  
+– AuthResult  
+– AuthService.dart  
+
+C  
+– cadboy()  
+– Config  
+– ConfigForm  
+
+D  
+– DeliveryCard  
+– distanciaMax  
+
+F  
+– flutter_secure_storage  
+– FornecedorHeartbeatResponse  
+
+G  
+– googleLoginCallback()  
+– googleLoginInit()  
+– googleLoginStatus()  
+
+H  
+– heartbeat  
+
+I  
+– idUser  
+– isLogado  
+– isNewUser  
+
+J  
+– JWT  
+
+L  
+– lib/models  
+– lib/screens  
+– lib/services  
+– lib/widgets  
+– loginUser()  
+
+M  
+– modos  
+
+N  
+– nextUserId()  
+– NovaVenda  
+
+O  
+– obtemCfgValores()  
+
+P  
+– Provider (estado)  
+– polling (500 ms)  
+
+R  
+– refreshToken  
+
+S  
+– saveConfigurations()  
+– SecureStorageKeys  
+– sendHeartbeat()  
+– SharedPrefsKeys  
+
+T  
+– taxa  
+– timeout (20 s)  
+– trazCredenciais()  
+
+U  
+– User

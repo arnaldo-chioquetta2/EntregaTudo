@@ -1,0 +1,257 @@
+Perfeito.
+Com base em tudo que desenvolvemos juntos sobre o **projeto EntregaTudo**, segue um **documento de base de conhecimento técnico completo**, organizado por **camadas (superficiais → profundas)** e, dentro de cada camada, em **ordem alfabética**.
+
+---
+
+# 📘 Base de Conhecimento — Projeto EntregaTudo
+
+## 🔹 Visão Geral
+
+O **EntregaTudo** é um sistema de gestão e operação logística para **motoboys e entregadoras**, integrado à plataforma **TeleTudo**.
+Ele abrange:
+
+* **BackEnd (Laravel/PHP)** para controle de entregas, cadastro e orçamentos.
+* **App Mobile (Flutter)** para **motoboys**, com login, heartbeat, atualização de saldo, configurações e cadastro.
+
+---
+
+## 🧩 CAMADA 1 — BACKEND
+
+### **1.1 Arquitetura**
+
+* Linguagem: **PHP 8+**
+* Framework: **Laravel**
+* API principal: `https://teletudo.com/api`
+* Estrutura modular: controladores separados por função (`cadboy`, `orcamento`, `heartbeat`, etc.)
+
+---
+
+### **1.2 Endpoints Principais**
+
+| Endpoint                  | Função                         | Observações                                                              |
+| ------------------------- | ------------------------------ | ------------------------------------------------------------------------ |
+| `/api/cadboy`             | Cadastra novo motoboy          | Recebe dados completos do formulário, incluindo placa, CNH, PIX e erros. |
+| `/api/heartbeat`          | Atualiza posição e status      | Usa `userid`, `lat`, `lon`, `idLoja`. Retorna status da entrega.         |
+| `/api/saldo`              | Retorna saldo atual do motoboy | Utilizado no app via `API.saldo()`                                       |
+| `/api/orcamento`          | Calcula orçamento da entrega   | Usa coordenadas cliente/fornecedor, modo de teste e distância simulada.  |
+| `/api/saveConfigurations` | Salva configurações do motoboy | Recebe kmRate, adicionais e distância máxima.                            |
+
+---
+
+### **1.3 Modelos de Dados**
+
+#### **Motoboy (`tt_entregador` / `et_entregador`)**
+
+* `id`
+* `nome_completo`
+* `usuario`
+* `email`
+* `telefone`
+* `cnh`
+* `placa`
+* `pix`
+* `distancia_maxima`
+* `erroCodigo`
+* `versaoApp`
+
+#### **Entrega**
+
+* `id_pedido`
+* `id_entregador`
+* `status` (`retirado`, `em rota`, `entregue`)
+* `coordenadas_cliente`
+* `coordenadas_loja`
+
+---
+
+### **1.4 Processos Internos**
+
+* **Heartbeat:** Atualiza coordenadas e status em tempo real.
+* **Cadastro:** Faz validação e grava motoboy com registro de erros possíveis (`erroCodigo`: 0–3).
+* **Orçamento:** Calcula custo com base em taxa base + km + adicionais (chuva, peso, madrugada etc.).
+* **Autenticação:** Usa e-mail/senha com verificação de duplicidade e resposta JSON.
+* **Validações:** Implementadas no servidor e replicadas no Flutter (placa, CNH, formato de e-mail).
+
+---
+
+### **1.5 Códigos de Erro**
+
+| Código | Descrição             |
+| ------ | --------------------- |
+| `0`    | Sem erro              |
+| `1`    | CNH inválida          |
+| `2`    | Placa inválida        |
+| `3`    | CNH e Placa inválidas |
+
+---
+
+## 💻 CAMADA 2 — FRONTEND (APP FLUTTER)
+
+### **2.1 Estrutura Geral**
+
+* Linguagem: **Dart**
+* Framework: **Flutter**
+* Padrão: **Stateful Widgets**
+* Armazenamento local: `SharedPreferences`
+* Comunicação HTTP: pacote `http`
+* Permissões e localização: `geolocator`, `permission_handler`
+
+---
+
+### **2.2 Principais Telas**
+
+| Tela             | Descrição                                                                     |
+| ---------------- | ----------------------------------------------------------------------------- |
+| **RegisterPage** | Cadastro de motoboys. Inclui validação de CNH, placa e envio de `erroCodigo`. |
+| **SettingsPage** | Configuração de tarifas e adicionais personalizados.                          |
+| **HomePage**     | Tela principal com resumo do status e saldo.                                  |
+| **LoginPage**    | Autenticação e armazenamento do `idUser` no `SharedPreferences`.              |
+
+---
+
+### **2.3 Classe API (Integração)**
+
+* Local: `lib/api.dart`
+* Métodos:
+
+  * `registerUser()`
+  * `saveConfigurations()`
+  * `obtemCfgValores()`
+  * `saldo()`
+  * `heartbeat()`
+
+#### 🔹 `registerUser()`
+
+Recebe:
+
+```dart
+String nome,
+String usuario,
+String email,
+String senha,
+String telefone,
+String cnh,
+String placa,
+String PIX,
+int erroCodigo,
+int distanciaMaxima
+```
+
+Envia JSON à API `/cadboy` e grava `idUser` localmente.
+**Versão do app (`AppConfig.versaoApp`)** incluída em todas as requisições.
+
+#### 🔹 `saveConfigurations()`
+
+Salva valores como:
+
+* `minValue`
+* `kmRate`
+* `adicionais` (chuva, noite, madrugada, peso)
+* `usuario`
+* `maxDistance`
+
+---
+
+### **2.4 Componentes e Processos Internos**
+
+#### **Validação de Campos**
+
+* `validarEmail()` → Expressão regular RFC.
+* `validarSenha()` → Mínimo 6 caracteres.
+* `validarCNH()` → Algoritmo duplo de soma com 2 dígitos verificadores.
+* `validarPlaca()` → Padrão antigo (ABC-1234) e Mercosul (ABC1D23).
+
+#### **Controle de Erros**
+
+* `JaMostrouCnhInv` e `JaMostrouPlaca` controlam se o usuário foi avisado sobre dados inválidos, evitando loops de alerta.
+* `deixaPassarCnhInv` permite continuar o cadastro mesmo com erros (apenas se confirmado no diálogo).
+
+#### **Fluxo do Cadastro**
+
+1. Usuário preenche todos os campos.
+2. Sistema valida CNH, placa e e-mail.
+3. Caso haja erro e `deixaPassarCnhInv = true`, mostra diálogo de confirmação.
+4. Gera `erroCodigo` conforme persistência de erros.
+5. Envia `POST` para `/api/cadboy` com dados JSON.
+6. Se `success = true`, armazena `idUser` e vai para `HomePage`.
+
+---
+
+### **2.5 Configurações do App**
+
+```dart
+class AppConfig {
+  static const String versaoApp = "1.1.6";
+}
+```
+
+A variável é usada em todas as chamadas de API para rastrear compatibilidade.
+
+---
+
+## ⚙️ CAMADA 3 — DETALHES AVANÇADOS
+
+### **3.1 Processos de Validação**
+
+* CNH → algoritmo matemático (soma ponderada).
+* Placa → `RegExp(r'^[A-Z]{3}-\d{4}$|^[A-Z]{3}\d[A-Z]\d{2}$')`.
+* PIX → apenas formato livre, sem validação formal.
+* Erros controlados via snackbar (`mostrarMensagem(context, mensagem)`).
+
+---
+
+### **3.2 Comunicação Assíncrona**
+
+* Todas as requisições HTTP usam `async/await`.
+* Tratamento de exceções com `try/catch`.
+* Mensagens de erro uniformes em `Map<String, dynamic>` com chaves:
+  `success`, `message`.
+
+---
+
+### **3.3 Armazenamento Local**
+
+* `SharedPreferences` guarda:
+
+  * `idUser`
+  * `preferências de configuração`
+  * eventuais dados de sessão
+
+---
+
+### **3.4 Segurança**
+
+* Comunicação HTTPS.
+* Nenhum dado sensível é salvo em texto plano além do `idUser`.
+* Estrutura preparada para integração futura com `flutter_secure_storage`.
+
+---
+
+### **3.5 Expansões Planejadas**
+
+* Integração com Google Login.
+* Requisições com token JWT.
+* Configurações dinâmicas baseadas na geolocalização do motoboy.
+* Logs de eventos de rota.
+
+---
+
+# 🔠 Índice Alfabético (Resumo)
+
+| Termo                                | Descrição                                                  |
+| ------------------------------------ | ---------------------------------------------------------- |
+| **AppConfig**                        | Define a versão atual do aplicativo (1.1.6).               |
+| **API.registerUser()**               | Envia cadastro para `/api/cadboy`.                         |
+| **API.saveConfigurations()**         | Envia configurações do motoboy para a API.                 |
+| **CNH (validação)**                  | Verifica dígitos e formato da CNH do motoboy.              |
+| **deixaPassarCnhInv**                | Permite cadastro mesmo com CNH inválida (com confirmação). |
+| **erroCodigo**                       | Indica status da CNH/placa: 0–3.                           |
+| **HomePage**                         | Tela inicial após login ou cadastro bem-sucedido.          |
+| **JaMostrouCnhInv / JaMostrouPlaca** | Evita repetição de alertas.                                |
+| **RegisterPage**                     | Tela de cadastro de motoboys.                              |
+| **SharedPreferences**                | Armazenamento local do `idUser` e preferências.            |
+| **versaoApp**                        | Versão atual do app, enviada ao servidor.                  |
+
+---
+
+Deseja que eu gere este documento em **formato `.pdf`** ou **`.docx`** para uso interno na equipe?

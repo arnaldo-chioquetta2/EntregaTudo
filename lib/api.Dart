@@ -5,6 +5,7 @@ import 'features/location_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:entregatudo/constants.dart';
 import 'package:entregatudo/models/delivery_details.dart';
+// import 'package:seu_projeto/models/nova_venda.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // 1.2.7 Ajuste no Crud da configuração de valores
@@ -208,8 +209,12 @@ class API {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body:
-            json.encode({'userid': userid, 'lat': lat, 'lon': lon, 'vez': vez}),
+        body: json.encode({
+          'userid': userid,
+          'lat': lat,
+          'lon': lon,
+          'vez': vez,
+        }),
       );
 
       print(
@@ -225,6 +230,66 @@ class API {
         return DeliveryDetails.fromJson(data);
       } else {
         print('Erro ao enviar heartbeat: ${response.statusCode}');
+      }
+    } else {
+      print('User ID não encontrado');
+    }
+    return null;
+  }
+
+  static Future<FornecedorHeartbeatResponse?> sendHeartbeatF(
+      double lat, double lon) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    int? userid = prefs.getInt('idUser');
+    int? idLoja = prefs.getInt('idLoja');
+    int vez = prefs.getInt('vez') ?? 0;
+    await prefs.setInt('vez', vez + 1);
+
+    if (userid != null) {
+      String baseUrl = "https://teletudo.com/api/heartbeatF";
+      print('Enviando pedido para o servidor:');
+      print('URL: $baseUrl');
+      print(
+          'Dados enviados: { "userid": $userid, "idLoja": $idLoja, "lat": $lat, "lon": $lon }');
+
+      final response = await http.post(
+        Uri.parse(baseUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: json.encode({
+          'userid': userid,
+          'idLoja': idLoja ?? 0,
+          'lat': lat,
+          'lon': lon,
+        }),
+      );
+
+      print('Resposta do servidor: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        var data = json.decode(response.body);
+        print('Dados recebidos do servidor: $data');
+
+        if (data['success'] == true) {
+          NovaVenda? novaVenda = data['nova_venda'] != null
+              ? NovaVenda.fromJson(data['nova_venda'])
+              : null;
+          return FornecedorHeartbeatResponse(
+            modo: data['modo'] ?? 3,
+            lojasNoRaio: data['lojas_no_raio'] ?? 0,
+            idLoja: idLoja ?? 0,
+            novaVenda: novaVenda,
+            processingTime: (data['processing_time_ms'] as num).toDouble(),
+          );
+        } else {
+          print('Erro no retorno: ${data['DescErro']}');
+        }
+      } else {
+        print(
+            'Erro ao enviar heartbeat para fornecedor: ${response.statusCode}');
       }
     } else {
       print('User ID não encontrado');
@@ -275,61 +340,6 @@ class API {
       return "ERRO";
     }
   }
-  // static Future<String> veLogin(
-  //     String user, String password, double lat, double lon) async {
-  //   String baseUrl = "https://teletudo.com/api/login";
-
-  //   print('Iniciando requisição de login...');
-  //   print('Usuário: $user');
-  //   print('Latitude: $lat, Longitude: $lon');
-
-  //   final response = await http.post(
-  //     Uri.parse(baseUrl),
-  //     headers: {
-  //       'Content-Type': 'application/json',
-  //       'Accept': 'application/json',
-  //     },
-  //     body: json.encode({
-  //       'user': user,
-  //       'password': password,
-  //       'lat': lat,
-  //       'lon': lon,
-  //     }),
-  //   );
-
-  //   print('Requisição concluída com status code: ${response.statusCode}');
-
-  //   if (response.statusCode == 200) {
-  //     print('Resposta recebida com sucesso!');
-  //     var ret = json.decode(response.body);
-  //     print('Resposta JSON: $ret');
-
-  //     final int erro = ret["Erro"] ?? 1;
-  //     print('Código de erro: $erro');
-
-  //     if (erro == 0) {
-  //       final int idUser = ret["id"] ?? 0;
-  //       print('ID do usuário: $idUser');
-
-  //       final SharedPreferences prefs = await SharedPreferences.getInstance();
-  //       await prefs.setInt('idUser', idUser);
-
-  //       // ✅ novo: salvar o nome para gerar sugestão no painel
-  //       final String nomeUser = (ret["nome"] ?? "").toString();
-  //       await prefs.setString('nomeUser', nomeUser);
-  //       print(
-  //           '[API.veLogin] Salvo em prefs → idUser=$idUser, nomeUser="$nomeUser"');
-
-  //       return "";
-  //     } else {
-  //       print('Erro ao realizar login!');
-  //       return "ERRO";
-  //     }
-  //   } else {
-  //     print('Falha ao realizar requisição!');
-  //     return "ERRO";
-  //   }
-  // }
 
   static Future<Position> getCurrentLocation() async {
     await _locationService.requestPermissions();
@@ -696,5 +706,59 @@ class API {
       print('Erro ao buscar código de convite do usuário: $e');
     }
     return null;
+  }
+}
+
+class FornecedorHeartbeatResponse {
+  final int modo;
+  final int lojasNoRaio;
+  final int idLoja;
+  final NovaVenda? novaVenda;
+  final double processingTime; // Adicione esta linha
+
+  FornecedorHeartbeatResponse({
+    required this.modo,
+    required this.lojasNoRaio,
+    required this.idLoja,
+    this.novaVenda,
+    required this.processingTime, // Adicione esta linha
+  });
+
+  factory FornecedorHeartbeatResponse.fromJson(Map<String, dynamic> json) {
+    return FornecedorHeartbeatResponse(
+      modo: json['modo'] ?? 3,
+      lojasNoRaio: json['lojas_no_raio'] ?? 0,
+      idLoja: json['id_loja'] ?? 0,
+      novaVenda: json['nova_venda'] != null
+          ? NovaVenda.fromJson(json['nova_venda'])
+          : null,
+      processingTime: json['processing_time_ms'], // Adicione esta linha
+    );
+  }
+}
+
+class NovaVenda {
+  final String hora;
+  final String valor;
+  final String cliente;
+  final int idPed;
+  final int idAviso;
+
+  NovaVenda({
+    required this.hora,
+    required this.valor,
+    required this.cliente,
+    required this.idPed,
+    required this.idAviso,
+  });
+
+  factory NovaVenda.fromJson(Map<String, dynamic> json) {
+    return NovaVenda(
+      hora: json['hora'],
+      valor: json['valor'],
+      cliente: json['cliente'],
+      idPed: json['idPed'],
+      idAviso: json['idAviso'],
+    );
   }
 }

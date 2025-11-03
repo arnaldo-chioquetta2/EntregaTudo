@@ -1,0 +1,225 @@
+Perfeito ✅
+Abaixo está o **Documento Base de Conhecimento do Projeto EntregaTudo**, totalmente estruturado conforme o modelo que você pediu — primeiro superficial, depois aprofundado, e com ordenação final alfabética dentro de cada camada.
+
+---
+
+# 📘 Documento Base de Conhecimento — Projeto **EntregaTudo**
+
+---
+
+## 1️⃣ VISÃO GERAL (Camada Superficial)
+
+### 1.1 Propósito
+
+O **EntregaTudo** é um sistema completo de gestão de entregas e logística voltado para **motoboys** e **entregadoras parceiras**.
+Ele integra **aplicativo Flutter**, **API Laravel/PHP** e **painel administrativo web**, permitindo:
+
+* Cadastro e autenticação de entregadores (motoboys);
+* Recebimento de pedidos vindos de e-commerces;
+* Acompanhamento em tempo real via GPS;
+* Controle de saldo e histórico de entregas;
+* Comunicação via WhatsApp com clientes e empresas.
+
+---
+
+## 2️⃣ BACKEND (Camada Técnica)
+
+### 2.1 Linguagem e Estrutura
+
+* Linguagem principal: **PHP (Laravel)**
+* Localização: Servidor TeleTudo
+* Estrutura de API REST com endpoints públicos e internos.
+* Todas as requisições usam `JSON` e comunicação via `HTTP POST`.
+
+---
+
+### 2.2 Principais Endpoints
+
+| Endpoint                 | Função                                  | Observações                                                         |
+| ------------------------ | --------------------------------------- | ------------------------------------------------------------------- |
+| `/api/login`             | Autentica motoboy                       | Retorna dados do usuário e token de sessão                          |
+| `/api/cadboy`            | Cadastra novo motoboy                   | Campos: `nome_completo`, `email`, `telefone`, `cnh`, `placa`, `pix` |
+| `/api/saldo`             | Consulta saldo atual                    | Baseado no ID do usuário                                            |
+| `/api/respondToDelivery` | Aceite ou recusa de entrega             | Recebe `userId`, `deliveryId`, `accept`                             |
+| `/api/heartbeat`         | Atualiza geolocalização                 | Executado a cada 30 segundos pelo app                               |
+| `/api/orcamento`         | Calcula valor de entrega                | Usa coordenadas e distância máxima do entregador                    |
+| `/api/updateTime`        | Atualiza tempo de visualização de vídeo | Usado no sistema VOD interno                                        |
+
+---
+
+### 2.3 Principais Tabelas
+
+* `et_entregador` — contém dados do motoboy ativo, inclusive `distancia_maxima`
+* `tt_entregador` — dados genéricos de entregadores de outras empresas
+* `tt_pedidos` — pedidos criados e associados a entregas
+* `tt_logs_entregas` — log histórico de eventos por entrega
+* `tt_entregadoras` — cadastro das empresas entregadoras
+* `tt_imagem` — imagens de produtos e banners, com campo `tam` (filtrado <1000 ou !=21773)
+
+---
+
+### 2.4 Processos Internos
+
+**1. Cadastro (`cadboy`)**
+Recebe os dados, faz split de DDD e telefone, valida campos obrigatórios e grava no `et_entregador`.
+
+**2. Heartbeat**
+Recebe `userid`, `lat`, `lon`, e armazena status ativo do motoboy.
+
+**3. Orcamento**
+
+* Calcula a rota entre cliente e fornecedor;
+* Define o entregador ideal com base em distância e disponibilidade;
+* Grava log com “Modo teste ativado” se `Modo = 1`.
+
+**4. Resposta de Entrega (`respondToDelivery`)**
+Atualiza status de aceite ou recusa diretamente no sistema de entregas.
+
+**5. Imagens no Carrossel**
+O método `getCarrossel()` traz produtos e imagens, evitando duplicatas e removendo tamanhos inválidos.
+
+---
+
+## 3️⃣ FRONTEND (Camada do App Flutter)
+
+### 3.1 Estrutura
+
+**Caminho do projeto Flutter:**
+`D:\Prog\entregatudo\`
+
+**Principais pastas:**
+
+* `lib/` — código-fonte Dart
+* `android/` — configuração Gradle e Manifest
+* `build/` — saída de builds
+* `assets/` — ícones e imagens
+* `pubspec.yaml` — dependências do projeto
+
+---
+
+### 3.2 Dependências (Principais)
+
+| Biblioteca               | Função                                |
+| ------------------------ | ------------------------------------- |
+| `http`                   | Comunicação com API Laravel           |
+| `shared_preferences`     | Armazenamento leve de dados locais    |
+| `flutter_secure_storage` | Guardar login e senha de forma segura |
+| `permission_handler`     | Permissões (localização, GPS)         |
+| `geolocator`             | Captura de coordenadas em tempo real  |
+| `url_launcher`           | Abertura de links (WhatsApp, etc.)    |
+| `font_awesome_flutter`   | Ícones personalizados no app          |
+
+---
+
+### 3.3 Telas e Fluxos Principais
+
+#### 📱 Login (`lib/login_page.dart`)
+
+* Campos de usuário e senha;
+* “Olho” para mostrar/ocultar senha (`_obscurePassword`);
+* Checkbox “Lembrar senha” (usando `flutter_secure_storage`);
+* Login via `API.veLogin()`;
+* Após sucesso → redireciona para `HomePage`.
+
+#### 🏠 Home (`lib/home_page.dart`)
+
+* Exibe saldo e status do motoboy;
+* Mostra botões “Cheguei”, “Retirado”, “Entregue”;
+* Inclui opção de logout (limpa credenciais seguras).
+
+#### 🧭 Localização
+
+* Usa `geolocator` com `permission_handler`;
+* Atualiza posição com `API.heartbeat()`.
+
+#### 💬 WhatsApp Invite
+
+* Chama `url_launcher` para abrir link `https://wa.me/?text=...`;
+* Caso falhe, exibe mensagem “Não foi possível abrir o WhatsApp”.
+
+---
+
+### 3.4 Métodos Internos (App)
+
+| Método                                 | Local                        | Descrição                             |
+| -------------------------------------- | ---------------------------- | ------------------------------------- |
+| `API.veLogin()`                        | `lib/api.dart`               | Envia login ao backend                |
+| `API.respondToDelivery()`              | `lib/api.dart`               | Aceita/recusa entrega                 |
+| `API.saldo()`                          | `lib/api.dart`               | Obtém saldo via GET/POST              |
+| `updateSaldo()`                        | `lib/home_page.dart`         | Atualiza interface de saldo           |
+| `updateVodWatchingTime()`              | `lib/playback_activity.dart` | Envia tempo de vídeo assistido        |
+| `_loadSavedCredentials()`              | `lib/login_page.dart`        | Lê usuário/senha salvos com segurança |
+| `_storage.write()` / `_storage.read()` | `flutter_secure_storage`     | Persistência segura local             |
+
+---
+
+## 4️⃣ INFRAESTRUTURA E BUILD (Camada Profunda)
+
+### 4.1 Compilação Automática (Windows)
+
+**Arquivo:**
+`D:\Prog\entregatudo\compila.bat`
+
+Executa:
+
+1. `flutter clean`
+2. `flutter pub get`
+3. `gradlew clean`
+4. `flutter build apk --release --no-tree-shake-icons`
+5. Renomeia para `EntregaTudo.apk`
+6. Chama `upa.bat`
+
+---
+
+### 4.2 Upload Automático
+
+**Arquivo:**
+`D:\Prog\entregatudo\upa.bat`
+
+Executa:
+
+1. Copia `EntregaTudo.apk` para
+   `D:\Prog\TeleTudo\public_html\public\download`
+2. Substitui o arquivo existente
+3. Chama `D:\Prog\FTPc3\bin\Release\FTPc.exe`
+
+---
+
+### 4.3 Manifest e Permissões
+
+**Arquivo:**
+`D:\Prog\entregatudo\android\app\src\main\AndroidManifest.xml`
+
+Permissões usadas:
+
+```xml
+<uses-permission android:name="android.permission.INTERNET"/>
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+```
+
+---
+
+## 5️⃣ ORDENADO (Alfabético Resumido)
+
+| Termo                  | Descrição                              |
+| ---------------------- | -------------------------------------- |
+| API.veLogin            | Validação de login via POST            |
+| APK                    | Arquivo de aplicativo Android          |
+| cadboy                 | Endpoint de cadastro de motoboy        |
+| compila.bat            | Script de build Flutter                |
+| et_entregador          | Tabela principal de motoboys           |
+| flutter_secure_storage | Armazena login/credencial segura       |
+| geolocator             | Biblioteca para GPS                    |
+| heartbeat              | Atualização periódica da posição       |
+| login_page.dart        | Tela principal de autenticação         |
+| orcamento              | Função que calcula custo de entrega    |
+| respondToDelivery      | Endpoint para aceitar/recusar entregas |
+| saldo                  | Consulta saldo do motoboy              |
+| TeleTudo               | Servidor e domínio principal           |
+| upa.bat                | Script que copia APK e envia via FTP   |
+
+---
+
+Quer que eu gere este documento em formato **.docx ou .pdf** para guardar como referência no seu diretório `D:\Prog\entregatudo\docs`?

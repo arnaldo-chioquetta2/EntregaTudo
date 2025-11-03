@@ -1,0 +1,136 @@
+Perfeito. Abaixo está o **documento base de conhecimento completo do projeto “EntregaTudo Motoboy”**, estruturado por camadas — começando pelas informações mais superficiais e indo até o nível mais profundo de codificação — e finalizado em **ordem alfabética** dentro de cada camada.
+
+---
+
+## CAMADA 1 – VISÃO GERAL (Superficial)
+
+**Nome do Projeto:** EntregaTudo Motoboy
+**Objetivo:** Aplicativo Flutter para motoboys vinculados à plataforma EntregaTudo, responsável por receber chamadas de entrega, enviar posição GPS em tempo real e controlar saldo e resgates.
+**Tecnologias Principais:** Flutter 3.27.2 / Dart 3.6.1 / API REST Laravel PHP 8 / Banco MySQL.
+**Arquitetura:** Front-end móvel em Flutter + Backend Laravel com endpoints HTTPS autenticados.
+**Fluxo do Usuário:**
+
+1. Login → 2. Recebimento de chamadas → 3. Aceite/Recusa → 4. Entrega → 5. Resgate de valores (PIX).
+   **Público-alvo:** Motoboys parceiros da plataforma EntregaTudo.
+
+---
+
+## CAMADA 2 – BACKEND
+
+### 2.1 Estrutura Geral de APIs
+
+Endpoints hospedados em `https://teletudo.com/api/`.
+Principais rotas:
+
+| Endpoint                   | Função                                                                      |
+| -------------------------- | --------------------------------------------------------------------------- |
+| `/saldo`                   | Retorna saldo atual, pendências e data de resgate.                          |
+| `/sendHeartbeat`           | Recebe latitude/longitude periódicas para determinar ofertas de entrega.    |
+| `/respondToDelivery`       | Recebe aceite ou recusa de entrega (parâmetros userId, deliveryId, accept). |
+| `/reportViewToServer`      | Registra que o motoboy visualizou determinada oferta.                       |
+| `/notifyPickedUp`          | Confirma chegada no fornecedor.                                             |
+| `/notifyDeliveryCompleted` | Confirma conclusão da entrega.                                              |
+
+### 2.2 Lógica Interna
+
+* **Heartbeat:** o servidor identifica o motoboy ativo, retorna novo chamado quando disponível e evita duplicidade via controle de chamado.
+* **Aceite/Recusa:** grava decisão na tabela de entregas, liberando ou bloqueando outros motoboys.
+* **Saldo:** calcula créditos de entregas concluídas e atualiza status de resgate.
+* **Resgate:** integração direta com PIX; não há opção de outro método.
+* **Indicação:** motoboys podem gerar código de referência; comissão é registrada em tabela de afiliados.
+
+### 2.3 Processos Internos
+
+1. Recebimento de heartbeat → detecção de pedidos próximos.
+2. Envio de payload JSON ao app com campos `chamado`, `enderIN`, `enderFN`, `dist`, `valor`, `peso`.
+3. Ao receber `respondToDelivery`, o backend atualiza status do pedido para “aceito” ou “recusado”.
+4. Após `notifyDeliveryCompleted`, atualiza saldo e gera registro de pagamento.
+
+---
+
+## CAMADA 3 – FRONTEND (Flutter)
+
+### 3.1 Arquivos Principais
+
+* **`main.dart`** – Inicia `MyApp()` e define tela inicial `LoginPage`.
+* **`login_page.dart`** – Campos de usuário e senha, botões de login e cadastro.
+* **`home_page.dart`** – Tela principal do motoboy com saldo, botões e status da entrega.
+* **`features/location_service.dart`** – Permissões e captura de geolocalização usando `geolocator`.
+* **`api.dart`** – Classe estática que encapsula todas as chamadas HTTP.
+* **`models/delivery_details.dart`** – Modelo com campos `chamado`, `enderIN`, `enderFN`, `valor`, `dist`, `peso`, `modo`.
+
+### 3.2 Métodos Principais
+
+**updateSaldo()** – Chama `API.saldo(userId)`, limpa e formata valor para “R$ xxx,xx”.
+**chamaHeartbeat()** – Obtém localização e envia para `API.sendHeartbeat`; atualiza UI com nova oferta.
+**handleDeliveryResponse(bool accept)** – Chama `API.respondToDelivery(userId, deliveryId, accept)` e muda estado.
+**handlePickedUp()** – Chama `API.notifyPickedUp()` para confirmar chegada ao fornecedor.
+**handleDeliveryCompleted()** – Chama `API.notifyDeliveryCompleted()` e recarrega saldo.
+**_scheduleNextHeartbeat(int)** – Agenda novo heartbeat com `Timer`.
+
+### 3.3 Variáveis de Estado Principais
+
+`hasAcceptedDelivery`, `hasPickedUp`, `deliveryCompleted`, `deliveryData`, `saldo`, `saldoNum`, `statusMessage`.
+
+### 3.4 Ciclo de Vida
+
+initState → requestPermissions → _scheduleNextHeartbeat(2) → updateSaldo → aguarda oferta → aceita/recusa → pickedUp → completed → saldo atualizado.
+
+---
+
+## CAMADA 4 – DETALHAMENTO TÉCNICO (Profundo)
+
+### 4.1 Classe API (resumo de métodos)
+
+| Método                  | Endpoint                       | Parâmetros                 | Retorno           |
+| ----------------------- | ------------------------------ | -------------------------- | ----------------- |
+| saldo                   | `/api/saldo`                   | userId                     | String (“123.45”) |
+| sendHeartbeat           | `/api/sendHeartbeat`           | lat, lon                   | `DeliveryDetails` |
+| respondToDelivery       | `/api/respondToDelivery`       | userId, deliveryId, accept | bool              |
+| notifyPickedUp          | `/api/notifyPickedUp`          | —                          | bool              |
+| notifyDeliveryCompleted | `/api/notifyDeliveryCompleted` | —                          | bool              |
+| reportViewToServer      | `/api/reportViewToServer`      | userId, chamado            | bool              |
+
+### 4.2 Tratamento de Erros
+
+* Todos os métodos API usam `try / catch` com mensagens de log detalhadas em `print`.
+* Falhas de rede ou JSON retornam `false` ou exceção com descrição.
+* Fallback do heartbeat → 60 s entre repetições se falhar.
+
+### 4.3 Interface e Comportamento
+
+* Mostra card de detalhes com endereços, distância e valor.
+* Ao aceitar ou recusar, envia imediatamente `respondToDelivery` e altera status.
+* Após aceite, mostra botão “Cheguei no Fornecedor”.
+* Depois de confirmar pickup, mostra “Entrega Concluída”.
+* Atualiza saldo após cada entrega.
+
+### 4.4 Regras de Negócio
+
+* O motoboy **não vê o produto** antes de aceitar; somente endereço, distância, valor e peso.
+* O resgate é sempre via PIX instantâneo.
+* Ele define **quanto** quer receber (tarifas por km, chuva etc.) na tela de configurações.
+* Pode indicar outros motoboys e ganhar comissões.
+
+---
+
+## CAMADA 5 – ORDENAÇÃO ALFABÉTICA (Síntese de termos principais)
+
+**API.respondToDelivery** – envia aceite/recusa da entrega.
+**API.saldo** – consulta saldo e pendências.
+**API.sendHeartbeat** – envia posição GPS periódica.
+**API.notifyDeliveryCompleted** – finaliza entrega no backend.
+**API.notifyPickedUp** – confirma chegada ao fornecedor.
+**API.reportViewToServer** – registra visualização da oferta.
+**DeliveryDetails** – modelo de dados da entrega.
+**HandleDeliveryResponse** – processa aceite/recusa no app.
+**HandleDeliveryCompleted** – chama API de conclusão.
+**HomePage** – tela principal do motoboy.
+**LocationService** – controle de permissões e GPS.
+**Saldo/SaldoNum** – valores monetários formatados.
+**UpdateSaldo** – atualiza saldo exibido no app.
+
+---
+
+**Conclusão**
+O projeto EntregaTudo Motoboy integra backend Laravel e frontend Flutter para gestão completa do fluxo de entregas e pagamentos via PIX. O sistema mantém processos claros de heartbeat, aceitação, entrega e resgate, com API bem segmentada e tratamento de erros robusto. Este documento serve como referência para desenvolvedores e novos colaboradores do projeto.
