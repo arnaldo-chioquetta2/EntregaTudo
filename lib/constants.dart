@@ -1,7 +1,8 @@
 class AppConfig {
-  static const String versaoApp = '1.3.2';
+  static const String versaoApp = '1.3.3';
 }
 
+// 1.3.3 Convite na fluxo certo de crítica
 // 1.3.2 Fornecedor (em desenvolvimento)
 // 1.3.1 Mostras as lojas on-line
 // 1.3.0 Salvar senha e olhar a senha
@@ -13,5 +14,3 @@ class AppConfig {
 // 1.2.4 Conserto do link para as configurações
 // 1.2.3 Configurações personalizadas de valores
 // 1.2.3 GPS
-// 1.2.3 Conserto da validação da placa Axo0498
-// 1.2.2 Reativação da API do Aceite e Recusa

@@ -135,14 +135,6 @@ class API {
       int erroCodigo,
       int distanciaMaxima) async {
     String baseUrl = "https://teletudo.com/api/cadboy";
-
-    // return {
-    //   'success': false,
-    //   'message': 'Falha no servidor (500)',
-    //   'details':
-    //   'Código HTTP: 500\nResposta do servidor: {"error":"Internal Server Error","message":"Erro simulado para teste."}',
-    // };
-
     try {
       final response = await http.post(
         Uri.parse(baseUrl),
@@ -603,6 +595,7 @@ class API {
   }
 
   static Future<Map<String, dynamic>> verifyInviteCode(String code) async {
+    print('[API.verifyInviteCode] $code');
     final response = await http.get(
       Uri.parse('https://teletudo.com/api/verify-invite-code')
           .replace(queryParameters: {'code': code}),
@@ -714,14 +707,14 @@ class FornecedorHeartbeatResponse {
   final int lojasNoRaio;
   final int idLoja;
   final NovaVenda? novaVenda;
-  final double processingTime; // Adicione esta linha
+  final double processingTime;
 
   FornecedorHeartbeatResponse({
     required this.modo,
     required this.lojasNoRaio,
     required this.idLoja,
     this.novaVenda,
-    required this.processingTime, // Adicione esta linha
+    required this.processingTime,
   });
 
   factory FornecedorHeartbeatResponse.fromJson(Map<String, dynamic> json) {

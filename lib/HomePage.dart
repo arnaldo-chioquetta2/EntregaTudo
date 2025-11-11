@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:entregatudo/api.dart';
 import 'package:flutter/material.dart';
 import 'features/location_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:entregatudo/models/delivery_details.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,11 +33,15 @@ class _HomePageState extends State<HomePage> {
   bool isFornecedor = false;
   bool isSaldoAtualizado = false;
   bool isCheckingLogin = false;
+  late Future<void> _initFuture;
+
+  int intervalo = kIsWeb ? 5 : 1;
 
   @override
   void initState() {
     super.initState();
     _verificarLoginOuCadastro();
+    _initFuture = _verificarLoginOuCadastro();
   }
 
   Future<void> _verificarLoginOuCadastro() async {
@@ -53,11 +58,12 @@ class _HomePageState extends State<HomePage> {
       isCheckingLogin = false;
       return;
     }
+    print("Verificação de login ou cadastro concluída");
     _locationService.requestPermissions();
-    _scheduleNextHeartbeat(2);
     print("Chamando updateSaldo para o usuário: $userId");
     await updateSaldo();
-    print("Verificação de login ou cadastro concluída");
+    print("Agendando primeiro heartbeat...");
+    _scheduleNextHeartbeat(intervalo);
     isCheckingLogin = false;
   }
 
@@ -76,7 +82,7 @@ class _HomePageState extends State<HomePage> {
       ),
       body: Center(
         child: FutureBuilder<void>(
-          future: _verificarLoginOuCadastro(), // Chama a verificação
+          future: _initFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const CircularProgressIndicator(); // Exibe um carregando
@@ -309,6 +315,7 @@ class _HomePageState extends State<HomePage> {
 
   void _scheduleNextHeartbeat(int seconds) {
     _timer?.cancel();
+    if (_timer?.isActive ?? false) return;
     _timer = Timer(Duration(seconds: seconds), chamaHeartbeat);
   }
 
@@ -399,63 +406,9 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
-    // Lógica de agendamento do próximo heartbeat
-    _scheduleNextHeartbeat(
-        60); // A lógica de intervalo pode ser ajustada conforme necessário
+    _scheduleNextHeartbeat(intervalo);
+    // _scheduleNextHeartbeat(60);
   }
-
-  // Future<void> chamaHeartbeat() async {
-  //   SharedPreferences prefs = await SharedPreferences.getInstance();
-  //   Position? pos = _locationService.ultimaPosicao;
-  //   double latitude = pos?.latitude ?? -30.1165;
-  //   double longitude = pos?.longitude ?? -51.1355;
-  //   print("Enviando local: $latitude, $longitude");
-
-  //   DeliveryDetails? deliveryDetails =
-  //       await API.sendHeartbeat(latitude, longitude);
-
-  //   if (deliveryDetails != null) {
-  //     // Atualiza a variável lojasNoRaio aqui
-  //     int lojasNoRaio = deliveryDetails.lojasNoRaio;
-  //     double valorDelivery = deliveryDetails.valor ?? 0.0;
-  //     int? currentChamado = prefs.getInt('currentChamado');
-
-  //     print('Detalhes recebidos: $deliveryDetails');
-
-  //     // Atualiza a UI com o número de lojas no raio
-  //     setState(() {
-  //       this.lojasNoRaio = lojasNoRaio; // Atualizando a variável de estado
-  //       deliveryData = {
-  //         'enderIN': deliveryDetails.enderIN ?? 'Desconhecido',
-  //         'enderFN': deliveryDetails.enderFN ?? 'Desconhecido',
-  //         'dist': deliveryDetails.dist ?? 0.0,
-  //         'valor': valorDelivery,
-  //         'peso': deliveryDetails.peso ?? 'Não Informado',
-  //         'chamado': deliveryDetails.chamado,
-  //         'lojasNoRaio': lojasNoRaio,
-  //       };
-  //     });
-
-  //     print('Dados atualizados na UI com lojasNoRaio: $lojasNoRaio');
-
-  //     // Se quiser reportar a visualização, pode fazer isso aqui
-  //     if (currentChamado != deliveryDetails.chamado) {
-  //       await prefs.setInt('currentChamado', deliveryDetails.chamado ?? 0);
-  //       int? userId = prefs.getInt('idUser');
-  //       if (userId != null) {
-  //         await API.reportViewToServer(userId, deliveryDetails.chamado);
-  //         print(
-  //             "Visualização reportada: chamado = ${deliveryDetails.chamado}, userId = $userId");
-  //       }
-  //     }
-
-  //     int nextInterval = (deliveryDetails.modo ?? 3) == 3 ? 60 : 10;
-  //     _scheduleNextHeartbeat(nextInterval);
-  //   } else {
-  //     print("Erro ao receber dados de heartbeat");
-  //     _scheduleNextHeartbeat(60); // Usando 60 segundos como fallback
-  //   }
-  // }
 
   void handleDeliveryResponse(bool accept) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();

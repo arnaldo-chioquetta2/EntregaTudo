@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:entregatudo/HomePage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.3.3 Convite na fluxo certo de crítica
+
 class RegisterPage extends StatefulWidget {
   final String? prefillName;
   final String? prefillEmail;
@@ -43,7 +45,8 @@ class _RegisterPageState extends State<RegisterPage> {
   bool JaMostrouCnhInv = false;
   bool JaMostrouPlaca = false;
   String? _inviteStatus;
-  bool _inviteValid = false;
+  int _inviteValid = -1; // -1: não verificado | 0: inválido | 1: válido
+
   String? _inviterName;
 
   Future<void> _verifyInvite() async {
@@ -51,28 +54,27 @@ class _RegisterPageState extends State<RegisterPage> {
     if (code.isEmpty) {
       setState(() {
         _inviteStatus = "Digite o código de convite.";
-        _inviteValid = false;
+        _inviteValid = -1;
       });
       return;
     }
-
     try {
       final result = await API.verifyInviteCode(code);
       if (result['success'] == true) {
         setState(() {
-          _inviteValid = true;
+          _inviteValid = 1;
           _inviterName = result['inviter_name'];
           _inviteStatus = "Convite válido! Captador: $_inviterName";
         });
       } else {
         setState(() {
-          _inviteValid = false;
+          _inviteValid = 0;
           _inviteStatus = result['error'] ?? "Convite inválido.";
         });
       }
     } catch (e) {
       setState(() {
-        _inviteValid = false;
+        _inviteValid = 0;
         _inviteStatus = "Erro ao validar convite.";
       });
     }
@@ -164,10 +166,6 @@ class _RegisterPageState extends State<RegisterPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // (opcional) dica visual:
-            // if (widget.prefillEmail != null || _emailController.text.isNotEmpty)
-            //   Text('Dados carregados do Google', style: TextStyle(color: Colors.green)),
-
             TextField(
               controller: _usuarioController,
               decoration: const InputDecoration(labelText: 'Usuário'),
@@ -212,8 +210,6 @@ class _RegisterPageState extends State<RegisterPage> {
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 20),
-
-// Campo de código de convite
             TextFormField(
               controller: _inviteController,
               decoration: InputDecoration(
@@ -230,51 +226,16 @@ class _RegisterPageState extends State<RegisterPage> {
                 child: Text(
                   _inviteStatus!,
                   style: TextStyle(
-                    color: _inviteValid ? Colors.green : Colors.red,
+                    color: _inviteValid == 1 ? Colors.green : Colors.red,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
             const SizedBox(height: 20),
-
-            // Botão único de cadastro
             ElevatedButton(
               onPressed: _enviarCadastro,
               child: const Text("Cadastrar"),
             ),
-
-            // ElevatedButton(
-            //   onPressed: _enviarCadastro,
-            //   child: const Text("Cadastrar"),
-            // ),
-            // TextFormField(
-            //   controller: _inviteController,
-            //   decoration: InputDecoration(
-            //     labelText: "Código de Convite",
-            //     suffixIcon: IconButton(
-            //       icon: Icon(Icons.check_circle),
-            //       onPressed: _verifyInvite,
-            //     ),
-            //   ),
-            // ),
-            // if (_inviteStatus != null)
-            //   Padding(
-            //     padding: const EdgeInsets.only(top: 8.0),
-            //     child: Text(
-            //       _inviteStatus!,
-            //       style: TextStyle(
-            //         color: _inviteValid ? Colors.green : Colors.red,
-            //         fontWeight: FontWeight.bold,
-            //       ),
-            //     ),
-            //   ),
-
-            // SizedBox(height: 20),
-
-            // ElevatedButton(
-            //   onPressed: _submitForm,
-            //   child: Text("Cadastrar"),
-            // ),
           ],
         ),
       ),
@@ -282,12 +243,17 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _enviarCadastro() async {
-    if (!_inviteValid) {
+    print("_enviarCadastro");
+    if (_inviteValid == -1) {
+      await _verifyInvite();
+    }
+    if (_inviteValid != 1) {
       mostrarMensagem(
-          context, "Você precisa de um convite válido para se cadastrar.");
+        context,
+        "Você precisa de um convite válido para se cadastrar.",
+      );
       return;
     }
-
     String nome = _nameController.text.trim();
     String email = _emailController.text.trim();
     String senha = _passwordController.text;
@@ -444,21 +410,5 @@ class _RegisterPageState extends State<RegisterPage> {
           ),
         ) ??
         false;
-  }
-
-  void _submitForm() {
-    if (!_inviteValid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content:
-                Text("Você precisa de um convite válido para se cadastrar")),
-      );
-      return;
-    }
-
-    if (_formKey.currentState!.validate()) {
-      // aqui você continua o fluxo de cadastro normal
-      // exemplo: enviar dados + código de convite para backend
-    }
   }
 }
