@@ -238,58 +238,62 @@ class API {
     await prefs.setInt('vez', vez + 1);
 
     if (userid != null) {
-      String baseUrl = "https://teletudo.com/api/heartbeatF";
+      const String baseUrl = "https://teletudo.com/api/heartbeatF";
       print('Enviando pedido para o servidor:');
       print('URL: $baseUrl');
       print(
           'Dados enviados: { "userid": $userid, "idLoja": $idLoja, "lat": $lat, "lon": $lon }');
 
-      final response = await http.post(
-        Uri.parse(baseUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: json.encode({
-          'userid': userid,
-          'idLoja': idLoja ?? 0,
-          'lat': lat,
-          'lon': lon,
-        }),
-      );
+      try {
+        final response = await http.post(
+          Uri.parse(baseUrl),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: json.encode({
+            'userid': userid,
+            'idLoja': idLoja ?? 0,
+            'lat': lat,
+            'lon': lon,
+          }),
+        );
 
-      print('Resposta do servidor: ${response.statusCode}');
-      print('Response Body: ${response.body}');
+        print('Resposta do servidor: ${response.statusCode}');
+        print('Response Body: ${response.body}');
 
-      if (response.statusCode == 200) {
-        var data = json.decode(response.body);
-        print('Dados recebidos do servidor: $data');
+        if (response.statusCode == 200) {
+          var data = json.decode(response.body);
+          print('Dados recebidos do servidor: $data');
 
-        if (data['success'] == true) {
-          NovaVenda? novaVenda = data['nova_venda'] != null
-              ? NovaVenda.fromJson(data['nova_venda'])
-              : null;
-          return FornecedorHeartbeatResponse(
-            modo: data['modo'] ?? 3,
-            lojasNoRaio: data['lojas_no_raio'] ?? 0,
-            idLoja: idLoja ?? 0,
-            novaVenda: novaVenda,
-            processingTime: (data['processing_time_ms'] as num).toDouble(),
-          );
+          if (data['success'] == true) {
+            // Cria o objeto principal
+            final responseObj = FornecedorHeartbeatResponse.fromJson(data);
+
+            print('Nova venda: ${responseObj.novaVenda != null}');
+            print('Itens da venda: ${responseObj.itensVenda.length}');
+            for (var item in responseObj.itensVenda) {
+              print(' - ${item.produto} x${item.quantidade}');
+            }
+
+            return responseObj;
+          } else {
+            print('Erro no retorno: ${data['DescErro']}');
+          }
         } else {
-          print('Erro no retorno: ${data['DescErro']}');
+          print('Erro ao enviar heartbeatF: ${response.statusCode}');
         }
-      } else {
-        print(
-            'Erro ao enviar heartbeat para fornecedor: ${response.statusCode}');
+      } catch (e) {
+        print('Exceção ao enviar heartbeatF: $e');
       }
     } else {
       print('User ID não encontrado');
     }
+
     return null;
   }
 
-// curl -X POST https://teletudo.com/api/login -H "Content-Type: application/json" -H "Accept: application/json" -d "{\"user\": \"teste\", \"password\": \"teste\", \"lat\": -23.55052, \"lon\": -46.633308}" -k
+  // curl -X POST https://teletudo.com/api/login -H "Content-Type: application/json" -H "Accept: application/json" -d "{\"user\": \"teste\", \"password\": \"teste\", \"lat\": -23.55052, \"lon\": -46.633308}" -k
   static Future<String> veLogin(
       String user, String password, double lat, double lon) async {
     String baseUrl = "https://teletudo.com/api/login";
@@ -703,31 +707,60 @@ class API {
 }
 
 class FornecedorHeartbeatResponse {
-  final int modo;
   final int lojasNoRaio;
   final int idLoja;
+  final int modo;
   final NovaVenda? novaVenda;
   final double processingTime;
+  final List<ItemVenda> itensVenda;
 
   FornecedorHeartbeatResponse({
-    required this.modo,
     required this.lojasNoRaio,
     required this.idLoja,
-    this.novaVenda,
+    required this.modo,
     required this.processingTime,
+    required this.itensVenda,
+    this.novaVenda,
   });
 
   factory FornecedorHeartbeatResponse.fromJson(Map<String, dynamic> json) {
     return FornecedorHeartbeatResponse(
-      modo: json['modo'] ?? 3,
       lojasNoRaio: json['lojas_no_raio'] ?? 0,
       idLoja: json['id_loja'] ?? 0,
+      modo: json['modo'] ?? 3,
+      processingTime: (json['processing_time_ms'] ?? 0).toDouble(),
       novaVenda: json['nova_venda'] != null
           ? NovaVenda.fromJson(json['nova_venda'])
           : null,
-      processingTime: json['processing_time_ms'], // Adicione esta linha
+      itensVenda: json['itens_venda'] != null
+          ? (json['itens_venda'] as List)
+              .map((item) => ItemVenda.fromJson(item))
+              .toList()
+          : [],
     );
   }
+}
+
+class ItemVenda {
+  final String produto;
+  final int quantidade;
+
+  ItemVenda({
+    required this.produto,
+    required this.quantidade,
+  });
+
+  factory ItemVenda.fromJson(Map<String, dynamic> json) {
+    return ItemVenda(
+      produto: json['produto'] ?? '',
+      quantidade: json['quantidade'] ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'produto': produto,
+        'quantidade': quantidade,
+      };
 }
 
 class NovaVenda {

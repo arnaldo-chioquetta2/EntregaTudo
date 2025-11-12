@@ -92,14 +92,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // void initState() {
-  //   super.initState();
-  //   if (kIsWeb) {
-  //     _userController.text = "teste";
-  //     _passwordController.text = "teste";
-  //   }
-  // }
-
   @override
   void dispose() {
     _isMounted = false;
@@ -214,7 +206,6 @@ class _LoginPageState extends State<LoginPage> {
                 controller: _userController,
                 decoration: const InputDecoration(labelText: 'User'),
               ),
-
               TextField(
                 controller: _passwordController,
                 decoration: InputDecoration(
@@ -234,7 +225,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 obscureText: _obscurePassword,
               ),
-
               CheckboxListTile(
                 title: const Text('Lembrar senha'),
                 value: _rememberPassword,
@@ -244,9 +234,7 @@ class _LoginPageState extends State<LoginPage> {
                   });
                 },
               ),
-
               const SizedBox(height: 16),
-
               ElevatedButton(
                 onPressed: () async {
                   if (!_isMounted) return;
@@ -288,9 +276,7 @@ class _LoginPageState extends State<LoginPage> {
                 },
                 child: const Text("Login"),
               ),
-
               const SizedBox(height: 16),
-
               ElevatedButton(
                 onPressed: () {
                   if (_isMounted) {
@@ -304,14 +290,7 @@ class _LoginPageState extends State<LoginPage> {
                 },
                 child: const Text("Cadastrar Novo Usuário"),
               ),
-
               const SizedBox(height: 16),
-
-              // ElevatedButton.icon(
-              //   onPressed: _loadingGoogle ? null : _loginComGoogle,
-              //   icon: const Icon(Icons.g_mobiledata),
-              //   label: googleButtonChild,
-              // ),
             ],
           ),
         ),
