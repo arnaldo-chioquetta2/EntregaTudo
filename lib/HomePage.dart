@@ -385,214 +385,28 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+// Processamento INICIO
+// Refatorado em 15/11/25 Original 120 linhas, resultado 89 linhas
   Future<void> chamaHeartbeat() async {
     _log('--- chamaHeartbeat START ---');
     SharedPreferences prefs = await SharedPreferences.getInstance();
 
     try {
-      Position? pos = _locationService.ultimaPosicao;
-      double latitude = pos?.latitude ?? -30.1165;
-      double longitude = pos?.longitude ?? -51.1355;
+      final pos = _locationService.ultimaPosicao;
+      final latitude = pos?.latitude ?? -30.1165;
+      final longitude = pos?.longitude ?? -51.1355;
       _log("Enviando local: lat=$latitude, lon=$longitude");
 
-      // tipo de usuário
-      int? idLoja = prefs.getInt('idLoja');
+      final idLoja = prefs.getInt('idLoja');
       _log('idLoja em prefs: $idLoja (idLoja>0 => fornecedor)');
 
+      final codConf = prefs.getInt('codigoConfirmacao');
+      if (codConf != null) _log("Código de confirmação atual: $codConf");
+
       if (idLoja != null && idLoja > 0) {
-        // fornecedor
-        _log('Fornecedor detectado. Chamando API.sendHeartbeatF…');
-        FornecedorHeartbeatResponse? fornecedorDetails =
-            await API.sendHeartbeatF(latitude, longitude);
-
-        if (fornecedorDetails == null) {
-          _log("ERRO: fornecedorDetails == null (heartbeatF sem dados)");
-        } else {
-          _log('HeartbeatF OK: lojasNoRaio=${fornecedorDetails.lojasNoRaio}, '
-              'idLoja=${fornecedorDetails.idLoja}, '
-              'novaVenda=${fornecedorDetails.novaVenda != null}');
-
-          // nova venda?
-          if (fornecedorDetails.novaVenda != null) {
-            final novaVenda = fornecedorDetails.novaVenda!;
-            _log('NOVA VENDA (real) recebida: '
-                'cliente=${novaVenda.cliente}, valor=${novaVenda.valor}, hora=${novaVenda.hora}, '
-                'idPed=${novaVenda.idPed}, idAviso=${novaVenda.idAviso}');
-
-            await prefs.setString('hora', novaVenda.hora);
-            await prefs.setString('valor', novaVenda.valor);
-            await prefs.setString('cliente', novaVenda.cliente);
-            await prefs.setInt('idPed', novaVenda.idPed);
-            await prefs.setInt('idAviso', novaVenda.idAviso);
-
-            if (mounted && !_dialogAberto) {
-              try {
-                _dialogAberto = true;
-                _log('Exibindo diálogo de venda REAL…');
-
-                int segundosRestantes = 60;
-                late Timer contagemRegressiva;
-
-                void fecharDialogo([bool recusado = false]) {
-                  if (!_dialogAberto) return;
-                  contagemRegressiva.cancel();
-                  Navigator.pop(context);
-                  _dialogAberto = false;
-                  if (recusado) {
-                    _log(
-                        'Entrega recusada automaticamente (timeout ou botão Cancelar).');
-                    handleDeliveryResponse(false); // chama recusa automática
-                  }
-                }
-
-                contagemRegressiva = Timer.periodic(
-                  const Duration(seconds: 1),
-                  (timer) {
-                    segundosRestantes--;
-                    if (segundosRestantes <= 0) {
-                      fecharDialogo(true); // tempo esgotado
-                    }
-                  },
-                );
-
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (_) {
-                    return StatefulBuilder(
-                      builder: (context, setStateDialog) {
-                        return AlertDialog(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                          title: Row(
-                            children: const [
-                              Icon(Icons.shopping_cart, color: Colors.blue),
-                              SizedBox(width: 8),
-                              Text('Nova Venda!'),
-                            ],
-                          ),
-
-                          content: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Cliente: ${novaVenda.cliente}'),
-                              Text('Valor: ${novaVenda.valor}'),
-                              Text('Hora: ${novaVenda.hora}'),
-                              const SizedBox(height: 8),
-                              const Text('Itens do Pedido:',
-                                  style:
-                                      TextStyle(fontWeight: FontWeight.bold)),
-                              ...fornecedorDetails.itensVenda.map(
-                                (item) => Text(
-                                    '- ${item.produto} x${item.quantidade}'),
-                              ),
-                              const SizedBox(height: 12),
-                              Text('⏳ Fechando em $segundosRestantes s',
-                                  style: const TextStyle(color: Colors.red)),
-                            ],
-                          ),
-
-                          // content: Column(
-                          //   mainAxisSize: MainAxisSize.min,
-                          //   crossAxisAlignment: CrossAxisAlignment.start,
-                          //   children: [
-                          //     Text('Cliente: ${novaVenda.cliente}'),
-                          //     Text('Valor: R\$ ${novaVenda.valor}'),
-                          //     Text('Hora: ${novaVenda.hora}'),
-                          //     const SizedBox(height: 12),
-                          //     Text(
-                          //       '⏳ Fechando em $segundosRestantes s',
-                          //       style: const TextStyle(
-                          //           color: Colors.red,
-                          //           fontWeight: FontWeight.bold),
-                          //     ),
-                          //   ],
-                          // ),
-                          actions: [
-                            TextButton(
-                              onPressed: () {
-                                fecharDialogo(true);
-                              },
-                              child: const Text('Cancelar',
-                                  style: TextStyle(color: Colors.red)),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                fecharDialogo(false);
-                              },
-                              child: const Text('OK',
-                                  style: TextStyle(color: Colors.blue)),
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                ).then((_) {
-                  contagemRegressiva.cancel();
-                  _dialogAberto = false;
-                  _log('Diálogo de venda REAL fechado (then).');
-                });
-              } catch (e, st) {
-                _dialogAberto = false;
-                _log('ERRO ao exibir diálogo de venda REAL: $e\n$st');
-              }
-            } else {
-              _log(
-                  'Diálogo NÃO exibido (mounted=$mounted, dialogAberto=$_dialogAberto).');
-            }
-          }
-
-          // atualizar UI
-          setState(() {
-            lojasNoRaio = fornecedorDetails.lojasNoRaio;
-            deliveryData = {'idLoja': fornecedorDetails.idLoja};
-          });
-          _log(
-              'UI atualizada: lojasNoRaio=$lojasNoRaio, idLoja=${fornecedorDetails.idLoja}');
-        }
+        await _processaFornecedor(prefs, latitude, longitude);
       } else {
-        // motoboy
-        _log('Motoboy detectado. Chamando API.sendHeartbeat…');
-        DeliveryDetails? deliveryDetails =
-            await API.sendHeartbeat(latitude, longitude);
-
-        if (deliveryDetails == null) {
-          _log("ERRO: deliveryDetails == null (heartbeat sem dados)");
-        } else {
-          _log('Heartbeat OK: lojasNoRaio=${deliveryDetails.lojasNoRaio}, '
-              'valor=${deliveryDetails.valor}, chamado=${deliveryDetails.chamado}');
-
-          int lojasNoRaioLocal = deliveryDetails.lojasNoRaio;
-          double valorDelivery = deliveryDetails.valor ?? 0.0;
-          int? currentChamado = prefs.getInt('currentChamado');
-
-          setState(() {
-            lojasNoRaio = lojasNoRaioLocal;
-            deliveryData = {
-              'enderIN': deliveryDetails.enderIN ?? 'Desconhecido',
-              'enderFN': deliveryDetails.enderFN ?? 'Desconhecido',
-              'dist': deliveryDetails.dist ?? 0.0,
-              'valor': valorDelivery,
-              'peso': deliveryDetails.peso ?? 'Não Informado',
-              'chamado': deliveryDetails.chamado,
-              'lojasNoRaio': lojasNoRaioLocal,
-            };
-          });
-          _log('UI atualizada (motoboy): lojasNoRaio=$lojasNoRaioLocal');
-
-          if (currentChamado != deliveryDetails.chamado) {
-            await prefs.setInt('currentChamado', deliveryDetails.chamado ?? 0);
-            int? userId = prefs.getInt('idUser');
-            if (userId != null) {
-              await API.reportViewToServer(userId, deliveryDetails.chamado);
-              _log(
-                  "Visualização reportada: chamado=${deliveryDetails.chamado}, userId=$userId");
-            }
-          }
-        }
+        await _processaMotoboy(prefs, latitude, longitude);
       }
     } catch (e, st) {
       _log('ERRO em chamaHeartbeat: $e\n$st');
@@ -601,6 +415,299 @@ class _HomePageState extends State<HomePage> {
       _scheduleNextHeartbeat(intervalo);
       _log('--- chamaHeartbeat END ---');
     }
+  }
+
+  Future<void> _processaFornecedor(
+      SharedPreferences prefs, double latitude, double longitude) async {
+    _log('Fornecedor detectado. Chamando API.sendHeartbeatF…');
+
+    final fornecedorDetails = await API.sendHeartbeatF(latitude, longitude);
+
+    if (fornecedorDetails == null) {
+      _log("ERRO: fornecedorDetails == null");
+      return;
+    }
+
+    _log('HeartbeatF OK: lojasNoRaio=${fornecedorDetails.lojasNoRaio}, '
+        'idLoja=${fornecedorDetails.idLoja}, '
+        'novaVenda=${fornecedorDetails.novaVenda != null}');
+
+    if (fornecedorDetails.novaVenda != null) {
+      await _trataNovaVenda(fornecedorDetails, prefs);
+    }
+
+    setState(() {
+      lojasNoRaio = fornecedorDetails.lojasNoRaio;
+      deliveryData = {'idLoja': fornecedorDetails.idLoja};
+    });
+  }
+
+  Future<void> _trataNovaVenda(FornecedorHeartbeatResponse fornecedorDetails,
+      SharedPreferences prefs) async {
+    final novaVenda = fornecedorDetails.novaVenda!;
+    _log("Nova venda detectada!");
+
+    await prefs.setString('hora', novaVenda.hora);
+    await prefs.setString('valor', novaVenda.valor);
+    await prefs.setString('cliente', novaVenda.cliente);
+    await prefs.setInt('idPed', novaVenda.idPed);
+    await prefs.setInt('idAviso', novaVenda.idAviso);
+
+    await mostrarAvisoNovaVenda(novaVenda, fornecedorDetails.itensVenda);
+  }
+
+  Future<void> _processaMotoboy(
+      SharedPreferences prefs, double latitude, double longitude) async {
+    _log('Motoboy detectado. Chamando API.sendHeartbeat…');
+
+    final deliveryDetails = await API.sendHeartbeat(latitude, longitude);
+
+    if (deliveryDetails == null) {
+      _log("ERRO: deliveryDetails == null");
+      return;
+    }
+
+    _log('Heartbeat OK: lojasNoRaio=${deliveryDetails.lojasNoRaio}, '
+        'valor=${deliveryDetails.valor}, chamado=${deliveryDetails.chamado}');
+
+    setState(() {
+      lojasNoRaio = deliveryDetails.lojasNoRaio;
+      deliveryData = {
+        'enderIN': deliveryDetails.enderIN ?? 'Desconhecido',
+        'enderFN': deliveryDetails.enderFN ?? 'Desconhecido',
+        'dist': deliveryDetails.dist ?? 0.0,
+        'valor': deliveryDetails.valor ?? 0.0,
+        'peso': deliveryDetails.peso ?? 'Não Informado',
+        'chamado': deliveryDetails.chamado,
+        'lojasNoRaio': deliveryDetails.lojasNoRaio,
+      };
+    });
+
+    final codigo = prefs.getInt('codigoConfirmacao');
+    if (codigo != null) _log("Código de confirmação disponível: $codigo");
+
+    final currentChamado = prefs.getInt('currentChamado');
+    if (currentChamado != deliveryDetails.chamado) {
+      await prefs.setInt('currentChamado', deliveryDetails.chamado ?? 0);
+
+      final userId = prefs.getInt('idUser');
+      if (userId != null) {
+        await API.reportViewToServer(userId, deliveryDetails.chamado);
+      }
+    }
+  }
+// Processamento FIM
+
+  // Future<void> chamaHeartbeat() async {
+  //   _log('--- chamaHeartbeat START ---');
+  //   SharedPreferences prefs = await SharedPreferences.getInstance();
+
+  //   try {
+  //     // posição atual
+  //     Position? pos = _locationService.ultimaPosicao;
+  //     double latitude = pos?.latitude ?? '1'-30.1165;
+  //     double longitude = pos?.longitude ?? -51.1355;
+  //     _log("Enviando local: lat=$latitude, lon=$longitude");
+
+  //     // verificar tipo de usuário
+  //     int? idLoja = prefs.getInt('idLoja');
+  //     _log('idLoja em prefs: $idLoja (idLoja>0 => fornecedor)');
+
+  //     // código de confirmação (se existir)
+  //     int? codConf = prefs.getInt('codigoConfirmacao');
+  //     if (codConf != null) {
+  //       _log("Código de confirmação atual: $codConf");
+  //     }
+
+  //     // --------------------------------------------------------------------
+  //     // FORNECEDOR
+  //     // --------------------------------------------------------------------
+  //     if (idLoja != null && idLoja > 0) {
+  //       _log('Fornecedor detectado. Chamando API.sendHeartbeatF…');
+
+  //       FornecedorHeartbeatResponse? fornecedorDetails =
+  //           await API.sendHeartbeatF(latitude, longitude);
+
+  //       if (fornecedorDetails == null) {
+  //         _log("ERRO: fornecedorDetails == null");
+  //       } else {
+  //         _log('HeartbeatF OK: lojasNoRaio=${fornecedorDetails.lojasNoRaio}, '
+  //             'idLoja=${fornecedorDetails.idLoja}, '
+  //             'novaVenda=${fornecedorDetails.novaVenda != null}');
+
+  //         // NOVA VENDA
+  //         if (fornecedorDetails.novaVenda != null) {
+  //           final novaVenda = fornecedorDetails.novaVenda!;
+  //           _log("Nova venda detectada!");
+
+  //           // salvar dados em prefs
+  //           await prefs.setString('hora', novaVenda.hora);
+  //           await prefs.setString('valor', novaVenda.valor);
+  //           await prefs.setString('cliente', novaVenda.cliente);
+  //           await prefs.setInt('idPed', novaVenda.idPed);
+  //           await prefs.setInt('idAviso', novaVenda.idAviso);
+
+  //           // mostrar aviso
+  //           await mostrarAvisoNovaVenda(
+  //             novaVenda,
+  //             fornecedorDetails.itensVenda,
+  //           );
+  //         }
+
+  //         // atualizar UI
+  //         setState(() {
+  //           lojasNoRaio = fornecedorDetails.lojasNoRaio;
+  //           deliveryData = {'idLoja': fornecedorDetails.idLoja};
+  //         });
+  //       }
+  //     }
+
+  //     // --------------------------------------------------------------------
+  //     // MOTOBOY
+  //     // --------------------------------------------------------------------
+  //     else {
+  //       _log('Motoboy detectado. Chamando API.sendHeartbeat…');
+
+  //       DeliveryDetails? deliveryDetails =
+  //           await API.sendHeartbeat(latitude, longitude);
+
+  //       if (deliveryDetails == null) {
+  //         _log("ERRO: deliveryDetails == null");
+  //       } else {
+  //         _log('Heartbeat OK: lojasNoRaio=${deliveryDetails.lojasNoRaio}, '
+  //             'valor=${deliveryDetails.valor}, chamado=${deliveryDetails.chamado}');
+
+  //         setState(() {
+  //           lojasNoRaio = deliveryDetails.lojasNoRaio;
+  //           deliveryData = {
+  //             'enderIN': deliveryDetails.enderIN ?? 'Desconhecido',
+  //             'enderFN': deliveryDetails.enderFN ?? 'Desconhecido',
+  //             'dist': deliveryDetails.dist ?? 0.0,
+  //             'valor': deliveryDetails.valor ?? 0.0,
+  //             'peso': deliveryDetails.peso ?? 'Não Informado',
+  //             'chamado': deliveryDetails.chamado,
+  //             'lojasNoRaio': deliveryDetails.lojasNoRaio,
+  //           };
+  //         });
+
+  //         // leitura do código salvo
+  //         int? codigo = prefs.getInt('codigoConfirmacao');
+  //         if (codigo != null) {
+  //           _log("Código de confirmação disponível: $codigo");
+  //         }
+
+  //         // se mudou o chamado, reportar
+  //         int? currentChamado = prefs.getInt('currentChamado');
+  //         if (currentChamado != deliveryDetails.chamado) {
+  //           await prefs.setInt('currentChamado', deliveryDetails.chamado ?? 0);
+
+  //           int? userId = prefs.getInt('idUser');
+  //           if (userId != null) {
+  //             await API.reportViewToServer(userId, deliveryDetails.chamado);
+  //           }
+  //         }
+  //       }
+  //     }
+  //   } catch (e, st) {
+  //     _log('ERRO em chamaHeartbeat: $e\n$st');
+  //   } finally {
+  //     _log('Reagendando heartbeat (intervalo=$intervalo s)…');
+  //     _scheduleNextHeartbeat(intervalo);
+  //     _log('--- chamaHeartbeat END ---');
+  //   }
+  // }
+
+  Future<void> mostrarAvisoNovaVenda(
+    NovaVenda novaVenda,
+    List<ItemVenda> itensVenda,
+  ) async {
+    if (!mounted || _dialogAberto) return;
+
+    _dialogAberto = true;
+    int segundosRestantes = 60;
+    late Timer contagemRegressiva;
+
+    void fecharDialogo([bool recusado = false]) {
+      if (!_dialogAberto) return;
+      contagemRegressiva.cancel();
+      Navigator.of(context, rootNavigator: true).pop();
+      _dialogAberto = false;
+
+      if (recusado) {
+        _log('Entrega recusada automaticamente (timeout ou Cancelar).');
+        handleDeliveryResponse(false); // RECUSA AUTOMÁTICA
+      } else {
+        _log('Entrega aceita pelo usuário.');
+        handleDeliveryResponse(true);
+      }
+    }
+
+    contagemRegressiva = Timer.periodic(
+      const Duration(seconds: 1),
+      (timer) {
+        segundosRestantes--;
+        if (segundosRestantes <= 0) {
+          fecharDialogo(true); // timeout
+        }
+      },
+    );
+
+    await showDialog(
+      barrierDismissible: false,
+      context: context,
+      builder: (_) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+              title: Row(
+                children: const [
+                  Icon(Icons.shopping_cart, color: Colors.blue),
+                  SizedBox(width: 8),
+                  Text('Nova Venda!'),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Cliente: ${novaVenda.cliente}'),
+                  Text('Valor: ${novaVenda.valor}'),
+                  Text('Hora: ${novaVenda.hora}'),
+                  const SizedBox(height: 8),
+                  const Text('Itens do Pedido:',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  ...itensVenda.map(
+                      (item) => Text("- ${item.produto} x${item.quantidade}")),
+                  const SizedBox(height: 12),
+                  Text(
+                    '⏳ Fechando em $segundosRestantes s',
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => fecharDialogo(true),
+                  child: const Text('Cancelar',
+                      style: TextStyle(color: Colors.red)),
+                ),
+                TextButton(
+                  onPressed: () => fecharDialogo(false),
+                  child: const Text('OK', style: TextStyle(color: Colors.blue)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then((_) {
+      contagemRegressiva.cancel();
+      _dialogAberto = false;
+      _log("Diálogo de venda fechado.");
+    });
   }
 
   void handleDeliveryResponse(bool accept) async {
@@ -633,19 +740,36 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void handleDeliveryCompleted() async {
-    bool success = await API.notifyDeliveryCompleted();
-    if (success) {
-      setState(() {
-        deliveryCompleted = true;
-        hasAcceptedDelivery = false;
-        hasPickedUp = false;
-        deliveryData = null;
-        statusMessage = 'Entrega concluída com sucesso!';
-      });
-      updateSaldo();
+  Future<void> handleDeliveryCompleted() async {
+    _log("Entrega Concluída acionada.");
+
+    // 1. Mostrar tela de código
+    final resultado = await mostrarTelaCodigoConfirmacao();
+
+    if (resultado != true) {
+      _log("Entrega cancelada ou código incorreto.");
+      return;
+    }
+
+    // 2. Código OK → efetivar entrega
+    _log("Código verificado! Enviando encerramento...");
+
+    bool ok = await API.notifyDeliveryCompleted();
+
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Entrega concluída com sucesso!")),
+      );
+      _log("Entrega finalizada com sucesso.");
+
+      // opcional: limpar código salvo
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      prefs.remove('codigoConfirmacao');
     } else {
-      print("Falha ao confirmar a entrega.");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Erro ao concluir entrega.")),
+      );
+      _log("Falha no encerramento da entrega.");
     }
   }
 
@@ -709,5 +833,118 @@ class _HomePageState extends State<HomePage> {
     } finally {
       print("Atualização do saldo concluída");
     }
+  }
+
+  Future<bool> mostrarTelaCodigoConfirmacao() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final int? codigoCorreto = prefs.getInt('codigoConfirmacao');
+
+    if (codigoCorreto == null) {
+      _log("ERRO: Nenhum código de confirmação salvo.");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Nenhum código disponível para confirmar."),
+        ),
+      );
+      return false; // RETORNO OBRIGATÓRIO
+    }
+
+    TextEditingController controller = TextEditingController();
+    String? erro;
+    bool processando = false;
+
+    /// resultado final que este método vai retornar
+    bool resultado = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text("Confirmar Entrega"),
+              content: SizedBox(
+                width: 350,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text("Informe o código recebido do cliente:"),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: controller,
+                      autofocus: true,
+                      keyboardType: TextInputType.number,
+                      maxLength: 4,
+                      decoration: InputDecoration(
+                        labelText: "Código",
+                        errorText: erro,
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                    if (processando)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 12),
+                        child: CircularProgressIndicator(),
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                // CANCELAR
+                TextButton(
+                  onPressed: () {
+                    resultado = false;
+                    Navigator.pop(context);
+                  },
+                  child: const Text("Cancelar"),
+                ),
+
+                // RELATAR PROBLEMA
+                TextButton(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          "Funcionalidade não disponível no momento.",
+                        ),
+                      ),
+                    );
+                  },
+                  child: const Text("Relatar Problema"),
+                ),
+
+                // OK (VALIDAR CÓDIGO)
+                TextButton(
+                  onPressed: () {
+                    final digitado = controller.text.trim();
+
+                    if (digitado.length != 4 ||
+                        int.tryParse(digitado) == null) {
+                      setState(
+                          () => erro = "Digite um código válido de 4 dígitos");
+                      return;
+                    }
+
+                    if (digitado != codigoCorreto.toString()) {
+                      setState(
+                          () => erro = "Código incorreto. Tente novamente.");
+                      return;
+                    }
+
+                    // Código correto
+                    resultado = true;
+                    Navigator.pop(context);
+                  },
+                  child: const Text("OK"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    return resultado; // <-- RETORNO FINAL
   }
 }

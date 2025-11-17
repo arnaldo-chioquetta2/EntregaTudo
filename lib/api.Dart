@@ -193,41 +193,114 @@ class API {
     int vez = prefs.getInt('vez') ?? 0;
     await prefs.setInt('vez', vez + 1);
 
-    if (userid != null) {
-      String baseUrl = "https://teletudo.com/api/heartbeat";
-      final response = await http.post(
-        Uri.parse(baseUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: json.encode({
-          'userid': userid,
-          'lat': lat,
-          'lon': lon,
-          'vez': vez,
-        }),
-      );
+    if (userid == null) {
+      print("User ID não encontrado");
+      return null;
+    }
 
-      print(
-          'Enviando heartbeat: lat: $lat, lon: $lon, userid: $userid, vez: $vez');
+    final String baseUrl = "https://teletudo.com/api/heartbeat";
 
-      if (response.statusCode == 200) {
-        print('Response Body: ${response.body}');
-        var data = json.decode(response.body);
-        int modo = data['modo'] ?? 3;
-        await prefs.setInt('modo', modo);
-        int lojasNoRaio = data['lojas_no_raio'] ?? 0;
-        print('Lojas no Raio: $lojasNoRaio');
-        return DeliveryDetails.fromJson(data);
+    final response = await http.post(
+      Uri.parse(baseUrl),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: json.encode({
+        'userid': userid,
+        'lat': lat,
+        'lon': lon,
+        'vez': vez,
+      }),
+    );
+
+    print(
+        'Enviando heartbeat: lat: $lat, lon: $lon, userid: $userid, vez: $vez');
+
+    if (response.statusCode != 200) {
+      print('Erro ao enviar heartbeat: ${response.statusCode}');
+      return null;
+    }
+
+    /// ------------------------------
+    /// PROCESSAR RESPOSTA
+    /// ------------------------------
+    print('Response Body: ${response.body}');
+    final data = json.decode(response.body);
+
+    /// salvar 'modo'
+    int modo = data['modo'] ?? 3;
+    await prefs.setInt('modo', modo);
+
+    /// salvar lojas no raio
+    int lojasNoRaio = data['lojas_no_raio'] ?? 0;
+    print('Lojas no Raio: $lojasNoRaio');
+
+    /// ------------------------------
+    ///  🎯 PEGAR CÓDIGO DE CONFIRMAÇÃO DA ENTREGA
+    /// ------------------------------
+    if (data['novaVenda'] != null) {
+      var nova = data['novaVenda'];
+
+      if (nova['codigoConfirmacao'] != null) {
+        int codigo = nova['codigoConfirmacao'];
+
+        /// SALVAR NO SHARED PREFERENCES
+        await prefs.setInt('codigoConfirmacao', codigo);
+
+        print("🔥 Código de confirmação recebido e salvo: $codigo");
       } else {
-        print('Erro ao enviar heartbeat: ${response.statusCode}');
+        print("⚠️ novaVenda existe, mas não contém codigoConfirmacao");
       }
     } else {
-      print('User ID não encontrado');
+      print("Nenhuma novaVenda na resposta.");
     }
-    return null;
+
+    /// retorna o modelo original
+    return DeliveryDetails.fromJson(data);
   }
+
+  // static Future<DeliveryDetails?> sendHeartbeat(double lat, double lon) async {
+  //   SharedPreferences prefs = await SharedPreferences.getInstance();
+  //   int? userid = prefs.getInt('idUser');
+  //   int vez = prefs.getInt('vez') ?? 0;
+  //   await prefs.setInt('vez', vez + 1);
+
+  //   if (userid != null) {
+  //     String baseUrl = "https://teletudo.com/api/heartbeat";
+  //     final response = await http.post(
+  //       Uri.parse(baseUrl),
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //         'Accept': 'application/json',
+  //       },
+  //       body: json.encode({
+  //         'userid': userid,
+  //         'lat': lat,
+  //         'lon': lon,
+  //         'vez': vez,
+  //       }),
+  //     );
+
+  //     print(
+  //         'Enviando heartbeat: lat: $lat, lon: $lon, userid: $userid, vez: $vez');
+
+  //     if (response.statusCode == 200) {
+  //       print('Response Body: ${response.body}');
+  //       var data = json.decode(response.body);
+  //       int modo = data['modo'] ?? 3;
+  //       await prefs.setInt('modo', modo);
+  //       int lojasNoRaio = data['lojas_no_raio'] ?? 0;
+  //       print('Lojas no Raio: $lojasNoRaio');
+  //       return DeliveryDetails.fromJson(data);
+  //     } else {
+  //       print('Erro ao enviar heartbeat: ${response.statusCode}');
+  //     }
+  //   } else {
+  //     print('User ID não encontrado');
+  //   }
+  //   return null;
+  // }
 
   static Future<FornecedorHeartbeatResponse?> sendHeartbeatF(
       double lat, double lon) async {
@@ -446,12 +519,21 @@ class API {
   }
 
   static Future<bool> notifyDeliveryCompleted() async {
-    print("Entrou na API notifyDeliveryCompleted");
+    print("API.notifyDeliveryCompleted() chamado");
+
     try {
-      String baseUrl = "https://teletudo.com/api/notifyDeliveryCompleted";
+      const String baseUrl = "https://teletudo.com/api/notifyDeliveryCompleted";
+
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       int? currentChamado = prefs.getInt('currentChamado');
-      print("chamado = " + currentChamado.toString());
+
+      if (currentChamado == null) {
+        print("❌ ERRO: currentChamado não encontrado no SharedPreferences.");
+        return false;
+      }
+
+      print("📦 Enviando encerramento do chamado $currentChamado");
+
       final response = await http.post(
         Uri.parse(baseUrl),
         headers: {
@@ -460,19 +542,20 @@ class API {
         },
         body: json.encode({'chamado': currentChamado}),
       );
-      print(response.statusCode);
+
+      print("Status HTTP = ${response.statusCode}");
+
       if (response.statusCode == 200) {
-        print("Sucesso ao notificar o servidor: ${response.body}");
+        print("✅ Sucesso ao notificar o servidor: ${response.body}");
         return true;
       } else {
-        print("Falha ao notificar o servidor: ${response.body}");
+        print("❌ Falha ao notificar servidor: ${response.body}");
         return false;
       }
     } catch (e) {
-      print("Erro na chamada API: $e");
+      print("❌ Erro na chamada API.notifyDeliveryCompleted: $e");
       return false;
     }
-    // return true;
   }
 
   static Future<String> saldo(int userId) async {

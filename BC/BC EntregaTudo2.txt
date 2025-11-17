@@ -1,0 +1,385 @@
+Aqui está a Base de Conhecimento consolidada, integrando a documentação de expansão (Projeto EntregaTudo - Expansão da Base Técnica) com a base original (BC EntregaTudo.txt).
+
+O conteúdo foi fundido seguindo a estrutura hierárquica e a ordem alfabética estabelecidas no documento original.
+
+-----
+
+# 📘 Base de Conhecimento Técnica Consolidada – Projeto **Entregatudo**
+
+*Documento consolidado a partir de 9 fontes e da documentação "Expansão da Base Técnica".
+Ordenado por camadas de profundidade e, dentro de cada camada, em ordem alfabética.
+Numeração hierárquica aplicada.*
+
+-----
+
+## 1\. NÍVEL SUPERFICIAL – Visão Geral
+
+### 1.1 BackEnd – Visão Geral
+
+1.1.1.
+**Autenticação**: JWT após validação (login clássico ou Google OAuth2).
+1.1.2. **Endpoints principais** (ordem alfabética):
+    a. `/api/cadboy`
+    b.
+`/api/heartbeat`
+    c. `/api/login`
+    d. `/api/login/google/callback`
+    e. `/api/login/status`
+    f. `/api/next-user-id`
+    g. `/api/notifyDeliveryCompleted`
+    h. `/api/obtemCfgValores`
+1.1.3.
+**Modelos JSON**: `Config`, `FornecedorHeartbeatResponse`, `NovaVenda`
+1.1.4. **Tecnologia**: PHP/Laravel – APIs RESTful
+1.1.5. **Fluxo de Confirmação (Novo)**:
+    a. O `codigoConfirmacao` (4 dígitos) é gerado pelo servidor.
+    b. Este código é enviado ao motoboy junto com os dados da `NovaVenda`.
+    c. O endpoint `/api/notifyDeliveryCompleted` é usado para finalizar a entrega após a validação deste código.
+
+### 1.2 FrontEnd – Visão Geral
+
+1.2.1.
+**Gerenciamento de estado**: Provider (escopo simples) ou Bloc (escopo complexo)
+1.2.2.
+**Integração**: pacote `http` – todas as chamadas REST
+1.2.3. **Pastas principais** (ordem alfabética):
+    a. `lib/models`
+    b.
+`lib/screens`
+    c. `lib/services`
+    d. `lib/widgets`
+1.2.4. **Tecnologia**: Flutter 3.x – estrutura modular . Inclui suporte para Flutter Desktop.
+1.2.5.
+**Widgets reutilizáveis** (ordem alfabética):
+    a. `ConfigForm`
+    b. `DeliveryCard`
+    c.
+`LoginForm`
+    d. Telas de Confirmação de Código
+1.2.6. **Fluxo de Confirmação (Novo)**:
+    a. O app utiliza telas de confirmação de código no Flutter Desktop para finalizar entregas.
+    b. O fluxo valida o código localmente (via SharedPreferences) antes de notificar o backend.
+    c. A chamada `API.notifyDeliveryCompleted` só é feita após a aprovação local.
+1.2.7. **Persistência Adicional (Novo)**:
+    a. O app salva dados adicionais da entrega no dispositivo.
+    b. Chaves incluem: `codigoConfirmacao` e `currentChamado`.
+
+-----
+
+## 2\. NÍVEL INTERMEDIÁRIO – Estruturas e Fluxos
+
+### 2.1 BackEnd – Estruturas
+
+2.1.1.
+**Endpoints detalhados** (ordem alfabética):
+    a. `/api/cadboy` – POST – body `{nome, cpf, placa, senha}` → `{success, motoboy_id}`
+    b.
+`/api/heartbeat` – POST – header `Authorization: Bearer <JWT>` – body `{lat, lng}` → `FornecedorHeartbeatResponse`
+    c.
+`/api/login` – POST – body `{email, senha}` → `{token, refresh_token, user}`
+    d.
+`/api/login/google/callback?ID=<id>` – POST – body `{idToken}` → `{success, message}`
+    e.
+`/api/login/status?ID=<id>` – GET → `{done, success, user_id, is_new_user, message?}`
+    f. `/api/next-user-id` – GET → `{success, nextId}`
+    g. `/api/notifyDeliveryCompleted` – POST – body `{chamado}` → HTTP 200
+    h.
+`/api/obtemCfgValores` – GET → `{taxa, distanciaMax, modos}`
+
+2.1.2. **Modelos PHP** (ordem alfabética):
+    a.
+`Config {taxa, distanciaMax, modos}`
+    b. `FornecedorHeartbeatResponse {modo, lojasNoRaio[], idLoja, novaVenda?}`
+    c.
+`NovaVenda {hora, valor, cliente, idPed, idAviso, codigoConfirmacao?}`
+
+2.1.3. **Processos internos** (ordem alfabética):
+    a.
+`cadboy()` – valida JWT → insert motoboy → retorna id
+    b.
+`googleLoginCallback()` – valida idToken Google → insert/update users → marca fila como “processing”
+    c.
+`googleLoginStatus()` – polling na fila → retorna estado final
+    d. `nextUserId()` – consulta `information_schema` para `AUTO_INCREMENT`
+    e. `notifyDeliveryCompleted()` – Recebe `{ "chamado": X }` e atualiza o status da entrega para "concluída".
+    f.
+`obtemCfgValores()` – SELECT na tabela `config`
+    g. `saveConfigurations()` – UPDATE na tabela `config`
+    h.
+`sendHeartbeat()` – grava posição → SELECT lojas dentro do raio → monta `FornecedorHeartbeatResponse` (incluindo `codigoConfirmacao` se houver nova venda).
+
+### 2.2 FrontEnd – Estruturas
+
+2.2.1.
+**Integrações REST** (ordem alfabética):
+    a. `fetchConfigurations()` – GET `/api/obtemCfgValores`
+    b. `loginUser()` – POST `/api/login`
+    c. `notifyDeliveryCompleted()` – POST `/api/notifyDeliveryCompleted`
+    d.
+`sendHeartbeat()` – POST `/api/heartbeat`
+
+2.2.2. **Widgets** (ordem alfabética):
+    a.
+`ConfigForm` – FormField duplo: taxa (double) + distância (int) – botão “Salvar” chama `saveConfigurations()`
+    b.
+`DeliveryCard` – Card com leading foto da loja, title nome da loja, subtitle distância/tempo estimado
+    c.
+`LoginForm` – campos email/senha – validação mín 3 chars – botão “Entrar” chama `loginUser()`
+    d. `TelaConfirmacaoCodigo` – TextField numérico (4 dígitos), botões OK, Cancelar e Relatar Problema.
+
+2.2.3. **Fluxos e Métodos de UI (Novos)**:
+    a. `handleDeliveryCompleted()`: Método refatorado que agora chama a `mostrarTelaCodigoConfirmacao()` e, se o retorno for `true`, chama `API.notifyDeliveryCompleted()`.
+    b. `mostrarAvisoNovaVenda()`: Método refatorado (extraído do `heartbeat`) que exibe o diálogo de nova venda (com dados do cliente, itens e timer regressivo).
+    c. `mostrarTelaCodigoConfirmacao()`: Controla a tela de inserção do PIN, lê o código correto de SharedPreferences, valida a entrada do motoboy e retorna `true` ou `false`.
+
+-----
+
+## 3\. NÍVEL PROFUNDO – Código e Métodos Internos
+
+### 3.1 BackEnd – Código PHP (ordem alfabética de métodos)
+
+3.1.1.
+`cadboy(Request $req)`
+    \`\`\`php
+$data = $req-\>validate([...]);
+$id = DB::table('motoboy')->insertGetId($data);
+return response()-\>json(['success' =\> true, 'motoboy\_id' =\> $id]);
+
+````
+
+3.1.2. `googleLoginCallback(Request $req)`
+&nbsp;&nbsp;&nbsp;&nbsp;```php
+    $idToken = $req->input('idToken');
+    $googleId = $this->verifyGoogleToken($idToken);
+$user = User::firstOrCreate(['google_id' => $googleId], [...]);
+    LoginQueue::updateOrCreate(['id' => $req->ID], ['done' => false, 'user_id' => $user->id]);
+return response()->json(['success' => true, 'message' => 'processing']);
+    ```
+
+3.1.3. `googleLoginStatus(Request $req)`
+&nbsp;&nbsp;&nbsp;&nbsp;```php
+    $q = LoginQueue::find($req->ID);
+if (!$q || !$q->done) return response()->json(['done' => false]);
+    return response()->json([
+        'done' => true,
+        'success' => true,
+        'user_id' => $q->user_id,
+        'is_new_user' => $q->is_new_user
+    ]);
+````
+
+3.1.4. `nextUserId()`
+    ` php $next = DB::select("SELECT AUTO_INCREMENT as nextId FROM information_schema.tables WHERE table_name = 'users'")[0]->nextId; return response()->json(['success' => true, 'nextId' => $next]);  `
+
+3.1.5. `notifyDeliveryCompleted(Request $req)`
+    ` php // Recebe JSON: { "chamado": X } // Lógica: $chamadoId = $req->input('chamado'); // DB::table('chamados')->where('id', $chamadoId)->update(['status' => 'concluida']); return response()->json(['success' => true], 200);  `
+
+3.1.6. `obtemCfgValores()`
+    ` php $cfg = Config::first(); return response()->json($cfg);  `
+
+### 3.2 FrontEnd – Código Dart
+
+#### 3.2.1. **api.dart**
+
+3.2.1.1.
+`nextUserId()`
+    \`\`\`dart
+final url = Uri.parse('https://teletudo.com/api/next-user-id');
+final res = await http.get(url, headers: {'Accept':'application/json'});
+if (res.statusCode == 200) {
+final d = json.decode(res.body);
+if (d['success'] == true) return d['nextId'] is int ? d['nextId'] : int.tryParse('${d['nextId']}');
+}
+return null;
+
+````
+
+3.2.1.2. `googleLoginInit({required String idToken, required int userIdForQuery})`
+&nbsp;&nbsp;&nbsp;&nbsp;```dart
+    final url = Uri.parse('https://teletudo.com/api/login/google/callback?ID=$userIdForQuery');
+final res = await http.post(url, body: {'idToken': idToken}, headers: {'Accept':'application/json'});
+    return json.decode(res.body);
+    ```
+
+3.2.1.3.
+`googleLoginStatus({required int userIdForQuery})`
+&nbsp;&nbsp;&nbsp;&nbsp;```dart
+    final url = Uri.parse('https://teletudo.com/api/login/status?ID=$userIdForQuery');
+    final res = await http.get(url, headers: {'Accept':'application/json'});
+return json.decode(res.body);
+    ```
+3.2.1.4. `notifyDeliveryCompleted()`
+&nbsp;&nbsp;&nbsp;&nbsp;```dart
+    static Future<bool> notifyDeliveryCompleted() async {
+      try {
+        const String baseUrl = "https://teletudo.com/api/notifyDeliveryCompleted";
+
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        int? currentChamado = prefs.getInt('currentChamado');
+
+        final response = await http.post(
+          Uri.parse(baseUrl),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: json.encode({'chamado': currentChamado}),
+        );
+
+        return response.statusCode == 200;
+      } catch (e) {
+        return false;
+      }
+    }
+    ```
+
+#### 3.2.2. **auth_service.dart**
+3.2.2.1. `signInWithGoogle()`
+&nbsp;&nbsp;&nbsp;&nbsp;```dart
+    final int?
+maybeId = await API.nextUserId();
+    if (maybeId == null) return AuthResult.error('Falha ao obter ID');
+    final GoogleSignInAccount? account = await _googleSignIn.signIn();
+if (account == null) return AuthResult.cancelled();
+    final GoogleSignInAuthentication auth = await account.authentication;
+    await API.googleLoginInit(idToken: auth.idToken!, userIdForQuery: maybeId);
+    return await _trazCredenciais(maybeId);
+````
+
+3.2.2.2. `_trazCredenciais(int id)`
+    ` dart for (int i = 0; i < 40; i++) { final res = await API.googleLoginStatus(userIdForQuery: id); if (res['done'] == true) { if (res['success'] == true) { final user = User.fromJson(res); await _salvaLocal(user, res['accessToken'], res['refreshToken']); return AuthResult.success(user, res['is_new_user']); } else { return AuthResult.error(res['message'] ?? 'Erro desconhecido'); } } await Future.delayed(Duration(milliseconds: 500)); } return AuthResult.timeout();  `
+
+#### 3.2.3. **Lógica de Fluxo (Implementações)**
+
+3.2.3.1. `handleDeliveryCompleted()`:
+    a. Chama `mostrarTelaCodigoConfirmacao()`.
+    b. Se a validação do PIN for `true`, chama `API.notifyDeliveryCompleted()`.
+    c. Se `false`, interrompe o processo.
+3.2.3.2. `mostrarAvisoNovaVenda()`:
+    a. Método refatorado para isolar a lógica de exibição do diálogo de nova venda.
+    b. Controla o timer regressivo e os botões Aceitar/Cancelar.
+3.2.3.3. `mostrarTelaCodigoConfirmacao()`:
+    a. Apresenta a UI para inserção do PIN (TextField numérico, botões).
+    b. Valida a entrada contra o `codigoConfirmacao` salvo em SharedPreferences.
+    c. Fornece feedback de erro e mantém o loop até o acerto.
+    d. Retorna um `bool` indicando o sucesso da validação.
+3.2.3.4. Armazenamento (Heartbeat):
+    a. Dentro da lógica de `API.sendHeartbeat`, ao receber `novaVenda`:
+    b. Verifica a existência de `codigoConfirmacao`.
+    c. Salva em SharedPreferences: `prefs.setInt('codigoConfirmacao', codigo);`
+
+#### 3.2.4. **Models**
+
+3.2.4.1.
+`AuthResult`
+    ` dart class AuthResult { final bool success; final User? user; final bool? isNewUser; final String? error; // construtores: success, error, cancelled, timeout }  `
+
+3.2.4.2.
+`Config`
+    \`\`\`dart
+Config.fromJson(Map\<String,dynamic\> j)
+: taxa = j['taxa'].toDouble(),
+distanciaMax = j['distanciaMax'],
+modos = List\<String\>.from(j['modos']);
+
+````
+
+3.2.4.3. `User`
+&nbsp;&nbsp;&nbsp;&nbsp;```dart
+    User.fromJson(Map<String,dynamic> j)
+        : id = j['user_id'],
+          nome = j['nome'] ??
+'',
+          email = j['email'] ??
+'',
+          fotoUrl = j['fotoUrl'] ??
+'',
+          googleId = j['google_id'];
+    ```
+
+#### 3.2.5.
+**Persistência local – chaves**
+3.2.5.1. **SecureStorageKeys**: `accessToken`, `refreshToken` 
+3.2.5.2. **SharedPrefsKeys**: `email`, `fotoUrl`, `idUser`, `isLogado`, `nome` , `codigoConfirmacao`, `currentChamado`, `dadosNovaVenda`, `vez` (contador de heartbeat).
+
+#### 3.2.6.
+**Tratamento de erros**
+3.2.6.1. `Erro de rede`: catch em `http.get`/`post` → “Verifique sua conexão” 
+3.2.6.2.
+`Timeout 20 s`: loop finaliza → `AuthResult.timeout()` → UI exibe “Tente novamente”
+3.2.6.3.
+`Token inválido`: backend retorna `success=false` → limpa sessão → redireciona para login
+
+---
+
+## 4. NÍVEL DE INFRAESTRUTURA E BUILD (Opcional – Profundidade Extra)
+
+### 4.1 Scripts de Build (Windows)
+4.1.1.
+`compila.bat`:
+&nbsp;&nbsp;&nbsp;&nbsp;a. `flutter clean`
+&nbsp;&nbsp;&nbsp;&nbsp;b. `flutter pub get`
+&nbsp;&nbsp;&nbsp;&nbsp;c. `gradlew clean`
+&nbsp;&nbsp;&nbsp;&nbsp;d.
+`flutter build apk --release --no-tree-shake-icons`
+&nbsp;&nbsp;&nbsp;&nbsp;e. renomeia para `EntregaTudo.apk`
+&nbsp;&nbsp;&nbsp;&nbsp;f. executa `upa.bat`
+
+4.1.2. `upa.bat`:
+&nbsp;&nbsp;&nbsp;&nbsp;a.
+Copia APK para `...\public\download`
+&nbsp;&nbsp;&nbsp;&nbsp;b. Executa cliente FTP (`FTPc.exe`)
+
+### 4.2 Permissões Android (`AndroidManifest.xml`)
+4.2.1.
+`INTERNET`
+4.2.2. `ACCESS_FINE_LOCATION`
+4.2.3. `ACCESS_COARSE_LOCATION`
+4.2.4. `ACCESS_BACKGROUND_LOCATION`
+
+---
+
+## 5. ÍNDICE REMISSIVO ALFABÉTICO (Termos-Chave)
+
+- **accessToken**
+- **API.fetchConfigurations**
+- **API.googleLoginInit**
+- **API.googleLoginStatus**
+- **API.loginUser**
+- **API.nextUserId**
+- **API.notifyDeliveryCompleted** (Novo)
+- **API.sendHeartbeat**
+- **AuthResult**
+- **AuthService**
+- **/api/notifyDeliveryCompleted** (Novo)
+- **cadboy()**
+- **codigoConfirmacao** (Novo)
+- **Config**
+- **ConfigForm**
+- **currentChamado** (Novo)
+- **DeliveryCard**
+- **distanciaMax**
+- **FornecedorHeartbeatResponse**
+- **googleLoginCallback()**
+- **googleLoginStatus()**
+- **handleDeliveryCompleted()** (Novo)
+- **heartbeat**
+- **idUser**
+- **JWT**
+- **lib/models**
+- **LoginForm**
+- **modos**
+- **mostrarAvisoNovaVenda()** (Novo)
+- **mostrarTelaCodigoConfirmacao()** (Novo)
+- **NovaVenda**
+- **obtemCfgValores()**
+- **polling**
+- **Provider / Bloc**
+-
+**refreshToken**
+- **saveConfigurations()**
+- **SharedPrefsKeys**
+- **taxa**
+- **timeout (20 s)**
+- **User**
+````
