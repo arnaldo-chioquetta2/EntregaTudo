@@ -4,6 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:entregatudo/HomePage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.3.6 Log na conferência do convite
+// 1.3.5 Log para o servidor ao logar e ao cadastrar
+// 1.3.4 Confirmação de código na entrega
 // 1.3.3 Convite na fluxo certo de crítica
 
 class RegisterPage extends StatefulWidget {
@@ -243,17 +246,24 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _enviarCadastro() async {
-    print("_enviarCadastro");
+    await API.logApp("Cadastro", "Início do processo de cadastro");
+
     if (_inviteValid == -1) {
       await _verifyInvite();
     }
+
     if (_inviteValid != 1) {
+      await API.logApp("Cadastro", "Convite inválido ou ausente", {
+        "invite": _inviteController.text,
+        "inviteStatus": _inviteStatus,
+      });
       mostrarMensagem(
         context,
         "Você precisa de um convite válido para se cadastrar.",
       );
       return;
     }
+
     String nome = _nameController.text.trim();
     String email = _emailController.text.trim();
     String senha = _passwordController.text;
@@ -261,71 +271,97 @@ class _RegisterPageState extends State<RegisterPage> {
     String telefone = _phoneController.text.trim();
     String placa = _placaController.text.trim().toUpperCase();
     String PIX = _pix.text.trim();
-    int erroCodigo = 0;
+    String usuario = _usuarioController.text.trim();
+    String distanciaMaxStr = _distanciaMaximaController.text.trim();
 
+    int erroCodigo = 0;
+    int? distanciaMaxima = int.tryParse(distanciaMaxStr) ?? 30;
+
+    await API.logApp("Cadastro", "Dados capturados para envio", {
+      "nome": nome,
+      "usuario": usuario,
+      "email": email,
+      "telefone": telefone,
+      "placa": placa,
+      "distanciaMaxima": distanciaMaxima,
+    });
+
+    // Validações locais com logs
     if (!validarNome(nome)) {
+      await API.logApp("Cadastro", "Erro: nome inválido");
       mostrarMensagem(context, 'Por favor, insira o nome completo.');
       return;
     }
     if (!validarEmail(email)) {
+      await API.logApp("Cadastro", "Erro: email inválido", {"email": email});
       mostrarMensagem(context, 'Por favor, insira um email válido.');
       return;
     }
     if (!validarSenha(senha)) {
+      await API.logApp("Cadastro", "Erro: senha inválida");
       mostrarMensagem(context,
           'A senha não pode ser vazia e deve ter no mínimo 6 caracteres.');
       return;
     }
 
     if (placa.isNotEmpty) {
-      if (JaMostrouPlaca && !validarPlaca(placa)) {
-        erroCodigo += 2;
-      }
+      if (JaMostrouPlaca && !validarPlaca(placa)) erroCodigo += 2;
       if (!validarPlaca(placa)) {
+        await API.logApp("Cadastro", "Erro: placa inválida", {"placa": placa});
         mostrarMensagem(context, 'Por favor, insira uma placa válida.');
         return;
       }
     }
 
-    String usuario = _usuarioController.text.trim();
-    String distanciaMaxStr = _distanciaMaximaController.text.trim();
-
     if (usuario.isEmpty) {
+      await API.logApp("Cadastro", "Erro: usuário em branco");
       mostrarMensagem(context, 'Por favor, insira o nome de usuário.');
       return;
     }
 
-    int? distanciaMaxima = int.tryParse(distanciaMaxStr);
-    if (distanciaMaxima == null ||
-        distanciaMaxima < 1 ||
-        distanciaMaxima > 30) {
+    if (distanciaMaxima < 1 || distanciaMaxima > 30) {
+      await API.logApp("Cadastro", "Erro: distância fora do limite", {
+        "valor": distanciaMaxima,
+      });
       mostrarMensagem(context, 'Digite uma distância máxima entre 1 e 30 km.');
       return;
     }
 
-    final resultado = await API.registerUser(
-      nome,
-      usuario,
-      email,
-      senha,
-      telefone,
-      cnh,
-      placa,
-      PIX,
-      erroCodigo,
-      distanciaMaxima,
-    );
-
-    if (resultado['success']) {
-      mostrarMensagem(context, 'Cadastro bem-sucedido');
-      Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const HomePage()));
-    } else {
-      mostrarMensagem(
-        context,
-        resultado['message'],
-        details: resultado['details'],
+    try {
+      await API.logApp("Cadastro", "Enviando dados para API /cadboy");
+      final resultado = await API.registerUser(
+        nome,
+        usuario,
+        email,
+        senha,
+        telefone,
+        cnh,
+        placa,
+        PIX,
+        erroCodigo,
+        distanciaMaxima,
       );
+
+      if (resultado['success']) {
+        await API.logApp("Cadastro", "Cadastro bem-sucedido", resultado);
+        mostrarMensagem(context, 'Cadastro bem-sucedido');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const HomePage()),
+        );
+      } else {
+        await API.logApp("Cadastro", "Falha no cadastro", resultado);
+        mostrarMensagem(
+          context,
+          resultado['message'],
+          details: resultado['details'],
+        );
+      }
+    } catch (e, st) {
+      await API.logApp("Cadastro", "Erro inesperado", {
+        "erro": e.toString(),
+        "stack": st.toString(),
+      });
+      mostrarMensagem(context, "Erro inesperado durante o cadastro.");
     }
   }
 

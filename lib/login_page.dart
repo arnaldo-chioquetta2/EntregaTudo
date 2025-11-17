@@ -55,10 +55,14 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _loadSavedCredentials() async {
     final savedUser = await _storage.read(key: 'user');
     final savedPass = await _storage.read(key: 'password');
-
     if (savedUser != null && savedPass != null) {
       _userController.text = savedUser;
       _passwordController.text = savedPass;
+      await API.logApp(
+        "Login",
+        "Usuário carregado do storage",
+        {"user": savedUser},
+      );
     }
   }
 
@@ -86,7 +90,6 @@ class _LoginPageState extends State<LoginPage> {
       }
     } catch (e) {
       print('[UI] silent EXCEPTION: $e');
-      // segue a vida, mostra botão
     } finally {
       if (mounted) setState(() => _loadingGoogle = false);
     }
@@ -189,10 +192,6 @@ class _LoginPageState extends State<LoginPage> {
             child: CircularProgressIndicator(strokeWidth: 2),
           )
         : const Text("Login com Google");
-
-    // 🔹 Controle de visibilidade da senha
-    bool _senhaVisivel = false;
-
     return Scaffold(
       appBar: AppBar(
         title: Text('EntregaTudo ' + AppConfig.versaoApp),
@@ -238,37 +237,67 @@ class _LoginPageState extends State<LoginPage> {
               ElevatedButton(
                 onPressed: () async {
                   if (!_isMounted) return;
+                  print("🔹 [Login] Botão pressionado");
+
                   try {
                     final user = _userController.text.trim();
                     final password = _passwordController.text.trim();
+                    print(
+                        "🔹 [Login] user='$user' password='${password.isNotEmpty ? '***' : '(vazio)'}'");
 
                     if (user.isEmpty || password.isEmpty) {
+                      print("⚠️ [Login] Campos vazios");
                       showErrorDialog("Preencha usuário e senha.");
                       return;
                     }
 
                     double lat = 0.0;
                     double lon = 0.0;
+                    print(
+                        "📡 [Login] Chamando API.veLogin('$user', senhaOculta, lat=$lat, lon=$lon)");
+
                     String result = await API.veLogin(user, password, lat, lon);
 
+                    print("📥 [Login] Retorno do servidor: '$result'");
+
                     if (result == "") {
-                      // ✅ Salva ou apaga conforme a opção
+                      print(
+                          "✅ [Login] Login bem-sucedido, gravando credenciais...");
+
+                      await API.logApp(
+                        "Login",
+                        "Login bem-sucedido",
+                        {
+                          "user": user,
+                          "plataforma": kIsWeb ? "WEB" : "MOBILE",
+                        },
+                      );
+
                       if (_rememberPassword) {
                         await _storage.write(key: 'user', value: user);
                         await _storage.write(key: 'password', value: password);
+                        print("💾 [Login] Credenciais salvas");
                       } else {
                         await _storage.delete(key: 'user');
                         await _storage.delete(key: 'password');
+                        print(
+                            "🧹 [Login] Credenciais removidas (não lembrar senha)");
                       }
 
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(
-                            builder: (context) => const HomePage()),
-                      );
+                      print("➡️ [Login] Redirecionando para HomePage...");
+                      if (_isMounted) {
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                              builder: (context) => const HomePage()),
+                        );
+                      }
                     } else {
+                      print("❌ [Login] Erro retornado: $result");
                       showErrorDialog(result);
                     }
-                  } catch (e) {
+                  } catch (e, st) {
+                    print("💥 [Login] EXCEPTION: $e");
+                    print("📜 [StackTrace] $st");
                     if (_isMounted) {
                       showErrorDialog("Erro durante o login: $e");
                     }

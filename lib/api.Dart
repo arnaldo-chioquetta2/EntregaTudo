@@ -5,9 +5,13 @@ import 'features/location_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:entregatudo/constants.dart';
 import 'package:entregatudo/models/delivery_details.dart';
-// import 'package:seu_projeto/models/nova_venda.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.3.6 Log na conferência do convite
+// 1.3.5 Log para o servidor ao logar e ao cadastrar
+// 1.3.4 Confirmação de código na entrega
+// 1.3.3 Convite na fluxo certo de crítica
+// 1.3.2 Fornecedor
 // 1.2.7 Ajuste no Crud da configuração de valores
 // 1.2.6 Copia o erro de cadastro para a memória se houver
 
@@ -260,48 +264,6 @@ class API {
     return DeliveryDetails.fromJson(data);
   }
 
-  // static Future<DeliveryDetails?> sendHeartbeat(double lat, double lon) async {
-  //   SharedPreferences prefs = await SharedPreferences.getInstance();
-  //   int? userid = prefs.getInt('idUser');
-  //   int vez = prefs.getInt('vez') ?? 0;
-  //   await prefs.setInt('vez', vez + 1);
-
-  //   if (userid != null) {
-  //     String baseUrl = "https://teletudo.com/api/heartbeat";
-  //     final response = await http.post(
-  //       Uri.parse(baseUrl),
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //         'Accept': 'application/json',
-  //       },
-  //       body: json.encode({
-  //         'userid': userid,
-  //         'lat': lat,
-  //         'lon': lon,
-  //         'vez': vez,
-  //       }),
-  //     );
-
-  //     print(
-  //         'Enviando heartbeat: lat: $lat, lon: $lon, userid: $userid, vez: $vez');
-
-  //     if (response.statusCode == 200) {
-  //       print('Response Body: ${response.body}');
-  //       var data = json.decode(response.body);
-  //       int modo = data['modo'] ?? 3;
-  //       await prefs.setInt('modo', modo);
-  //       int lojasNoRaio = data['lojas_no_raio'] ?? 0;
-  //       print('Lojas no Raio: $lojasNoRaio');
-  //       return DeliveryDetails.fromJson(data);
-  //     } else {
-  //       print('Erro ao enviar heartbeat: ${response.statusCode}');
-  //     }
-  //   } else {
-  //     print('User ID não encontrado');
-  //   }
-  //   return null;
-  // }
-
   static Future<FornecedorHeartbeatResponse?> sendHeartbeatF(
       double lat, double lon) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -369,44 +331,83 @@ class API {
   // curl -X POST https://teletudo.com/api/login -H "Content-Type: application/json" -H "Accept: application/json" -d "{\"user\": \"teste\", \"password\": \"teste\", \"lat\": -23.55052, \"lon\": -46.633308}" -k
   static Future<String> veLogin(
       String user, String password, double lat, double lon) async {
-    String baseUrl = "https://teletudo.com/api/login";
-    final response = await http.post(
-      Uri.parse(baseUrl),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: json.encode({
-        'user': user,
-        'password': password,
-        'lat': lat,
-        'lon': lon,
-      }),
-    );
-    if (response.statusCode == 200) {
-      var ret = json.decode(response.body);
-      final int erro = ret["Erro"] ?? 1;
-      if (erro == 0) {
-        final int idUser = ret["id"] ?? 0;
-        final SharedPreferences prefs = await SharedPreferences.getInstance();
-        await prefs.setInt('idUser', idUser);
-        final String nomeUser = (ret["nome"] ?? "").toString();
-        await prefs.setString('nomeUser', nomeUser);
-        int idLoja = 0;
-        print("[API.veLogin] eh_fornecedor = $ret['eh_fornecedor']");
-        print("[API.veLogin] id_loja = $ret['id_loja']");
-        if (ret["eh_fornecedor"] == true) {
-          idLoja = ret["id_loja"];
-          print("[API.veLogin] Usuário é fornecedor. idLoja = $idLoja");
-          await prefs.setBool('isFornecedor', true);
-        }
-        await prefs.setInt('idLoja', idLoja);
-        return "";
-      } else {
-        return "ERRO";
+    const String baseUrl = "https://teletudo.com/api/login";
+
+    print("==============================================");
+    print("[API.veLogin] INICIANDO LOGIN");
+    print("[API.veLogin] user=$user  password=***  lat=$lat lon=$lon");
+
+    try {
+      final response = await http.post(
+        Uri.parse(baseUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: json.encode({
+          'user': user,
+          'password': password,
+          'lat': lat,
+          'lon': lon,
+        }),
+      );
+
+      print("[API.veLogin] HTTP STATUS: ${response.statusCode}");
+      print("[API.veLogin] RAW: ${response.body}");
+
+      if (response.statusCode != 200) {
+        print("[API.veLogin] ❌ ERRO_1: Status diferente de 200");
+        return "ERRO_1";
       }
-    } else {
-      return "ERRO";
+
+      // Tenta parsear
+      Map<String, dynamic> ret;
+      try {
+        ret = json.decode(response.body);
+      } catch (e) {
+        print("[API.veLogin] ❌ ERRO_2: Falha ao decodificar JSON: $e");
+        return "ERRO_2";
+      }
+
+      print("[API.veLogin] JSON decodificado: $ret");
+
+      final int erro = ret["Erro"] ?? 1;
+      print("[API.veLogin] campo Erro = $erro");
+
+      if (erro != 0) {
+        print("[API.veLogin] ❌ ERRO_3: Servidor retornou erro.");
+        return "ERRO_3";
+      }
+
+      // SUCESSO
+      final int idUser = ret["id"] ?? 0;
+      final prefs = await SharedPreferences.getInstance();
+
+      await prefs.setInt('idUser', idUser);
+
+      final String nomeUser = (ret["nome"] ?? "").toString();
+      await prefs.setString('nomeUser', nomeUser);
+
+      int idLoja = 0;
+
+      print("[API.veLogin] eh_fornecedor = ${ret['eh_fornecedor']}");
+      print("[API.veLogin] id_loja = ${ret['id_loja']}");
+
+      if (ret["eh_fornecedor"] == true) {
+        idLoja = ret["id_loja"] ?? 0;
+        await prefs.setBool('isFornecedor', true);
+        print("[API.veLogin] Usuário é fornecedor. idLoja = $idLoja");
+      }
+
+      await prefs.setInt('idLoja', idLoja);
+
+      print("[API.veLogin] ✅ LOGIN OK");
+      print("==============================================");
+      return "";
+    } catch (e, st) {
+      print("[API.veLogin] ❌ ERRO_4 EXCEPTION: $e");
+      print("[API.veLogin] STACKTRACE: $st");
+      return "ERRO_4";
     }
   }
 
@@ -683,13 +684,17 @@ class API {
 
   static Future<Map<String, dynamic>> verifyInviteCode(String code) async {
     print('[API.verifyInviteCode] $code');
+    String conviteDigitado = code.toUpperCase();
+    await logApp("API", "conviteDigitado = $conviteDigitado");
     final response = await http.get(
       Uri.parse('https://teletudo.com/api/verify-invite-code')
-          .replace(queryParameters: {'code': code}),
+          .replace(queryParameters: {'code': conviteDigitado}),
     );
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
+      await logApp("API",
+          "Erro ao verificar convite statusCode = $response.statusCode ");
       throw Exception('Erro ao verificar convite');
     }
   }
@@ -786,6 +791,33 @@ class API {
       print('Erro ao buscar código de convite do usuário: $e');
     }
     return null;
+  }
+
+  static Future<void> logApp(String metodo, String mensagem,
+      [Map<String, dynamic>? dados]) async {
+    const String baseUrl = "https://teletudo.com/api/logapp";
+    metodo = "App: $metodo";
+    try {
+      final response = await http.post(
+        Uri.parse(baseUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: json.encode({
+          'metodo': metodo,
+          'mensagem': mensagem,
+          'dados': dados ?? {},
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        print(
+            "⚠️ Falha ao enviar log (${response.statusCode}): ${response.body}");
+      }
+    } catch (e) {
+      print("❌ Erro ao tentar enviar log: $e");
+    }
   }
 }
 
