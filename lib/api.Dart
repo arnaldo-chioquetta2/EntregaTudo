@@ -1,4 +1,4 @@
-import 'dart:io';
+// import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'features/location_service.dart';
@@ -7,6 +7,7 @@ import 'package:entregatudo/constants.dart';
 import 'package:entregatudo/models/delivery_details.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.3.7 Correção do cadastro
 // 1.3.6 Log na conferência do convite
 // 1.3.5 Log para o servidor ao logar e ao cadastrar
 // 1.3.4 Confirmação de código na entrega
@@ -128,17 +129,19 @@ class API {
   }
 
   static Future<Map<String, dynamic>> registerUser(
-      String nome,
-      String usuario,
-      String email,
-      String senha,
-      String telefone,
-      String cnh,
-      String placa,
-      String PIX,
-      int erroCodigo,
-      int distanciaMaxima) async {
+    String nome,
+    String usuario,
+    String email,
+    String senha,
+    String telefone,
+    String cnh,
+    String placa,
+    String pix,
+    int erroCodigo,
+    int distanciaMaxima,
+  ) async {
     String baseUrl = "https://teletudo.com/api/cadboy";
+
     try {
       final response = await http.post(
         Uri.parse(baseUrl),
@@ -154,39 +157,54 @@ class API {
           'telefone': telefone,
           'cnh': cnh,
           'placa': placa,
-          'PIX': PIX,
+          'PIX': pix,
           'erroCodigo': erroCodigo,
           'distanciaMaxima': distanciaMaxima,
           'versaoApp': AppConfig.versaoApp,
         }),
       );
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final ret = json.decode(response.body);
-        if (ret['success'] == true) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setInt('idUser', ret["id"]);
-          return {'success': true, 'message': 'Cadastro bem-sucedido'};
-        } else {
-          return {
-            'success': false,
-            'message': ret['message'] ?? 'Erro desconhecido ao cadastrar',
-            'details': 'Resposta do servidor: ${response.body}',
-          };
-        }
-      } else {
+      final raw = response.body;
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
         return {
           'success': false,
           'message': 'Falha no servidor (${response.statusCode})',
-          'details':
-              'Código HTTP: ${response.statusCode}\nResposta do servidor: ${response.body}',
+          'details': raw
+        };
+      }
+
+      final ret = json.decode(raw);
+
+      // 🔹 Interpretar corretamente o retorno do servidor
+      final erro = ret['Erro'];
+      final descErro = ret['DescErro'] ?? '';
+      final id = ret['id'];
+
+      if (erro == 0) {
+        // SUCESSO
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('idUser', id);
+
+        return {
+          'success': true,
+          'message': 'Cadastro bem-sucedido',
+          'details': raw
+        };
+      } else {
+        // FALHA RETORNADA PELO SERVIDOR
+        return {
+          'success': false,
+          'message':
+              descErro.isEmpty ? 'Erro desconhecido ao cadastrar' : descErro,
+          'details': raw
         };
       }
     } catch (e) {
       return {
         'success': false,
         'message': 'Erro de conexão com o servidor',
-        'details': 'Exceção capturada: $e',
+        'details': e.toString()
       };
     }
   }

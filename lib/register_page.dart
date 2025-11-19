@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:entregatudo/HomePage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.3.7 Correção do cadastro
 // 1.3.6 Log na conferência do convite
 // 1.3.5 Log para o servidor ao logar e ao cadastrar
 // 1.3.4 Confirmação de código na entrega
@@ -42,6 +43,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _usuarioController = TextEditingController();
   final _distanciaMaximaController = TextEditingController();
   final _inviteController = TextEditingController();
+  bool _cadastrando = false;
 
   final _formKey = GlobalKey<FormState>();
 
@@ -91,7 +93,6 @@ class _RegisterPageState extends State<RegisterPage> {
     _carregarFallbackDosPrefs(); // <- se não vier por params, busca prefs
   }
 
-  // ✅ aplica imediatamente o que veio por parâmetro
   void _aplicarPrefill() {
     if (widget.prefillName?.isNotEmpty ?? false) {
       _nameController.text = widget.prefillName!;
@@ -112,7 +113,6 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
-  // ✅ tenta preencher a partir dos SharedPreferences, se necessário
   Future<void> _carregarFallbackDosPrefs() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -159,7 +159,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
-    // (Opcional) você pode mostrar o aviso de que “email/nome vieram do Google”
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cadastro de Motoboy'),
@@ -236,8 +235,17 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: _enviarCadastro,
-              child: const Text("Cadastrar"),
+              onPressed: _cadastrando ? null : _enviarCadastro,
+              child: _cadastrando
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text("Cadastrar"),
             ),
           ],
         ),
@@ -247,12 +255,14 @@ class _RegisterPageState extends State<RegisterPage> {
 
   Future<void> _enviarCadastro() async {
     await API.logApp("Cadastro", "Início do processo de cadastro");
+    setState(() => _cadastrando = true);
 
     if (_inviteValid == -1) {
       await _verifyInvite();
     }
 
     if (_inviteValid != 1) {
+      setState(() => _cadastrando = false);
       await API.logApp("Cadastro", "Convite inválido ou ausente", {
         "invite": _inviteController.text,
         "inviteStatus": _inviteStatus,
@@ -286,18 +296,20 @@ class _RegisterPageState extends State<RegisterPage> {
       "distanciaMaxima": distanciaMaxima,
     });
 
-    // Validações locais com logs
     if (!validarNome(nome)) {
+      setState(() => _cadastrando = false);
       await API.logApp("Cadastro", "Erro: nome inválido");
       mostrarMensagem(context, 'Por favor, insira o nome completo.');
       return;
     }
     if (!validarEmail(email)) {
+      setState(() => _cadastrando = false);
       await API.logApp("Cadastro", "Erro: email inválido", {"email": email});
       mostrarMensagem(context, 'Por favor, insira um email válido.');
       return;
     }
     if (!validarSenha(senha)) {
+      setState(() => _cadastrando = false);
       await API.logApp("Cadastro", "Erro: senha inválida");
       mostrarMensagem(context,
           'A senha não pode ser vazia e deve ter no mínimo 6 caracteres.');
@@ -307,6 +319,7 @@ class _RegisterPageState extends State<RegisterPage> {
     if (placa.isNotEmpty) {
       if (JaMostrouPlaca && !validarPlaca(placa)) erroCodigo += 2;
       if (!validarPlaca(placa)) {
+        setState(() => _cadastrando = false);
         await API.logApp("Cadastro", "Erro: placa inválida", {"placa": placa});
         mostrarMensagem(context, 'Por favor, insira uma placa válida.');
         return;
@@ -314,12 +327,14 @@ class _RegisterPageState extends State<RegisterPage> {
     }
 
     if (usuario.isEmpty) {
+      setState(() => _cadastrando = false);
       await API.logApp("Cadastro", "Erro: usuário em branco");
       mostrarMensagem(context, 'Por favor, insira o nome de usuário.');
       return;
     }
 
     if (distanciaMaxima < 1 || distanciaMaxima > 30) {
+      setState(() => _cadastrando = false);
       await API.logApp("Cadastro", "Erro: distância fora do limite", {
         "valor": distanciaMaxima,
       });
@@ -357,6 +372,7 @@ class _RegisterPageState extends State<RegisterPage> {
         );
       }
     } catch (e, st) {
+      setState(() => _cadastrando = false);
       await API.logApp("Cadastro", "Erro inesperado", {
         "erro": e.toString(),
         "stack": st.toString(),
