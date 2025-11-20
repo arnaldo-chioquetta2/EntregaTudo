@@ -7,6 +7,7 @@ import 'package:entregatudo/constants.dart';
 import 'package:entregatudo/models/delivery_details.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.3.9 Fornecedor recebe aviso pelo App sobre a venda
 // 1.3.7 Correção do cadastro
 // 1.3.6 Log na conferência do convite
 // 1.3.5 Log para o servidor ao logar e ao cadastrar
@@ -816,6 +817,7 @@ class API {
     const String baseUrl = "https://teletudo.com/api/logapp";
     metodo = "App: $metodo";
     try {
+      // ignore: unused_local_variable
       final response = await http.post(
         Uri.parse(baseUrl),
         headers: {
@@ -828,13 +830,35 @@ class API {
           'dados': dados ?? {},
         }),
       );
+    } catch (e) {
+      print("❌ Erro na função logApp: $e");
+    }
+  }
 
-      if (response.statusCode != 200) {
-        print(
-            "⚠️ Falha ao enviar log (${response.statusCode}): ${response.body}");
+  static Future<bool> fornecedorConfirmou(int idAviso, int idPed) async {
+    final String url = "https://teletudo.com/api/fornecedor/confirmou";
+    try {
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: json.encode({
+          'id': idAviso,
+          'idPed': idPed,
+        }),
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['Erro'] == 0;
+      } else {
+        print("⚠️ Erro HTTP: ${response.statusCode}");
+        return false;
       }
     } catch (e) {
-      print("❌ Erro ao tentar enviar log: $e");
+      print("❌ Erro fornecedorConfirmou(): $e");
+      return false;
     }
   }
 }

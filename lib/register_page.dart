@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:entregatudo/HomePage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.3.8 Correção da crítica da placa
 // 1.3.7 Correção do cadastro
 // 1.3.6 Log na conferência do convite
 // 1.3.5 Log para o servidor ao logar e ao cadastrar
@@ -380,10 +381,13 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   bool _validarPlaca() {
-    final placa = _placaController.text.trim().toUpperCase();
-    if (placa.isNotEmpty && (!JaMostrouPlaca || !validarPlaca(placa))) {
+    final placaInput = _placaController.text.trim();
+    if (placaInput.isEmpty) {
+      return true;
+    }
+    if (!validarPlaca(placaInput)) {
       setState(() => _cadastrando = false);
-      _logCadastroErroPlacaInvalida(placa);
+      _logCadastroErroPlacaInvalida(placaInput);
       _mostrarMensagemPlacaInvalida();
       return false;
     }
@@ -490,114 +494,6 @@ class _RegisterPageState extends State<RegisterPage> {
     mostrarMensagem(context, "Erro inesperado durante o cadastro.");
   }
 
-// Processamento FIM
-
-  // Future<void> _enviarCadastro() async {
-  //   await API.logApp("Cadastro", "Início do processo de cadastro");
-  //   setState(() => _cadastrando = true);
-
-  //   if (_inviteValid == -1) {
-  //     await _verifyInvite();
-  //   }
-
-  //   if (_inviteValid != 1) {
-  //     setState(() => _cadastrando = false);
-  //     await API.logApp("Cadastro", "Convite inválido ou ausente", {
-  //       "invite": _inviteController.text,
-  //       "inviteStatus": _inviteStatus,
-  //     });
-  //     mostrarMensagem(
-  //       context,
-  //       "Você precisa de um convite válido para se cadastrar.",
-  //     );
-  //     return;
-  //   }
-
-  //   String nome = _nameController.text.trim();
-  //   String email = _emailController.text.trim();
-  //   String senha = _passwordController.text;
-  //   String cnh = _cnhController.text.trim();
-  //   String telefone = _phoneController.text.trim();
-  //   String placa = _placaController.text.trim().toUpperCase();
-  //   String PIX = _pix.text.trim();
-  //   String usuario = _usuarioController.text.trim();
-  //   String distanciaMaxStr = _distanciaMaximaController.text.trim();
-
-  //   int erroCodigo = 0;
-  //   int? distanciaMaxima = int.tryParse(distanciaMaxStr) ?? 30;
-
-  //   await API.logApp("Cadastro", "Dados capturados para envio", {
-  //     "nome": nome,
-  //     "usuario": usuario,
-  //     "email": email,
-  //     "telefone": telefone,
-  //     "placa": placa,
-  //     "distanciaMaxima": distanciaMaxima,
-  //   });
-
-  //   if (!validarNome(nome)) {
-  //     setState(() => _cadastrando = false);
-  //     await API.logApp("Cadastro", "Erro: nome inválido");
-  //     mostrarMensagem(context, 'Por favor, insira o nome completo.');
-  //     return;
-  //   }
-  //   if (!validarEmail(email)) {
-  //     setState(() => _cadastrando = false);
-  //     await API.logApp("Cadastro", "Erro: email inválido", {"email": email});
-  //     mostrarMensagem(context, 'Por favor, insira um email válido.');
-  //     return;
-  //   }
-  //   if (!validarSenha(senha)) {
-  //     setState(() => _cadastrando = false);
-  //     await API.logApp("Cadastro", "Erro: senha inválida");
-  //     mostrarMensagem(context,
-  //         'A senha não pode ser vazia e deve ter no mínimo 6 caracteres.');
-  //     return;
-  //   }
-
-  //   if (placa.isNotEmpty) {
-  //     if (JaMostrouPlaca && !validarPlaca(placa)) erroCodigo += 2;
-  //     if (!validarPlaca(placa)) {
-  //       setState(() => _cadastrando = false);
-  //       await API.logApp("Cadastro", "Erro: placa inválida", {"placa": placa});
-  //       mostrarMensagem(context, 'Por favor, insira uma placa válida.');
-  //       return;
-  //     }
-  //   }
-
-  //   if (usuario.isEmpty) {
-  //     setState(() => _cadastrando = false);
-  //     await API.logApp("Cadastro", "Erro: usuário em branco");
-  //     mostrarMensagem(context, 'Por favor, insira o nome de usuário.');
-  //     return;
-  //   }
-
-  //   if (distanciaMaxima < 1 || distanciaMaxima > 30) {
-  //     setState(() => _cadastrando = false);
-  //     await API.logApp("Cadastro", "Erro: distância fora do limite", {
-  //       "valor": distanciaMaxima,
-  //     });
-  //     mostrarMensagem(context, 'Digite uma distância máxima entre 1 e 30 km.');
-  //     return;
-  //   }
-
-  //   try {
-  //     await API.logApp("Cadastro", "Enviando dados para API /cadboy");
-  //     final resultado = await API.registerUser(
-  //       nome,
-  //       usuario,
-  //       email,
-  //       senha,
-  //       telefone,
-  //       cnh,
-  //       placa,
-  //       PIX,
-  //       erroCodigo,
-  //       distanciaMaxima,
-  //     );
-
-  //     if (resultado['success']) {
-  //       await API.logApp("Cadastro", "Cadastro bem-sucedido", resultado);
   //       mostrarMensagem(context, 'Cadastro bem-sucedido');
   //       Navigator.of(context).pushReplacement(
   //         MaterialPageRoute(builder: (context) => const HomePage()),
@@ -620,9 +516,10 @@ class _RegisterPageState extends State<RegisterPage> {
   //   }
   // }
 
-  bool validarPlaca(String placa) {
-    final regex =
-        RegExp(r'^[A-Z]{3}(-\d{4}|\d{4}|\d[A-Z]\d{2})$', caseSensitive: false);
+  bool validarPlaca(String input) {
+    final placa = input.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toUpperCase();
+    if (placa.length != 7) return false;
+    final regex = RegExp(r'^[A-Z]{3}[0-9][0-9A-Z][0-9]{2}$');
     final valida = regex.hasMatch(placa);
     if (!valida && deixaPassarCnhInv && !JaMostrouPlaca) {
       JaMostrouPlaca = true;

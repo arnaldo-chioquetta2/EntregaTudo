@@ -23,6 +23,9 @@ dependencies:
   url_launcher: ^6.3.0
   font_awesome_flutter: ^10.7.0
 
+  # 🔊 Som local embarcado
+  audioplayers: ^6.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -31,6 +34,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/audio/Voz.mp3
 
 flutter_launcher_icons:
   android: true

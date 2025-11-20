@@ -7,11 +7,12 @@ import 'package:entregatudo/api.dart';
 import 'package:flutter/material.dart';
 import 'features/location_service.dart';
 import 'package:flutter/foundation.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:entregatudo/utils/sound.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:entregatudo/models/delivery_details.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.3.9 Fornecedor recebe aviso pelo App sobre a venda
 // 1.2.4 Conserto do link para as configurações
 
 class HomePage extends StatefulWidget {
@@ -385,8 +386,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-// Processamento INICIO
-// Refatorado em 15/11/25 Original 120 linhas, resultado 89 linhas
   Future<void> chamaHeartbeat() async {
     _log('--- chamaHeartbeat START ---');
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -496,126 +495,6 @@ class _HomePageState extends State<HomePage> {
       }
     }
   }
-// Processamento FIM
-
-  // Future<void> chamaHeartbeat() async {
-  //   _log('--- chamaHeartbeat START ---');
-  //   SharedPreferences prefs = await SharedPreferences.getInstance();
-
-  //   try {
-  //     // posição atual
-  //     Position? pos = _locationService.ultimaPosicao;
-  //     double latitude = pos?.latitude ?? '1'-30.1165;
-  //     double longitude = pos?.longitude ?? -51.1355;
-  //     _log("Enviando local: lat=$latitude, lon=$longitude");
-
-  //     // verificar tipo de usuário
-  //     int? idLoja = prefs.getInt('idLoja');
-  //     _log('idLoja em prefs: $idLoja (idLoja>0 => fornecedor)');
-
-  //     // código de confirmação (se existir)
-  //     int? codConf = prefs.getInt('codigoConfirmacao');
-  //     if (codConf != null) {
-  //       _log("Código de confirmação atual: $codConf");
-  //     }
-
-  //     // --------------------------------------------------------------------
-  //     // FORNECEDOR
-  //     // --------------------------------------------------------------------
-  //     if (idLoja != null && idLoja > 0) {
-  //       _log('Fornecedor detectado. Chamando API.sendHeartbeatF…');
-
-  //       FornecedorHeartbeatResponse? fornecedorDetails =
-  //           await API.sendHeartbeatF(latitude, longitude);
-
-  //       if (fornecedorDetails == null) {
-  //         _log("ERRO: fornecedorDetails == null");
-  //       } else {
-  //         _log('HeartbeatF OK: lojasNoRaio=${fornecedorDetails.lojasNoRaio}, '
-  //             'idLoja=${fornecedorDetails.idLoja}, '
-  //             'novaVenda=${fornecedorDetails.novaVenda != null}');
-
-  //         // NOVA VENDA
-  //         if (fornecedorDetails.novaVenda != null) {
-  //           final novaVenda = fornecedorDetails.novaVenda!;
-  //           _log("Nova venda detectada!");
-
-  //           // salvar dados em prefs
-  //           await prefs.setString('hora', novaVenda.hora);
-  //           await prefs.setString('valor', novaVenda.valor);
-  //           await prefs.setString('cliente', novaVenda.cliente);
-  //           await prefs.setInt('idPed', novaVenda.idPed);
-  //           await prefs.setInt('idAviso', novaVenda.idAviso);
-
-  //           // mostrar aviso
-  //           await mostrarAvisoNovaVenda(
-  //             novaVenda,
-  //             fornecedorDetails.itensVenda,
-  //           );
-  //         }
-
-  //         // atualizar UI
-  //         setState(() {
-  //           lojasNoRaio = fornecedorDetails.lojasNoRaio;
-  //           deliveryData = {'idLoja': fornecedorDetails.idLoja};
-  //         });
-  //       }
-  //     }
-
-  //     // --------------------------------------------------------------------
-  //     // MOTOBOY
-  //     // --------------------------------------------------------------------
-  //     else {
-  //       _log('Motoboy detectado. Chamando API.sendHeartbeat…');
-
-  //       DeliveryDetails? deliveryDetails =
-  //           await API.sendHeartbeat(latitude, longitude);
-
-  //       if (deliveryDetails == null) {
-  //         _log("ERRO: deliveryDetails == null");
-  //       } else {
-  //         _log('Heartbeat OK: lojasNoRaio=${deliveryDetails.lojasNoRaio}, '
-  //             'valor=${deliveryDetails.valor}, chamado=${deliveryDetails.chamado}');
-
-  //         setState(() {
-  //           lojasNoRaio = deliveryDetails.lojasNoRaio;
-  //           deliveryData = {
-  //             'enderIN': deliveryDetails.enderIN ?? 'Desconhecido',
-  //             'enderFN': deliveryDetails.enderFN ?? 'Desconhecido',
-  //             'dist': deliveryDetails.dist ?? 0.0,
-  //             'valor': deliveryDetails.valor ?? 0.0,
-  //             'peso': deliveryDetails.peso ?? 'Não Informado',
-  //             'chamado': deliveryDetails.chamado,
-  //             'lojasNoRaio': deliveryDetails.lojasNoRaio,
-  //           };
-  //         });
-
-  //         // leitura do código salvo
-  //         int? codigo = prefs.getInt('codigoConfirmacao');
-  //         if (codigo != null) {
-  //           _log("Código de confirmação disponível: $codigo");
-  //         }
-
-  //         // se mudou o chamado, reportar
-  //         int? currentChamado = prefs.getInt('currentChamado');
-  //         if (currentChamado != deliveryDetails.chamado) {
-  //           await prefs.setInt('currentChamado', deliveryDetails.chamado ?? 0);
-
-  //           int? userId = prefs.getInt('idUser');
-  //           if (userId != null) {
-  //             await API.reportViewToServer(userId, deliveryDetails.chamado);
-  //           }
-  //         }
-  //       }
-  //     }
-  //   } catch (e, st) {
-  //     _log('ERRO em chamaHeartbeat: $e\n$st');
-  //   } finally {
-  //     _log('Reagendando heartbeat (intervalo=$intervalo s)…');
-  //     _scheduleNextHeartbeat(intervalo);
-  //     _log('--- chamaHeartbeat END ---');
-  //   }
-  // }
 
   Future<void> mostrarAvisoNovaVenda(
     NovaVenda novaVenda,
@@ -627,20 +506,85 @@ class _HomePageState extends State<HomePage> {
     int segundosRestantes = 60;
     late Timer contagemRegressiva;
 
-    void fecharDialogo([bool recusado = false]) {
+    Timer? timerSom;
+    void iniciarSom() {
+      tocarSomVenda();
+      timerSom = Timer.periodic(
+        const Duration(seconds: 8),
+        (_) => tocarSomVenda(),
+      );
+    }
+
+    void pararSom() {
+      try {
+        timerSom?.cancel();
+        pararSomVenda();
+      } catch (_) {}
+    }
+
+    iniciarSom();
+
+    void fecharDialogo([bool recusado = false]) async {
       if (!_dialogAberto) return;
+
+      pararSom();
       contagemRegressiva.cancel();
       Navigator.of(context, rootNavigator: true).pop();
       _dialogAberto = false;
 
-      if (recusado) {
-        _log('Entrega recusada automaticamente (timeout ou Cancelar).');
-        handleDeliveryResponse(false); // RECUSA AUTOMÁTICA
+      // Só motoboy aceita/recusa entrega
+      if (!isFornecedor) {
+        if (recusado) {
+          handleDeliveryResponse(false);
+        } else {
+          handleDeliveryResponse(true);
+        }
+        return;
+      }
+
+      // 👉 Fornecedor chegou aqui
+      final prefs = await SharedPreferences.getInstance();
+      final idAviso = prefs.getInt('idAviso');
+      final idPed = prefs.getInt('idPed');
+
+      if (idAviso != null && idPed != null) {
+        _log("Enviando confirmação da venda: idAviso=$idAviso, idPed=$idPed");
+        await API.fornecedorConfirmou(idAviso, idPed);
       } else {
-        _log('Entrega aceita pelo usuário.');
-        handleDeliveryResponse(true);
+        _log("ERRO: idAviso ou idPed ausentes no SharedPreferences");
       }
     }
+
+    // void fecharDialogo([bool recusado = false]) async {
+    //   if (!_dialogAberto) return;
+
+    //   pararSom();
+    //   contagemRegressiva.cancel();
+    //   Navigator.of(context, rootNavigator: true).pop();
+    //   _dialogAberto = false;
+
+    //   // Só motoboy aceita/recusa entrega
+    //   if (!isFornecedor) {
+    //     if (recusado) {
+    //       handleDeliveryResponse(false);
+    //     } else {
+    //       handleDeliveryResponse(true);
+    //     }
+    //     return;
+    //   }
+
+    //   // 👉 Fornecedor chegou aqui
+    //   final prefs = await SharedPreferences.getInstance();
+    //   final idAviso = prefs.getInt('idAviso');
+    //   final idPed = prefs.getInt('idPed');
+
+    //   if (idAviso != null && idPed != null) {
+    //     _log("Enviando confirmação da venda: idAviso=$idAviso, idPed=$idPed");
+    //     await API.fornecedorConfirmou(idAviso, idPed);
+    //   } else {
+    //     _log("ERRO: idAviso ou idPed ausentes no SharedPreferences");
+    //   }
+    // }
 
     contagemRegressiva = Timer.periodic(
       const Duration(seconds: 1),
@@ -705,6 +649,7 @@ class _HomePageState extends State<HomePage> {
       },
     ).then((_) {
       contagemRegressiva.cancel();
+      pararSom();
       _dialogAberto = false;
       _log("Diálogo de venda fechado.");
     });
@@ -946,5 +891,13 @@ class _HomePageState extends State<HomePage> {
     );
 
     return resultado; // <-- RETORNO FINAL
+  }
+
+  final AudioPlayer _playerAviso = AudioPlayer();
+
+  void pararSomVenda() {
+    try {
+      _playerAviso.stop();
+    } catch (_) {}
   }
 }
