@@ -1,7 +1,8 @@
 class AppConfig {
-  static const String versaoApp = '1.3.8';
+  static const String versaoApp = '1.4.0';
 }
 
+// 1.4.0 Correção estavam sendo mostradas vendas falsas
 // 1.3.9 Fornecedor recebe aviso pelo App sobre a venda
 // 1.3.8 Correção da crítica da placa
 // 1.3.7 Correção do cadastro

@@ -12,6 +12,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.4.0 Correção estavam sendo mostradas vendas falsas
 // 1.3.9 Fornecedor recebe aviso pelo App sobre a venda
 // 1.2.4 Conserto do link para as configurações
 
@@ -469,6 +470,39 @@ class _HomePageState extends State<HomePage> {
     _log('Heartbeat OK: lojasNoRaio=${deliveryDetails.lojasNoRaio}, '
         'valor=${deliveryDetails.valor}, chamado=${deliveryDetails.chamado}');
 
+    /// ----------------------------------------------------
+    /// 🔥 1) PROTEÇÃO CONTRA CHAMADO FALSO
+    /// ----------------------------------------------------
+    if (deliveryDetails.chamado == null || deliveryDetails.chamado == 0) {
+      _log("⚠️ Nenhum chamado válido recebido (chamado=0). Ignorando.");
+
+      // Opcional: limpar UI para evitar mostrar venda fantasma
+      setState(() {
+        lojasNoRaio = deliveryDetails.lojasNoRaio;
+        deliveryData = {};
+      });
+
+      return;
+    }
+
+    /// ----------------------------------------------------
+    /// 🔥 2) PROTEÇÃO CONTRA codigoConfirmacao FALSO
+    /// ----------------------------------------------------
+    final codigo = prefs.getInt('codigoConfirmacao');
+
+    if (codigo == null || codigo == 0) {
+      _log(
+          "⚠️ Nenhum codigoConfirmacao válido (codigo=$codigo). Ignorando venda.");
+
+      // Não processa venda sem código válido
+      return;
+    }
+
+    _log("Código de confirmação válido disponível: $codigo");
+
+    /// ----------------------------------------------------
+    /// ✔ 3) ATUALIZAÇÃO DE UI — SOMENTE PARA VENDA REAL
+    /// ----------------------------------------------------
     setState(() {
       lojasNoRaio = deliveryDetails.lojasNoRaio;
       deliveryData = {
@@ -482,17 +516,23 @@ class _HomePageState extends State<HomePage> {
       };
     });
 
-    final codigo = prefs.getInt('codigoConfirmacao');
-    if (codigo != null) _log("Código de confirmação disponível: $codigo");
-
+    /// ----------------------------------------------------
+    /// ✔ 4) EVITA ENVIO DUPLICADO DE REPORT
+    /// ----------------------------------------------------
     final currentChamado = prefs.getInt('currentChamado');
+
     if (currentChamado != deliveryDetails.chamado) {
+      _log("Novo chamado detectado — atualizando currentChamado");
+
       await prefs.setInt('currentChamado', deliveryDetails.chamado ?? 0);
 
       final userId = prefs.getInt('idUser');
       if (userId != null) {
+        _log("Reportando visualização ao servidor… userId=$userId");
         await API.reportViewToServer(userId, deliveryDetails.chamado);
       }
+    } else {
+      _log("Chamado já processado anteriormente. Ignorando report.");
     }
   }
 

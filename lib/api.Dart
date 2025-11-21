@@ -7,6 +7,7 @@ import 'package:entregatudo/constants.dart';
 import 'package:entregatudo/models/delivery_details.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.4.0 Correção estavam sendo mostradas vendas falsas
 // 1.3.9 Fornecedor recebe aviso pelo App sobre a venda
 // 1.3.7 Correção do cadastro
 // 1.3.6 Log na conferência do convite
@@ -259,29 +260,110 @@ class API {
     int lojasNoRaio = data['lojas_no_raio'] ?? 0;
     print('Lojas no Raio: $lojasNoRaio');
 
-    /// ------------------------------
-    ///  🎯 PEGAR CÓDIGO DE CONFIRMAÇÃO DA ENTREGA
-    /// ------------------------------
+    /// -----------------------------------
+    /// 🎯 AJUSTE CRÍTICO – EVITAR VENDA FAKE
+    /// -----------------------------------
     if (data['novaVenda'] != null) {
       var nova = data['novaVenda'];
 
       if (nova['codigoConfirmacao'] != null) {
         int codigo = nova['codigoConfirmacao'];
 
-        /// SALVAR NO SHARED PREFERENCES
-        await prefs.setInt('codigoConfirmacao', codigo);
-
-        print("🔥 Código de confirmação recebido e salvo: $codigo");
+        if (codigo > 0) {
+          /// código válido
+          await prefs.setInt('codigoConfirmacao', codigo);
+          print("🔥 Nova venda válida — Código salvo: $codigo");
+        } else {
+          /// código = 0 = sem venda real
+          await prefs.remove('codigoConfirmacao');
+          print(
+              "⚠️ novaVenda recebida, mas codigoConfirmacao=0 → ignorando e limpando prefs");
+        }
       } else {
-        print("⚠️ novaVenda existe, mas não contém codigoConfirmacao");
+        print("⚠️ novaVenda existe, mas sem codigoConfirmacao → ignorando");
+        await prefs.remove('codigoConfirmacao');
       }
     } else {
-      print("Nenhuma novaVenda na resposta.");
+      print("Nenhuma novaVenda na resposta → limpando codigoConfirmacao");
+      await prefs.remove('codigoConfirmacao');
     }
 
     /// retorna o modelo original
     return DeliveryDetails.fromJson(data);
   }
+
+  // static Future<DeliveryDetails?> sendHeartbeat(double lat, double lon) async {
+  //   SharedPreferences prefs = await SharedPreferences.getInstance();
+  //   int? userid = prefs.getInt('idUser');
+  //   int vez = prefs.getInt('vez') ?? 0;
+  //   await prefs.setInt('vez', vez + 1);
+
+  //   if (userid == null) {
+  //     print("User ID não encontrado");
+  //     return null;
+  //   }
+
+  //   final String baseUrl = "https://teletudo.com/api/heartbeat";
+
+  //   final response = await http.post(
+  //     Uri.parse(baseUrl),
+  //     headers: {
+  //       'Content-Type': 'application/json',
+  //       'Accept': 'application/json',
+  //     },
+  //     body: json.encode({
+  //       'userid': userid,
+  //       'lat': lat,
+  //       'lon': lon,
+  //       'vez': vez,
+  //     }),
+  //   );
+
+  //   print(
+  //       'Enviando heartbeat: lat: $lat, lon: $lon, userid: $userid, vez: $vez');
+
+  //   if (response.statusCode != 200) {
+  //     print('Erro ao enviar heartbeat: ${response.statusCode}');
+  //     return null;
+  //   }
+
+  //   /// ------------------------------
+  //   /// PROCESSAR RESPOSTA
+  //   /// ------------------------------
+  //   print('Response Body: ${response.body}');
+  //   final data = json.decode(response.body);
+
+  //   /// salvar 'modo'
+  //   int modo = data['modo'] ?? 3;
+  //   await prefs.setInt('modo', modo);
+
+  //   /// salvar lojas no raio
+  //   int lojasNoRaio = data['lojas_no_raio'] ?? 0;
+  //   print('Lojas no Raio: $lojasNoRaio');
+
+  //   /// ------------------------------
+  //   ///  🎯 PEGAR CÓDIGO DE CONFIRMAÇÃO DA ENTREGA
+  //   /// ------------------------------
+  //   if (data['novaVenda'] != null) {
+  //     var nova = data['novaVenda'];
+
+  //     if (nova['codigoConfirmacao'] != null) {
+  //       int codigo = nova['codigoConfirmacao'];
+
+  //       /// SALVAR NO SHARED PREFERENCES
+  //       await prefs.setInt('codigoConfirmacao', codigo);
+
+  //       print("🔥 Código de confirmação recebido e salvo: $codigo");
+  //     } else {
+  //       print("⚠️ novaVenda existe, mas não contém codigoConfirmacao");
+  //     }
+  //   } else {
+  //     print("Nenhuma novaVenda na resposta.");
+  //   }
+
+  //   /// retorna o modelo original
+  //   return DeliveryDetails.fromJson(data);
+  // }
 
   static Future<FornecedorHeartbeatResponse?> sendHeartbeatF(
       double lat, double lon) async {
@@ -348,6 +430,8 @@ class API {
   }
 
   // curl -X POST https://teletudo.com/api/login -H "Content-Type: application/json" -H "Accept: application/json" -d "{\"user\": \"teste\", \"password\": \"teste\", \"lat\": -23.55052, \"lon\": -46.633308}" -k
+// Processamento INICIO
+// Refatorado em 21/11/25 Original 94 linhas, resultado 69 linhas
   static Future<String> veLogin(
       String user, String password, double lat, double lon) async {
     const String baseUrl = "https://teletudo.com/api/login";
@@ -357,77 +441,126 @@ class API {
     print("[API.veLogin] user=$user  password=***  lat=$lat lon=$lon");
 
     try {
-      final response = await http.post(
-        Uri.parse(baseUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: json.encode({
-          'user': user,
-          'password': password,
-          'lat': lat,
-          'lon': lon,
-        }),
-      );
+      final response = await _realizarRequisicaoLogin(user, password, lat, lon);
 
       print("[API.veLogin] HTTP STATUS: ${response.statusCode}");
       print("[API.veLogin] RAW: ${response.body}");
 
       if (response.statusCode != 200) {
-        print("[API.veLogin] ❌ ERRO_1: Status diferente de 200");
+        await _registrarErro(
+          "ERRO_1 - Status != 200",
+          {
+            "statusCode": response.statusCode,
+            "body": response.body,
+            "user": user,
+          },
+        );
         return "ERRO_1";
       }
 
-      // Tenta parsear
-      Map<String, dynamic> ret;
-      try {
-        ret = json.decode(response.body);
-      } catch (e) {
-        print("[API.veLogin] ❌ ERRO_2: Falha ao decodificar JSON: $e");
-        return "ERRO_2";
-      }
-
-      print("[API.veLogin] JSON decodificado: $ret");
+      final Map<String, dynamic>? ret = await _parseJson(response.body, user);
+      if (ret == null) return "ERRO_2";
 
       final int erro = ret["Erro"] ?? 1;
       print("[API.veLogin] campo Erro = $erro");
 
       if (erro != 0) {
-        print("[API.veLogin] ❌ ERRO_3: Servidor retornou erro.");
+        await _registrarErro(
+          "ERRO_3 - backend retornou erro",
+          {
+            "erro": erro,
+            "json": ret,
+            "user": user,
+          },
+        );
         return "ERRO_3";
       }
 
-      // SUCESSO
-      final int idUser = ret["id"] ?? 0;
-      final prefs = await SharedPreferences.getInstance();
-
-      await prefs.setInt('idUser', idUser);
-
-      final String nomeUser = (ret["nome"] ?? "").toString();
-      await prefs.setString('nomeUser', nomeUser);
-
-      int idLoja = 0;
-
-      print("[API.veLogin] eh_fornecedor = ${ret['eh_fornecedor']}");
-      print("[API.veLogin] id_loja = ${ret['id_loja']}");
-
-      if (ret["eh_fornecedor"] == true) {
-        idLoja = ret["id_loja"] ?? 0;
-        await prefs.setBool('isFornecedor', true);
-        print("[API.veLogin] Usuário é fornecedor. idLoja = $idLoja");
-      }
-
-      await prefs.setInt('idLoja', idLoja);
+      await _salvarDadosLogin(ret);
 
       print("[API.veLogin] ✅ LOGIN OK");
       print("==============================================");
+
       return "";
     } catch (e, st) {
       print("[API.veLogin] ❌ ERRO_4 EXCEPTION: $e");
       print("[API.veLogin] STACKTRACE: $st");
+
+      await _registrarErro(
+        "ERRO_4 - Exception geral",
+        {
+          "exception": e.toString(),
+          "stack": st.toString(),
+          "user": user,
+        },
+      );
       return "ERRO_4";
     }
+  }
+
+  static Future<http.Response> _realizarRequisicaoLogin(
+      String user, String password, double lat, double lon) {
+    return http.post(
+      Uri.parse("https://teletudo.com/api/login"),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: json.encode({
+        'user': user,
+        'password': password,
+        'lat': lat,
+        'lon': lon,
+      }),
+    );
+  }
+
+  static Future<Map<String, dynamic>?> _parseJson(
+      String responseBody, String user) async {
+    try {
+      final ret = json.decode(responseBody);
+      print("[API.veLogin] JSON decodificado: $ret");
+      return ret;
+    } catch (e) {
+      print("[API.veLogin] ❌ ERRO_2: Falha ao decodificar JSON: $e");
+
+      await _registrarErro(
+        "ERRO_2 - Falha ao parsear JSON",
+        {
+          "exception": e.toString(),
+          "rawResponse": responseBody,
+          "user": user,
+        },
+      );
+      return null;
+    }
+  }
+
+  static Future<void> _salvarDadosLogin(Map<String, dynamic> ret) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final int idUser = ret["id"] ?? 0;
+    await prefs.setInt('idUser', idUser);
+
+    final String nomeUser = (ret["nome"] ?? "").toString();
+    await prefs.setString('nomeUser', nomeUser);
+
+    int idLoja = 0;
+
+    print("[API.veLogin] eh_fornecedor = ${ret['eh_fornecedor']}");
+    print("[API.veLogin] id_loja = ${ret['id_loja']}");
+
+    if (ret["eh_fornecedor"] == true) {
+      idLoja = ret["id_loja"] ?? 0;
+      await prefs.setBool('isFornecedor', true);
+      print("[API.veLogin] Usuário é fornecedor. idLoja = $idLoja");
+    }
+
+    await prefs.setInt('idLoja', idLoja);
+  }
+
+  static Future<void> _registrarErro(String msg, Map<String, dynamic> info) {
+    return logApp("veLogin", msg, info);
   }
 
   static Future<Position> getCurrentLocation() async {
