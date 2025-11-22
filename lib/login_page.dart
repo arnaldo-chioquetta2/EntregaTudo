@@ -4,8 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:entregatudo/HomePage.dart';
 import 'package:entregatudo/constants.dart';
 import 'package:entregatudo/auth_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:entregatudo/register_page.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+// 1.4.1 Recusa por versão antiga
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -238,32 +241,25 @@ class _LoginPageState extends State<LoginPage> {
                 onPressed: () async {
                   if (!_isMounted) return;
                   print("🔹 [Login] Botão pressionado");
-
                   try {
                     final user = _userController.text.trim();
                     final password = _passwordController.text.trim();
                     print(
                         "🔹 [Login] user='$user' password='${password.isNotEmpty ? '***' : '(vazio)'}'");
-
                     if (user.isEmpty || password.isEmpty) {
                       print("⚠️ [Login] Campos vazios");
                       showErrorDialog("Preencha usuário e senha.");
                       return;
                     }
-
                     double lat = 0.0;
                     double lon = 0.0;
                     print(
                         "📡 [Login] Chamando API.veLogin('$user', senhaOculta, lat=$lat, lon=$lon)");
-
                     String result = await API.veLogin(user, password, lat, lon);
-
                     print("📥 [Login] Retorno do servidor: '$result'");
-
                     if (result == "") {
                       print(
                           "✅ [Login] Login bem-sucedido, gravando credenciais...");
-
                       await API.logApp(
                         "Login",
                         "Login bem-sucedido",
@@ -272,7 +268,6 @@ class _LoginPageState extends State<LoginPage> {
                           "plataforma": kIsWeb ? "WEB" : "MOBILE",
                         },
                       );
-
                       if (_rememberPassword) {
                         await _storage.write(key: 'user', value: user);
                         await _storage.write(key: 'password', value: password);
@@ -283,7 +278,6 @@ class _LoginPageState extends State<LoginPage> {
                         print(
                             "🧹 [Login] Credenciais removidas (não lembrar senha)");
                       }
-
                       print("➡️ [Login] Redirecionando para HomePage...");
                       if (_isMounted) {
                         Navigator.of(context).pushReplacement(
@@ -293,7 +287,15 @@ class _LoginPageState extends State<LoginPage> {
                       }
                     } else {
                       print("❌ [Login] Erro retornado: $result");
-                      showErrorDialog(result);
+
+                      // Detecta erro de versão antiga
+                      if (result.startsWith("VERSAO_ANTIGA|")) {
+                        final mensagem =
+                            result.substring("VERSAO_ANTIGA|".length);
+                        _mostrarDialogVersaoAntiga(context, mensagem);
+                      } else {
+                        showErrorDialog(result);
+                      }
                     }
                   } catch (e, st) {
                     print("💥 [Login] EXCEPTION: $e");
@@ -341,6 +343,44 @@ class _LoginPageState extends State<LoginPage> {
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text("OK"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _mostrarDialogVersaoAntiga(BuildContext context, String mensagem) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) {
+        return AlertDialog(
+          title: const Text(
+            "Atualização Necessária",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: Text(mensagem),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text("Cancelar"),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                // Abre o link de download
+                launchUrl(
+                  Uri.parse("https://teletudo.com/download/EntregaTudo.apk"),
+                  mode: LaunchMode.externalApplication,
+                );
+              },
+              child: const Text(
+                "Atualizar Agora",
+                style: TextStyle(color: Colors.blue),
+              ),
             ),
           ],
         );

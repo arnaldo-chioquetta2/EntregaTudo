@@ -18,12 +18,8 @@ dependencies:
   geolocator: ^13.0.2
   permission_handler: ^11.0.1
   flutter_secure_storage: ^9.2.2
-
-  # 🔹 Novos pacotes adicionados para o CaptadorPanel:
   url_launcher: ^6.3.0
   font_awesome_flutter: ^10.7.0
-
-  # 🔊 Som local embarcado
   audioplayers: ^6.0.0
 
 dev_dependencies:

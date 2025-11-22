@@ -221,7 +221,11 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
-                  if (deliveryData != null) _buildDeliveryDetails(),
+
+                  // if (deliveryData != null) _buildDeliveryDetails(),
+                  if (deliveryData != null && deliveryData!.isNotEmpty)
+                    _buildDeliveryDetails(),
+
                   if (deliveryData == null &&
                       (deliveryCompleted || !hasAcceptedDelivery)) ...[
                     Padding(
@@ -476,10 +480,9 @@ class _HomePageState extends State<HomePage> {
     if (deliveryDetails.chamado == null || deliveryDetails.chamado == 0) {
       _log("⚠️ Nenhum chamado válido recebido (chamado=0). Ignorando.");
 
-      // Opcional: limpar UI para evitar mostrar venda fantasma
       setState(() {
         lojasNoRaio = deliveryDetails.lojasNoRaio;
-        deliveryData = {};
+        deliveryData = null;
       });
 
       return;
@@ -493,12 +496,26 @@ class _HomePageState extends State<HomePage> {
     if (codigo == null || codigo == 0) {
       _log(
           "⚠️ Nenhum codigoConfirmacao válido (codigo=$codigo). Ignorando venda.");
-
-      // Não processa venda sem código válido
       return;
     }
 
     _log("Código de confirmação válido disponível: $codigo");
+
+    /// ----------------------------------------------------
+    /// ⭐ CORREÇÃO IMPORTANTE:
+    /// Garantir que valor NUNCA seja null ou string
+    /// ----------------------------------------------------
+    final valorSeguro = (deliveryDetails.valor is num)
+        ? deliveryDetails.valor
+        : double.tryParse("${deliveryDetails.valor}") ?? 0.0;
+
+    final distSeguro = (deliveryDetails.dist is num)
+        ? deliveryDetails.dist
+        : double.tryParse("${deliveryDetails.dist}") ?? 0.0;
+
+    final pesoSeguro = (deliveryDetails.peso is num)
+        ? deliveryDetails.peso
+        : double.tryParse("${deliveryDetails.peso}") ?? 0.0;
 
     /// ----------------------------------------------------
     /// ✔ 3) ATUALIZAÇÃO DE UI — SOMENTE PARA VENDA REAL
@@ -508,9 +525,9 @@ class _HomePageState extends State<HomePage> {
       deliveryData = {
         'enderIN': deliveryDetails.enderIN ?? 'Desconhecido',
         'enderFN': deliveryDetails.enderFN ?? 'Desconhecido',
-        'dist': deliveryDetails.dist ?? 0.0,
-        'valor': deliveryDetails.valor ?? 0.0,
-        'peso': deliveryDetails.peso ?? 'Não Informado',
+        'dist': distSeguro,
+        'valor': valorSeguro,
+        'peso': pesoSeguro,
         'chamado': deliveryDetails.chamado,
         'lojasNoRaio': deliveryDetails.lojasNoRaio,
       };

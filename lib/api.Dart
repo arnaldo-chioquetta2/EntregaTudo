@@ -1,12 +1,15 @@
-// import 'dart:io';
+import 'api_platform_stub.dart' if (dart.library.io) 'api_platform_io.dart';
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'features/location_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:entregatudo/constants.dart';
 import 'package:entregatudo/models/delivery_details.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.4.1 Recusa por versão antiga
 // 1.4.0 Correção estavam sendo mostradas vendas falsas
 // 1.3.9 Fornecedor recebe aviso pelo App sobre a venda
 // 1.3.7 Correção do cadastro
@@ -20,6 +23,29 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class API {
   static final LocationService _locationService = LocationService();
+
+  static Future<http.Response> _realizarRequisicaoLogin(
+      String user, String password, double lat, double lon) {
+    final sistema = PlataformaInfo.sistema;
+    final versaoSO = PlataformaInfo.versao;
+
+    return http.post(
+      Uri.parse("https://teletudo.com/api/login"),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: json.encode({
+        'user': user,
+        'password': password,
+        'lat': lat,
+        'lon': lon,
+        'versaoApp': AppConfig.versaoAppInt,
+        'sistema': sistema,
+        'versaoSO': versaoSO,
+      }),
+    );
+  }
 
   static Future<Map<String, dynamic>> saveConfigurations(
     double minValue,
@@ -430,12 +456,9 @@ class API {
   }
 
   // curl -X POST https://teletudo.com/api/login -H "Content-Type: application/json" -H "Accept: application/json" -d "{\"user\": \"teste\", \"password\": \"teste\", \"lat\": -23.55052, \"lon\": -46.633308}" -k
-// Processamento INICIO
-// Refatorado em 21/11/25 Original 94 linhas, resultado 69 linhas
+
   static Future<String> veLogin(
       String user, String password, double lat, double lon) async {
-    const String baseUrl = "https://teletudo.com/api/login";
-
     print("==============================================");
     print("[API.veLogin] INICIANDO LOGIN");
     print("[API.veLogin] user=$user  password=***  lat=$lat lon=$lon");
@@ -446,36 +469,73 @@ class API {
       print("[API.veLogin] HTTP STATUS: ${response.statusCode}");
       print("[API.veLogin] RAW: ${response.body}");
 
+      // ------------------------------------------------------
+      // 🔥 Tentar decodificar JSON SEMPRE — mesmo em erro 403
+      // ------------------------------------------------------
+      Map<String, dynamic>? ret;
+
+      try {
+        ret = json.decode(response.body) as Map<String, dynamic>;
+      } catch (_) {
+        await _registrarErro("ERRO_2 - JSON inválido no login", {
+          "statusCode": response.statusCode,
+          "body": response.body,
+          "user": user,
+        });
+
+        return "ERRO_2";
+      }
+
+      // 🔥 Agora ret nunca mais é nulo → podemos usar !
+      final int erro = ret!["Erro"] ?? 1;
+      print("[API.veLogin] campo Erro = $erro");
+
+      // ------------------------------------------------------
+      // 🔥 1) Bloqueio de versão antiga (Erro = 5)
+      // ------------------------------------------------------
+      if (erro == 5) {
+        final int versaoAtualInt = ret["versaoAtual"] ?? 0;
+        final int versaoMinInt = ret["versaoMin"] ?? 0;
+
+        final versaoAtual = formatarVersaoInt(versaoAtualInt);
+        final versaoMin = formatarVersaoInt(versaoMinInt);
+
+        final msg =
+            "Esta versão ($versaoAtual) não é mais suportada. Mínima: $versaoMin";
+
+        print("[API.veLogin] ❌ BLOQUEADO POR VERSÃO ANTIGA: $msg");
+
+        return "VERSAO_ANTIGA|$msg";
+      }
+
+      // ------------------------------------------------------
+      // 🔥 2) Qualquer outro erro HTTP ≠ 200
+      // ------------------------------------------------------
       if (response.statusCode != 200) {
-        await _registrarErro(
-          "ERRO_1 - Status != 200",
-          {
-            "statusCode": response.statusCode,
-            "body": response.body,
-            "user": user,
-          },
-        );
+        await _registrarErro("ERRO_1 - Status != 200", {
+          "statusCode": response.statusCode,
+          "body": response.body,
+          "json": ret,
+          "user": user,
+        });
         return "ERRO_1";
       }
 
-      final Map<String, dynamic>? ret = await _parseJson(response.body, user);
-      if (ret == null) return "ERRO_2";
-
-      final int erro = ret["Erro"] ?? 1;
-      print("[API.veLogin] campo Erro = $erro");
-
+      // ------------------------------------------------------
+      // 🔥 3) Erros normais
+      // ------------------------------------------------------
       if (erro != 0) {
-        await _registrarErro(
-          "ERRO_3 - backend retornou erro",
-          {
-            "erro": erro,
-            "json": ret,
-            "user": user,
-          },
-        );
+        await _registrarErro("ERRO_3 - backend retornou erro", {
+          "erro": erro,
+          "json": ret,
+          "user": user,
+        });
         return "ERRO_3";
       }
 
+      // ------------------------------------------------------
+      // ✔ LOGIN OK
+      // ------------------------------------------------------
       await _salvarDadosLogin(ret);
 
       print("[API.veLogin] ✅ LOGIN OK");
@@ -486,33 +546,21 @@ class API {
       print("[API.veLogin] ❌ ERRO_4 EXCEPTION: $e");
       print("[API.veLogin] STACKTRACE: $st");
 
-      await _registrarErro(
-        "ERRO_4 - Exception geral",
-        {
-          "exception": e.toString(),
-          "stack": st.toString(),
-          "user": user,
-        },
-      );
+      await _registrarErro("ERRO_4 - Exception geral", {
+        "exception": e.toString(),
+        "stack": st.toString(),
+        "user": user,
+      });
+
       return "ERRO_4";
     }
   }
 
-  static Future<http.Response> _realizarRequisicaoLogin(
-      String user, String password, double lat, double lon) {
-    return http.post(
-      Uri.parse("https://teletudo.com/api/login"),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: json.encode({
-        'user': user,
-        'password': password,
-        'lat': lat,
-        'lon': lon,
-      }),
-    );
+  static String formatarVersaoInt(int v) {
+    final major = v ~/ 100; // 140 → 1
+    final minor = (v % 100) ~/ 10; // 140 % 100 = 40 → 4
+    final patch = v % 10; // 0
+    return "$major.$minor.$patch";
   }
 
   static Future<Map<String, dynamic>?> _parseJson(

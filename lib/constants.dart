@@ -1,7 +1,18 @@
 class AppConfig {
   static const String versaoApp = '1.4.0';
+
+  // Converte "1.4.0" → 140
+  static int get versaoAppInt {
+    final p = versaoApp.split('.');
+    final major = int.parse(p[0]);
+    final minor = int.parse(p[1]);
+    final patch = int.parse(p[2]);
+    return major * 100 + minor * 10 + patch;
+  }
 }
 
+//// 1.4.1 Prevenção para o erro de autenticação na gravação das configurações
+//// 1.4.1 Recusa por versão antiga
 // 1.4.0 Correção estavam sendo mostradas vendas falsas
 // 1.3.9 Fornecedor recebe aviso pelo App sobre a venda
 // 1.3.8 Correção da crítica da placa

@@ -1,5 +1,9 @@
 import 'package:entregatudo/api.dart';
+import 'package:entregatudo/login_page.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+// 1.4.1 Prevenção par a erro de autenticação na gravação das configurações
 
 class SettingsPage extends StatefulWidget {
   @override
@@ -76,11 +80,57 @@ class _SettingsPageState extends State<SettingsPage> {
         customDeliverySurcharge,
       );
 
+      // ---------------------------------------------
+      // 🔥 NOVO: Tratamento para userid ausente e erro 404
+      // ---------------------------------------------
+      if (result['message']
+              .toString()
+              .toLowerCase()
+              .contains('usuário não autenticado') ||
+          result['message']
+              .toString()
+              .toLowerCase()
+              .contains('entregador não encontrado')) {
+        // Limpa credenciais inválidas
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.clear();
+
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text("Erro de Autenticação"),
+              content: Text(
+                  "Sua sessão expirou ou seu cadastro não está completo.\n\nFaça login novamente."),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(ctx); // fecha alerta
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (_) => LoginPage()),
+                    );
+                  },
+                  child: const Text("OK"),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+
+      // ---------------------------------------------
+      // 🔥 Fluxo normal (resultado OK)
+      // ---------------------------------------------
       if (result['success']) {
         setState(() => _isSaved = true);
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(result['message'])));
       } else {
+        // ---------------------------------------------
+        // ❌ Erro genérico
+        // ---------------------------------------------
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
@@ -96,6 +146,9 @@ class _SettingsPageState extends State<SettingsPage> {
         );
       }
     } else {
+      // ---------------------------------------------
+      // ❌ Validação local falhou
+      // ---------------------------------------------
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content:
