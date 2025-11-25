@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'package:entregatudo/api.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:entregatudo/HomePage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.4.2 Mostra melhor formatado a mensagem de usuário já existente no cadastro
 // 1.3.8 Correção da crítica da placa
 // 1.3.7 Correção do cadastro
 // 1.3.6 Log na conferência do convite
@@ -254,9 +256,6 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-// Processamento INICIO
-// Refatorado em 06/04/23. Original 56 linhas, resultado 27 linhas
-
   Future<void> _enviarCadastro() async {
     await _logCadastroInicio();
     setState(() => _cadastrando = true);
@@ -268,11 +267,13 @@ class _RegisterPageState extends State<RegisterPage> {
     if (_inviteValid != 1) {
       await _logCadastroInvalidInvite();
       _mostrarMensagemInviteInvalido();
+      setState(() => _cadastrando = false);
       return;
     }
 
     await _logCadastroDadosColetados();
     if (!_validarNome() || !_validarEmail() || !_validarSenha()) return;
+    if (!_validarTelefone()) return;
     if (!_validarPlaca()) return;
     if (!_validarUsuario()) return;
     if (!_validarDistanciaMaxima()) return;
@@ -280,13 +281,31 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       await _logCadastroEnviandoDados();
       final resultado = await _realizarCadastro();
-      if (resultado['success']) {
+
+      print("=== [RegisterPage] Resultado do cadastro ===");
+      print(resultado);
+
+      // ---------------------------
+      // 🔥 NOVA LÓGICA DE SUCESSO / ERRO
+      // ---------------------------
+
+      if (resultado.containsKey('Erro') && resultado['Erro'] == 0) {
+        // Sucesso — salvar nos SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('idUser', resultado['id']);
+        await prefs.setString('nomeUser', _nameController.text.trim());
+        await prefs.setBool('isFornecedor', false); // para o motoboy
+
         await _logCadastroSucesso(resultado);
+
         _navegarParaHomePage();
-      } else {
-        await _logCadastroFalha(resultado);
-        _mostrarMensagemCadastroFalhou(resultado);
+        return;
       }
+
+      // Qualquer outra coisa = falha
+      await _logCadastroFalha(resultado);
+      _mostrarMensagemCadastroFalhou(resultado);
+      setState(() => _cadastrando = false);
     } catch (e, st) {
       setState(() => _cadastrando = false);
       await _logCadastroErroInesperado(e, st);
@@ -476,10 +495,31 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   void _mostrarMensagemCadastroFalhou(Map<String, dynamic> resultado) {
-    mostrarMensagem(
-      context,
-      resultado['message'],
-      details: resultado['details'],
+    String msg = "";
+
+    if (resultado.containsKey('DescErro') && resultado['DescErro'] != null) {
+      msg = resultado['DescErro'];
+    } else if (resultado.containsKey('message') &&
+        resultado['message'] != null) {
+      msg = resultado['message'];
+    } else {
+      msg = "Não foi possível concluir o cadastro.";
+    }
+
+    print("[ERRO_EXIBIDO] $msg");
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Erro'),
+        content: Text(msg),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -536,49 +576,6 @@ class _RegisterPageState extends State<RegisterPage> {
     return regex.hasMatch(email);
   }
 
-  void mostrarMensagem(BuildContext context, String mensagem,
-      {String? details}) {
-    if (details == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(mensagem)));
-    } else {
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Erro'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(mensagem),
-              const SizedBox(height: 10),
-              const Text('Detalhes:',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 5),
-              SelectableText(details),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: details));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Detalhes copiados para a memória')),
-                );
-              },
-              child: const Text('Copiar detalhes para a memória'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-    }
-  }
-
   Future<bool> mostrarDialogoCNHInvalida() async {
     return await showDialog<bool>(
           context: context,
@@ -598,5 +595,83 @@ class _RegisterPageState extends State<RegisterPage> {
           ),
         ) ??
         false;
+  }
+
+  void mostrarMensagem(BuildContext context, String mensagem,
+      {String? details}) {
+    String detalheFormatado = "";
+
+    if (details != null) {
+      try {
+        // Tenta decodificar o JSON interno
+        final decoded = json.decode(details);
+
+        // Se tiver o padrão do servidor (Erro e DescErro)
+        if (decoded is Map && decoded.containsKey('DescErro')) {
+          detalheFormatado = decoded['DescErro'];
+        } else {
+          // Caso seja outro formato, exibe indentado
+          detalheFormatado =
+              const JsonEncoder.withIndent('  ').convert(decoded);
+        }
+      } catch (e) {
+        // Se falhar a decodificação, mostra o texto original
+        detalheFormatado = details;
+      }
+    }
+
+    if (details == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(mensagem)));
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Erro'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(mensagem),
+            const SizedBox(height: 10),
+            if (detalheFormatado.isNotEmpty) ...[
+              const Text('Detalhes:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 5),
+              SelectableText(detalheFormatado),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: detalheFormatado));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content: Text('Detalhes copiados para a memória')),
+              );
+            },
+            child: const Text('Copiar detalhes para a memória'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _validarTelefone() {
+    final telefone = _phoneController.text.trim();
+
+    if (telefone.isEmpty) {
+      setState(() => _cadastrando = false);
+      mostrarMensagem(context, 'Por favor, insira um número de telefone.');
+      return false;
+    }
+    return true;
   }
 }

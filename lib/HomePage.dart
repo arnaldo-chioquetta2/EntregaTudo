@@ -12,6 +12,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.4.3 Modo offline para MotoBoy e Fornecedor
 // 1.4.0 Correção estavam sendo mostradas vendas falsas
 // 1.3.9 Fornecedor recebe aviso pelo App sobre a venda
 // 1.2.4 Conserto do link para as configurações
@@ -40,6 +41,8 @@ class _HomePageState extends State<HomePage> {
   String _ts() => DateTime.now().toIso8601String();
   File? _logFile;
   bool _dialogAberto = false;
+  int? userId;
+  int? idLoja;
 
   Future<void> _initLogFile() async {
     if (kIsWeb) {
@@ -93,9 +96,8 @@ class _HomePageState extends State<HomePage> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final userId = prefs.getInt('idUser');
+      userId = prefs.getInt('idUser');
       isFornecedor = prefs.getBool('isFornecedor') ?? false;
-
       _log('Prefs: idUser=$userId, isFornecedor(pref)=$isFornecedor');
 
       // --- SIMULAÇÃO DE FORNECEDOR TESTE ---
@@ -109,6 +111,11 @@ class _HomePageState extends State<HomePage> {
         if (!mounted) return;
         Navigator.of(context).pushReplacementNamed('/register');
         return;
+      }
+
+      if (isFornecedor) {
+        idLoja =
+            prefs.getInt('idLoja'); // certifique-se que salva isso nas prefs
       }
 
       _log("Solicitando permissões de localização…");
@@ -146,165 +153,225 @@ class _HomePageState extends State<HomePage> {
           future: _initFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const CircularProgressIndicator(); // Exibe um carregando
+              return const CircularProgressIndicator();
             } else if (snapshot.hasError) {
-              return Text('Erro: ${snapshot.error}'); // Lida com erros
+              return Text('Erro: ${snapshot.error}');
             }
 
-            // Aqui, a verificação deve ser concluída
-            return Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (isFornecedor) ...[
-                  // Se for fornecedor, exibe apenas saldo e resgate
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Text(
-                      "Saldo $saldo",
-                      style: const TextStyle(fontSize: 18, color: Colors.black),
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: saldoNum > 0
-                        ? () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => ResgatePage()),
-                            );
+            return FutureBuilder<bool>(
+              future: OnlineStatusService.getStatus(),
+              builder: (context, onlineSnapshot) {
+                final bool isOnline = onlineSnapshot.data ?? true;
+
+                return Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // ------------------ PERFIL FORNECEDOR ------------------
+                    if (isFornecedor) ...[
+                      Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Text(
+                          "Saldo $saldo",
+                          style: const TextStyle(
+                              fontSize: 18, color: Colors.black),
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: saldoNum > 0
+                            ? () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) => ResgatePage()),
+                                );
+                              }
+                            : null,
+                        child: const Text('Resgate'),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(150, 40),
+                          backgroundColor: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/captador-panel');
+                        },
+                        child: const Text('Painel do Captador'),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(150, 40),
+                          backgroundColor: Colors.purple,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ]
+
+                    // ------------------ PERFIL MOTOBOY ------------------
+                    else ...[
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        child: Text(
+                          'Lojas Abertas: $lojasNoRaio',
+                          style: const TextStyle(
+                              fontSize: 14, color: Colors.black),
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => SettingsPage()),
+                          );
+                        },
+                        child: const Text('Configurações'),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(150, 40),
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                      if (deliveryData != null && deliveryData!.isNotEmpty)
+                        _buildDeliveryDetails(),
+                      if (deliveryData == null &&
+                          (deliveryCompleted || !hasAcceptedDelivery)) ...[
+                        Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Text(
+                            "Saldo $saldo",
+                            style: const TextStyle(
+                                fontSize: 18, color: Colors.black),
+                          ),
+                        ),
+                        ElevatedButton(
+                          onPressed: null,
+                          child: const Text('Detalhes'),
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(150, 40),
+                            backgroundColor: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        ElevatedButton(
+                          onPressed: saldoNum > 0
+                              ? () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (context) => ResgatePage()),
+                                  );
+                                }
+                              : null,
+                          child: const Text('Resgate'),
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(150, 40),
+                            backgroundColor: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pushNamed(context, '/captador-panel');
+                          },
+                          child: const Text('Painel do Captador'),
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(150, 40),
+                            backgroundColor: Colors.purple,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (statusMessage != null)
+                        Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Text(
+                            statusMessage!,
+                            style: const TextStyle(
+                                fontSize: 18, color: Colors.red),
+                          ),
+                        ),
+                      if (hasAcceptedDelivery && !hasPickedUp)
+                        ElevatedButton(
+                          onPressed: handlePickedUp,
+                          child: const Text('Cheguei no Fornecedor'),
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(150, 40),
+                            backgroundColor: Colors.orange,
+                          ),
+                        ),
+                      if (hasPickedUp && !deliveryCompleted)
+                        ElevatedButton(
+                          onPressed: handleDeliveryCompleted,
+                          child: const Text('Entrega Concluída'),
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(150, 40),
+                            backgroundColor: Colors.green,
+                          ),
+                        ),
+                    ],
+
+                    const SizedBox(height: 30),
+
+                    // ------------------ BOTÃO ON/OFF PARA TODOS ------------------
+                    ElevatedButton(
+                      onPressed: () async {
+                        final novoStatus = !isOnline;
+
+                        await OnlineStatusService.setStatus(novoStatus);
+
+                        if (!novoStatus) {
+                          // Indo para OFFLINE
+                          if (isFornecedor) {
+                            await API.fornecedorOff(idLoja: idLoja);
+                          } else {
+                            await API.motoOff(userId!);
                           }
-                        : null,
-                    child: const Text('Resgate'),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(150, 40),
-                      backgroundColor: Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/captador-panel');
-                    },
-                    child: const Text('Painel do Captador'),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(150, 40),
-                      backgroundColor: Colors.purple,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ] else ...[
-                  // Se não for fornecedor, exibe Lojas abertas e configurações
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 20),
-                    child: Text(
-                      'Lojas Abertas: $lojasNoRaio',
-                      style: const TextStyle(fontSize: 14, color: Colors.black),
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => SettingsPage()),
-                      );
-                    },
-                    child: const Text('Configurações'),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(150, 40),
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
+                        }
 
-                  // if (deliveryData != null) _buildDeliveryDetails(),
-                  if (deliveryData != null && deliveryData!.isNotEmpty)
-                    _buildDeliveryDetails(),
-
-                  if (deliveryData == null &&
-                      (deliveryCompleted || !hasAcceptedDelivery)) ...[
-                    Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Text(
-                        "Saldo $saldo",
-                        style:
-                            const TextStyle(fontSize: 18, color: Colors.black),
-                      ),
-                    ),
-                    ElevatedButton(
-                      onPressed: null,
-                      child: const Text('Detalhes'),
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(150, 40),
-                        backgroundColor: Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    ElevatedButton(
-                      onPressed: saldoNum > 0
-                          ? () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (context) => ResgatePage()),
-                              );
-                            }
-                          : null,
-                      child: const Text('Resgate'),
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(150, 40),
-                        backgroundColor: Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.pushNamed(context, '/captador-panel');
+                        setState(() {});
                       },
-                      child: const Text('Painel do Captador'),
                       style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(150, 40),
-                        backgroundColor: Colors.purple,
+                        minimumSize: const Size(200, 45),
+                        backgroundColor: isOnline
+                            ? const Color(
+                                0xFFF57C00) // Laranja bonito (modo Online → OffLine)
+                            : const Color(
+                                0xFF2E7D32), // Verde elegante (modo OffLine → OnLine)
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 3,
+                      ),
+                      child: Text(
+                        isOnline ? "Passar para OffLine" : "Passar para OnLine",
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
+
+                    const SizedBox(height: 10),
+
+                    if (!isOnline)
+                      const Text(
+                        "Você está OffLine",
+                        style: TextStyle(color: Colors.red, fontSize: 16),
+                      ),
+                    // ------------------ BOTÃO ON/OFF PARA TODOS ------------------
                   ],
-                  if (statusMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Text(
-                        statusMessage!,
-                        style: const TextStyle(fontSize: 18, color: Colors.red),
-                      ),
-                    ),
-                  if (hasAcceptedDelivery && !hasPickedUp)
-                    ElevatedButton(
-                      onPressed: handlePickedUp,
-                      child: const Text('Cheguei no Fornecedor'),
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(150, 40),
-                        backgroundColor: Colors.orange,
-                      ),
-                    ),
-                  if (hasPickedUp && !deliveryCompleted)
-                    ElevatedButton(
-                      onPressed: handleDeliveryCompleted,
-                      child: const Text('Entrega Concluída'),
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(150, 40),
-                        backgroundColor: Colors.green,
-                      ),
-                    ),
-                ],
-              ],
+                );
+              },
             );
           },
         ),
@@ -382,9 +449,19 @@ class _HomePageState extends State<HomePage> {
     try {
       _log(
           'Agendando próximo heartbeat para $seconds s (cancelando anterior=${_timer != null})…');
+
       _timer?.cancel();
+
       _timer = Timer(Duration(seconds: seconds), () async {
-        await chamaHeartbeat();
+        final isOnline = await OnlineStatusService.getStatus();
+
+        if (!isOnline) {
+          _log("Heartbeat NÃO enviado porque está OFFLINE.");
+          _scheduleNextHeartbeat(seconds); // reagenda mesmo offline
+          return;
+        }
+
+        await chamaHeartbeat(); // envia heartbeat normalmente
       });
     } catch (e, st) {
       _log('ERRO ao agendar heartbeat: $e\n$st');
@@ -956,5 +1033,19 @@ class _HomePageState extends State<HomePage> {
     try {
       _playerAviso.stop();
     } catch (_) {}
+  }
+}
+
+class OnlineStatusService {
+  static const String key = 'isOnline';
+
+  static Future<bool> getStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(key) ?? true; // padrão: online
+  }
+
+  static Future<void> setStatus(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(key, value);
   }
 }

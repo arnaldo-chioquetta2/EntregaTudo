@@ -9,6 +9,7 @@ import 'package:entregatudo/constants.dart';
 import 'package:entregatudo/models/delivery_details.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.4.3 Modo offline para MotoBoy e Fornecedor
 // 1.4.1 Recusa por versão antiga
 // 1.4.0 Correção estavam sendo mostradas vendas falsas
 // 1.3.9 Fornecedor recebe aviso pelo App sobre a venda
@@ -19,7 +20,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 // 1.3.3 Convite na fluxo certo de crítica
 // 1.3.2 Fornecedor
 // 1.2.7 Ajuste no Crud da configuração de valores
-// 1.2.6 Copia o erro de cadastro para a memória se houver
 
 class API {
   static final LocationService _locationService = LocationService();
@@ -168,11 +168,27 @@ class API {
     int erroCodigo,
     int distanciaMaxima,
   ) async {
-    String baseUrl = "https://teletudo.com/api/cadboy";
+    print("=== [API.registerUser] INICIO ===");
+    print("Enviando dados para /cadboy...");
+    print("Payload:");
+    print({
+      'nome_completo': nome,
+      'usuario': usuario,
+      'email': email,
+      'senha': senha,
+      'telefone': telefone,
+      'cnh': cnh,
+      'placa': placa,
+      'PIX': pix,
+      'erroCodigo': erroCodigo,
+      'distanciaMaxima': distanciaMaxima,
+    });
+
+    final url = Uri.parse("https://teletudo.com/api/cadboy");
 
     try {
       final response = await http.post(
-        Uri.parse(baseUrl),
+        url,
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -188,51 +204,39 @@ class API {
           'PIX': pix,
           'erroCodigo': erroCodigo,
           'distanciaMaxima': distanciaMaxima,
-          'versaoApp': AppConfig.versaoApp,
         }),
       );
 
-      final raw = response.body;
+      print("=== [API.registerUser] RESPOSTA ===");
+      print("Status code: ${response.statusCode}");
+      print("Body cru: ${response.body}");
 
-      if (response.statusCode != 200 && response.statusCode != 201) {
-        return {
-          'success': false,
-          'message': 'Falha no servidor (${response.statusCode})',
-          'details': raw
-        };
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final ret = json.decode(response.body);
+        print("Decodificado: $ret");
+
+        return ret;
       }
 
-      final ret = json.decode(raw);
-
-      // 🔹 Interpretar corretamente o retorno do servidor
-      final erro = ret['Erro'];
-      final descErro = ret['DescErro'] ?? '';
-      final id = ret['id'];
-
-      if (erro == 0) {
-        // SUCESSO
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setInt('idUser', id);
-
-        return {
-          'success': true,
-          'message': 'Cadastro bem-sucedido',
-          'details': raw
-        };
-      } else {
-        // FALHA RETORNADA PELO SERVIDOR
+      // Se for erro, retornar com o que vier
+      try {
+        final err = json.decode(response.body);
+        print("Erro decodificado: $err");
+        return err;
+      } catch (_) {
+        print("Erro não é JSON. Retornando padrão.");
         return {
           'success': false,
-          'message':
-              descErro.isEmpty ? 'Erro desconhecido ao cadastrar' : descErro,
-          'details': raw
+          'message': "Falha no servidor (${response.statusCode})",
+          'raw': response.body
         };
       }
     } catch (e) {
+      print("EXCEPTION em registerUser: $e");
       return {
         'success': false,
-        'message': 'Erro de conexão com o servidor',
-        'details': e.toString()
+        'message': 'Erro de conexão',
+        'erro': e.toString()
       };
     }
   }
@@ -317,79 +321,6 @@ class API {
     /// retorna o modelo original
     return DeliveryDetails.fromJson(data);
   }
-
-  // static Future<DeliveryDetails?> sendHeartbeat(double lat, double lon) async {
-  //   SharedPreferences prefs = await SharedPreferences.getInstance();
-  //   int? userid = prefs.getInt('idUser');
-  //   int vez = prefs.getInt('vez') ?? 0;
-  //   await prefs.setInt('vez', vez + 1);
-
-  //   if (userid == null) {
-  //     print("User ID não encontrado");
-  //     return null;
-  //   }
-
-  //   final String baseUrl = "https://teletudo.com/api/heartbeat";
-
-  //   final response = await http.post(
-  //     Uri.parse(baseUrl),
-  //     headers: {
-  //       'Content-Type': 'application/json',
-  //       'Accept': 'application/json',
-  //     },
-  //     body: json.encode({
-  //       'userid': userid,
-  //       'lat': lat,
-  //       'lon': lon,
-  //       'vez': vez,
-  //     }),
-  //   );
-
-  //   print(
-  //       'Enviando heartbeat: lat: $lat, lon: $lon, userid: $userid, vez: $vez');
-
-  //   if (response.statusCode != 200) {
-  //     print('Erro ao enviar heartbeat: ${response.statusCode}');
-  //     return null;
-  //   }
-
-  //   /// ------------------------------
-  //   /// PROCESSAR RESPOSTA
-  //   /// ------------------------------
-  //   print('Response Body: ${response.body}');
-  //   final data = json.decode(response.body);
-
-  //   /// salvar 'modo'
-  //   int modo = data['modo'] ?? 3;
-  //   await prefs.setInt('modo', modo);
-
-  //   /// salvar lojas no raio
-  //   int lojasNoRaio = data['lojas_no_raio'] ?? 0;
-  //   print('Lojas no Raio: $lojasNoRaio');
-
-  //   /// ------------------------------
-  //   ///  🎯 PEGAR CÓDIGO DE CONFIRMAÇÃO DA ENTREGA
-  //   /// ------------------------------
-  //   if (data['novaVenda'] != null) {
-  //     var nova = data['novaVenda'];
-
-  //     if (nova['codigoConfirmacao'] != null) {
-  //       int codigo = nova['codigoConfirmacao'];
-
-  //       /// SALVAR NO SHARED PREFERENCES
-  //       await prefs.setInt('codigoConfirmacao', codigo);
-
-  //       print("🔥 Código de confirmação recebido e salvo: $codigo");
-  //     } else {
-  //       print("⚠️ novaVenda existe, mas não contém codigoConfirmacao");
-  //     }
-  //   } else {
-  //     print("Nenhuma novaVenda na resposta.");
-  //   }
-
-  //   /// retorna o modelo original
-  //   return DeliveryDetails.fromJson(data);
-  // }
 
   static Future<FornecedorHeartbeatResponse?> sendHeartbeatF(
       double lat, double lon) async {
@@ -1039,6 +970,49 @@ class API {
       }
     } catch (e) {
       print("❌ Erro fornecedorConfirmou(): $e");
+      return false;
+    }
+  }
+
+  static Future<bool> motoOff(int userId) async {
+    try {
+      final url = Uri.parse("https://teletudo.com/moto/off");
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: json.encode({"userid": userId}),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static Future<bool> fornecedorOff({int? idLoja, int? idPessoa}) async {
+    try {
+      final url = Uri.parse("https://teletudo.com/fornecedor/off");
+
+      final body = <String, dynamic>{};
+
+      if (idLoja != null) body["idLoja"] = idLoja;
+      if (idPessoa != null) body["idPessoa"] = idPessoa;
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: json.encode(body),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
       return false;
     }
   }

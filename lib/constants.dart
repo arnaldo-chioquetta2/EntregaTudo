@@ -1,7 +1,6 @@
 class AppConfig {
-  static const String versaoApp = '1.4.0';
+  static const String versaoApp = '1.4.2';
 
-  // Converte "1.4.0" → 140
   static int get versaoAppInt {
     final p = versaoApp.split('.');
     final major = int.parse(p[0]);
@@ -11,8 +10,13 @@ class AppConfig {
   }
 }
 
-//// 1.4.1 Prevenção para o erro de autenticação na gravação das configurações
-//// 1.4.1 Recusa por versão antiga
+// VERSÃO NÃO ENVIADA AO SERVIDOR
+// 1.4.3 Modo offline para MotoBoy e Fornecedor
+
+// VERSÃO JÁ ENVIADA AO SERVIDOR
+// 1.4.2 Mostra melhor formatado a mensagem de usuário já existente no cadastro
+// 1.4.1 Prevenção para o erro de autenticação na gravação das configurações
+// 1.4.1 Recusa por versão antiga
 // 1.4.0 Correção estavam sendo mostradas vendas falsas
 // 1.3.9 Fornecedor recebe aviso pelo App sobre a venda
 // 1.3.8 Correção da crítica da placa
@@ -23,5 +27,3 @@ class AppConfig {
 // 1.3.3 Convite na fluxo certo de crítica
 // 1.3.2 Fornecedor
 // 1.3.1 Mostras as lojas on-line
-// 1.3.0 Salvar senha e olhar a senha
-// 1.2.9 Convite
