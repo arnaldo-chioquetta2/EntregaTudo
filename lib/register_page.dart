@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:ui';
 import 'package:entregatudo/api.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:entregatudo/HomePage.dart';
+import 'package:entregatudo/constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // 1.4.2 Mostra melhor formatado a mensagem de usuário já existente no cadastro
@@ -46,6 +48,16 @@ class _RegisterPageState extends State<RegisterPage> {
   final _usuarioController = TextEditingController();
   final _distanciaMaximaController = TextEditingController();
   final _inviteController = TextEditingController();
+  final FocusNode _focusUsuario = FocusNode();
+  final FocusNode _focusNome = FocusNode();
+  final FocusNode _focusEmail = FocusNode();
+  final FocusNode _focusSenha = FocusNode();
+  final FocusNode _focusTelefone = FocusNode();
+  final FocusNode _focusPlaca = FocusNode();
+  final FocusNode _focusPix = FocusNode();
+  final FocusNode _focusCnh = FocusNode();
+  final FocusNode _focusDistancia = FocusNode();
+
   bool _cadastrando = false;
 
   final _formKey = GlobalKey<FormState>();
@@ -91,9 +103,59 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   void initState() {
     super.initState();
+
+    // --------------------------------------
+    // 🔥 1) Loga entrada na tela + versão do app
+    // --------------------------------------
+    _logEntrouNaTelaCadastro();
+
+    // --------------------------------------
+    // 🔥 2) Captura global de erros
+    // --------------------------------------
+    FlutterError.onError = (FlutterErrorDetails details) {
+      API.logApp("Cadastro", "FlutterError", {
+        "error": details.exception.toString(),
+        "stack": details.stack.toString(),
+        "versaoApp": AppConfig.versaoApp,
+        "versaoAppInt": AppConfig.versaoAppInt,
+      });
+    };
+
+    PlatformDispatcher.instance.onError = (error, stack) {
+      API.logApp("Cadastro", "PlatformError", {
+        "error": error.toString(),
+        "stack": stack.toString(),
+        "versaoApp": AppConfig.versaoApp,
+        "versaoAppInt": AppConfig.versaoAppInt,
+      });
+      return true;
+    };
+
+    // --------------------------------------
+    // 🔥 3) Configurações internas
+    // --------------------------------------
     _distanciaMaximaController.text = '30';
-    _aplicarPrefill(); // <- aplica params imediatamente
-    _carregarFallbackDosPrefs(); // <- se não vier por params, busca prefs
+    _aplicarPrefill();
+    _carregarFallbackDosPrefs();
+
+    // --------------------------------------
+    // 🔥 4) Logs ao perder o foco
+    // --------------------------------------
+    _focusUsuario
+        .addListener(() => _logSaidaCampo("usuario", _usuarioController.text));
+    _focusNome.addListener(() => _logSaidaCampo("nome", _nameController.text));
+    _focusEmail
+        .addListener(() => _logSaidaCampo("email", _emailController.text));
+    _focusSenha
+        .addListener(() => _logSaidaCampo("senha", _passwordController.text));
+    _focusTelefone
+        .addListener(() => _logSaidaCampo("telefone", _phoneController.text));
+    _focusPlaca
+        .addListener(() => _logSaidaCampo("placa", _placaController.text));
+    _focusPix.addListener(() => _logSaidaCampo("pix", _pix.text));
+    _focusCnh.addListener(() => _logSaidaCampo("cnh", _cnhController.text));
+    _focusDistancia.addListener(() =>
+        _logSaidaCampo("distanciaMaxima", _distanciaMaximaController.text));
   }
 
   void _aplicarPrefill() {
@@ -147,6 +209,15 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   void dispose() {
+    _focusUsuario.dispose();
+    _focusNome.dispose();
+    _focusEmail.dispose();
+    _focusSenha.dispose();
+    _focusTelefone.dispose();
+    _focusPlaca.dispose();
+    _focusPix.dispose();
+    _focusCnh.dispose();
+    _focusDistancia.dispose();
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -173,41 +244,50 @@ class _RegisterPageState extends State<RegisterPage> {
           children: [
             TextField(
               controller: _usuarioController,
+              focusNode: _focusUsuario,
               decoration: const InputDecoration(labelText: 'Usuário'),
             ),
             TextField(
               controller: _nameController,
+              focusNode: _focusNome,
               decoration: const InputDecoration(labelText: 'Nome Completo'),
             ),
             TextField(
               controller: _emailController,
+              focusNode: _focusEmail,
               decoration: const InputDecoration(labelText: 'Email'),
               keyboardType: TextInputType.emailAddress,
             ),
             TextField(
               controller: _passwordController,
+              focusNode: _focusSenha,
               decoration: const InputDecoration(labelText: 'Senha'),
               obscureText: true,
             ),
             TextField(
               controller: _phoneController,
+              focusNode: _focusTelefone,
               decoration: const InputDecoration(labelText: 'Telefone'),
               keyboardType: TextInputType.phone,
             ),
             TextField(
               controller: _cnhController,
+              focusNode: _focusCnh,
               decoration: const InputDecoration(labelText: 'CNH'),
             ),
             TextField(
               controller: _placaController,
+              focusNode: _focusPlaca,
               decoration: const InputDecoration(labelText: 'Placa'),
             ),
             TextField(
               controller: _pix,
+              focusNode: _focusPix,
               decoration: const InputDecoration(labelText: 'PIX'),
             ),
             TextField(
               controller: _distanciaMaximaController,
+              focusNode: _focusDistancia,
               decoration: const InputDecoration(
                 labelText: 'Distância Máxima (km)',
                 helperText: 'Valor entre 1 e 30',
@@ -257,7 +337,7 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _enviarCadastro() async {
-    await _logCadastroInicio();
+    await API.logApp("Cadastro", "Início do processo de cadastro");
     setState(() => _cadastrando = true);
 
     if (_inviteValid == -1) {
@@ -311,10 +391,6 @@ class _RegisterPageState extends State<RegisterPage> {
       await _logCadastroErroInesperado(e, st);
       _mostrarMensagemErroInesperado();
     }
-  }
-
-  Future<void> _logCadastroInicio() async {
-    await API.logApp("Cadastro", "Início do processo de cadastro");
   }
 
   Future<void> _logCadastroInvalidInvite() async {
@@ -673,5 +749,47 @@ class _RegisterPageState extends State<RegisterPage> {
       return false;
     }
     return true;
+  }
+
+  Future<void> _logSaidaCampo(String campo, String valor) async {
+    if (mounted && !_cadastrando) {
+      if (!_getFocusOf(campo).hasFocus) {
+        await API.logApp(
+            "Cadastro", "Campo alterado", {"campo": campo, "valor": valor});
+        print("[LOG_CAMPO] $campo => $valor");
+      }
+    }
+  }
+
+  FocusNode _getFocusOf(String campo) {
+    switch (campo) {
+      case "usuario":
+        return _focusUsuario;
+      case "nome":
+        return _focusNome;
+      case "email":
+        return _focusEmail;
+      case "senha":
+        return _focusSenha;
+      case "telefone":
+        return _focusTelefone;
+      case "placa":
+        return _focusPlaca;
+      case "pix":
+        return _focusPix;
+      case "cnh":
+        return _focusCnh;
+      case "distanciaMaxima":
+        return _focusDistancia;
+      default:
+        return FocusNode();
+    }
+  }
+
+  Future<void> _logEntrouNaTelaCadastro() async {
+    await API.logApp("Cadastro", "Entrou na tela de cadastro", {
+      "versaoApp": AppConfig.versaoApp,
+      "versaoAppInt": AppConfig.versaoAppInt,
+    });
   }
 }
