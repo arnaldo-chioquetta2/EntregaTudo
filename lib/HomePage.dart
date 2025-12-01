@@ -11,7 +11,9 @@ import 'package:entregatudo/utils/sound.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:entregatudo/utils/online_status_service.dart';
 
+// 1.4.4 MotoBoy e Fornecedor ao mesmo tempo
 // 1.4.3 Modo offline para MotoBoy e Fornecedor
 // 1.4.0 Correção estavam sendo mostradas vendas falsas
 // 1.3.9 Fornecedor recebe aviso pelo App sobre a venda
@@ -35,7 +37,6 @@ class _HomePageState extends State<HomePage> {
   double saldoNum = 0.0;
   final LocationService _locationService = LocationService();
   int lojasNoRaio = 0;
-  bool isFornecedor = false;
   bool isSaldoAtualizado = false;
   bool isCheckingLogin = false;
   String _ts() => DateTime.now().toIso8601String();
@@ -43,6 +44,18 @@ class _HomePageState extends State<HomePage> {
   bool _dialogAberto = false;
   int? userId;
   int? idLoja;
+  bool isMotoboy = false;
+  bool isFornecedor = false;
+  bool isMotoBoyOnline = false;
+  bool isFornecedorOnline = false;
+
+  void _toggleMotoBoyOnline() {
+    setState(() => isMotoBoyOnline = !isMotoBoyOnline);
+  }
+
+  void _toggleFornecedorOnline() {
+    setState(() => isFornecedorOnline = !isFornecedorOnline);
+  }
 
   Future<void> _initLogFile() async {
     if (kIsWeb) {
@@ -82,7 +95,11 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _initLogFile();
-    _verificarLoginOuCadastro();
+
+    // 🔥 Carrega estados de online/offline
+    _carregarOnlineStatus();
+
+    // 🔥 Continua fluxo normal
     _initFuture = _verificarLoginOuCadastro();
   }
 
@@ -97,37 +114,61 @@ class _HomePageState extends State<HomePage> {
     try {
       final prefs = await SharedPreferences.getInstance();
       userId = prefs.getInt('idUser');
+
+      // ============================================================
+      // PERFIS – O usuário pode ser SOMENTE motoboy OU fornecedor
+      // ============================================================
       isFornecedor = prefs.getBool('isFornecedor') ?? false;
-      _log('Prefs: idUser=$userId, isFornecedor(pref)=$isFornecedor');
+      isMotoboy = prefs.getBool('isMotoboy') ?? false;
 
-      // --- SIMULAÇÃO DE FORNECEDOR TESTE ---
-      final email = prefs.getString('email') ?? '';
-      final senha = prefs.getString('senha') ?? '';
-      _log(
-          'Credenciais em prefs: email="$email" senha="${'*' * senha.length}"');
+      _log("Perfis carregados → Motoboy=$isMotoboy | Fornecedor=$isFornecedor");
 
+      // ============================================================
+      // VERIFICA LOGIN
+      // ============================================================
       if (userId == null || userId == 0) {
-        _log("Usuário não logado. Redirecionando para registro.");
+        _log("Usuário não logado. Indo para tela de registro.");
         if (!mounted) return;
         Navigator.of(context).pushReplacementNamed('/register');
         return;
       }
 
+      // ============================================================
+      // CARREGAR ID DA LOJA (apenas fornecedor)
+      // ============================================================
       if (isFornecedor) {
-        idLoja =
-            prefs.getInt('idLoja'); // certifique-se que salva isso nas prefs
+        idLoja = prefs.getInt('idLoja');
+        _log("idLoja carregado = $idLoja");
       }
 
+      // ============================================================
+      // CARREGAR ESTADO ONLINE/OFFLINE
+      // ============================================================
+      isMotoBoyOnline = await OnlineStatusService.getMotoStatus();
+      isFornecedorOnline = await OnlineStatusService.getFornecedorStatus();
+
+      _log(
+          "OnlineStatus → MotoBoy=$isMotoBoyOnline | Fornecedor=$isFornecedorOnline");
+
+      // ============================================================
+      // PERMISSÕES DE LOCALIZAÇÃO
+      // ============================================================
       _log("Solicitando permissões de localização…");
       _locationService.requestPermissions();
 
-      _log("Chamando updateSaldo para o usuário: $userId");
+      // ============================================================
+      // ATUALIZAR SALDO
+      // ============================================================
+      _log("Atualizando saldo...");
       await updateSaldo();
 
-      _log("Agendando primeiro heartbeat (intervalo=$intervalo s)...");
+      // ============================================================
+      // AGENDAR HEARTBEAT
+      // ============================================================
+      _log("Agendando heartbeat (intervalo=$intervalo s)...");
       _scheduleNextHeartbeat(intervalo);
 
-      _log("Verificação de login ou cadastro concluída");
+      _log("Verificação concluída com sucesso.");
     } catch (e, st) {
       _log('ERRO em _verificarLoginOuCadastro: $e\n$st');
     } finally {
@@ -158,220 +199,247 @@ class _HomePageState extends State<HomePage> {
               return Text('Erro: ${snapshot.error}');
             }
 
-            return FutureBuilder<bool>(
-              future: OnlineStatusService.getStatus(),
-              builder: (context, onlineSnapshot) {
-                final bool isOnline = onlineSnapshot.data ?? true;
+            // 🔥 AQUI AGORA NÃO USA MAIS FutureBuilder<bool>
+            return Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // 👉 AQUI CONTINUA O RESTANTE DO SEU CÓDIGO,
+                // blocos de motoboy, fornecedor, botões, tudo igual
 
-                return Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // ------------------ PERFIL FORNECEDOR ------------------
-                    if (isFornecedor) ...[
-                      Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Text(
-                          "Saldo $saldo",
-                          style: const TextStyle(
-                              fontSize: 18, color: Colors.black),
-                        ),
+                // ------------------ PERFIL MOTOBOY ------------------
+                if (isMotoboy) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 20),
+                    child: Text(
+                      'Lojas Abertas: $lojasNoRaio',
+                      style: const TextStyle(fontSize: 14, color: Colors.black),
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => SettingsPage()),
+                      );
+                    },
+                    child: const Text('Configurações'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(150, 40),
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      ElevatedButton(
-                        onPressed: saldoNum > 0
-                            ? () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) => ResgatePage()),
-                                );
-                              }
-                            : null,
-                        child: const Text('Resgate'),
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(150, 40),
-                          backgroundColor: Colors.grey,
-                        ),
+                    ),
+                  ),
+                  if (deliveryData != null && deliveryData!.isNotEmpty)
+                    _buildDeliveryDetails(),
+                  if (deliveryData == null &&
+                      (deliveryCompleted || !hasAcceptedDelivery)) ...[
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(
+                        "Saldo $saldo",
+                        style:
+                            const TextStyle(fontSize: 18, color: Colors.black),
                       ),
-                      const SizedBox(height: 10),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/captador-panel');
-                        },
-                        child: const Text('Painel do Captador'),
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(150, 40),
-                          backgroundColor: Colors.purple,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                    ]
-
-                    // ------------------ PERFIL MOTOBOY ------------------
-                    else ...[
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 20),
-                        child: Text(
-                          'Lojas Abertas: $lojasNoRaio',
-                          style: const TextStyle(
-                              fontSize: 14, color: Colors.black),
-                        ),
-                      ),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => SettingsPage()),
-                          );
-                        },
-                        child: const Text('Configurações'),
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(150, 40),
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                      if (deliveryData != null && deliveryData!.isNotEmpty)
-                        _buildDeliveryDetails(),
-                      if (deliveryData == null &&
-                          (deliveryCompleted || !hasAcceptedDelivery)) ...[
-                        Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Text(
-                            "Saldo $saldo",
-                            style: const TextStyle(
-                                fontSize: 18, color: Colors.black),
-                          ),
-                        ),
-                        ElevatedButton(
-                          onPressed: null,
-                          child: const Text('Detalhes'),
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: const Size(150, 40),
-                            backgroundColor: Colors.grey,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        ElevatedButton(
-                          onPressed: saldoNum > 0
-                              ? () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (context) => ResgatePage()),
-                                  );
-                                }
-                              : null,
-                          child: const Text('Resgate'),
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: const Size(150, 40),
-                            backgroundColor: Colors.grey,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushNamed(context, '/captador-panel');
-                          },
-                          child: const Text('Painel do Captador'),
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: const Size(150, 40),
-                            backgroundColor: Colors.purple,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      ],
-                      if (statusMessage != null)
-                        Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Text(
-                            statusMessage!,
-                            style: const TextStyle(
-                                fontSize: 18, color: Colors.red),
-                          ),
-                        ),
-                      if (hasAcceptedDelivery && !hasPickedUp)
-                        ElevatedButton(
-                          onPressed: handlePickedUp,
-                          child: const Text('Cheguei no Fornecedor'),
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: const Size(150, 40),
-                            backgroundColor: Colors.orange,
-                          ),
-                        ),
-                      if (hasPickedUp && !deliveryCompleted)
-                        ElevatedButton(
-                          onPressed: handleDeliveryCompleted,
-                          child: const Text('Entrega Concluída'),
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: const Size(150, 40),
-                            backgroundColor: Colors.green,
-                          ),
-                        ),
-                    ],
-
-                    const SizedBox(height: 30),
-
-                    // ------------------ BOTÃO ON/OFF PARA TODOS ------------------
+                    ),
                     ElevatedButton(
-                      onPressed: () async {
-                        final novoStatus = !isOnline;
-
-                        await OnlineStatusService.setStatus(novoStatus);
-
-                        if (!novoStatus) {
-                          // Indo para OFFLINE
-                          if (isFornecedor) {
-                            await API.fornecedorOff(idLoja: idLoja);
-                          } else {
-                            await API.motoOff(userId!);
-                          }
-                        }
-
-                        setState(() {});
-                      },
+                      onPressed: null,
+                      child: const Text('Detalhes'),
                       style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(200, 45),
-                        backgroundColor: isOnline
-                            ? const Color(
-                                0xFFF57C00) // Laranja bonito (modo Online → OffLine)
-                            : const Color(
-                                0xFF2E7D32), // Verde elegante (modo OffLine → OnLine)
+                        minimumSize: const Size(150, 40),
+                        backgroundColor: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: saldoNum > 0
+                          ? () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) => ResgatePage()),
+                              );
+                            }
+                          : null,
+                      child: const Text('Resgate'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(150, 40),
+                        backgroundColor: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pushNamed(context, '/captador-panel');
+                      },
+                      child: const Text('Painel do Captador'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(150, 40),
+                        backgroundColor: Colors.purple,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 3,
-                      ),
-                      child: Text(
-                        isOnline ? "Passar para OffLine" : "Passar para OnLine",
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
+                          borderRadius: BorderRadius.circular(8),
                         ),
                       ),
                     ),
-
-                    const SizedBox(height: 10),
-
-                    if (!isOnline)
-                      const Text(
-                        "Você está OffLine",
-                        style: TextStyle(color: Colors.red, fontSize: 16),
-                      ),
-                    // ------------------ BOTÃO ON/OFF PARA TODOS ------------------
                   ],
-                );
-              },
+                  if (statusMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(
+                        statusMessage!,
+                        style: const TextStyle(fontSize: 18, color: Colors.red),
+                      ),
+                    ),
+                  if (hasAcceptedDelivery && !hasPickedUp)
+                    ElevatedButton(
+                      onPressed: handlePickedUp,
+                      child: const Text('Cheguei no Fornecedor'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(150, 40),
+                        backgroundColor: Colors.orange,
+                      ),
+                    ),
+                  if (hasPickedUp && !deliveryCompleted)
+                    ElevatedButton(
+                      onPressed: handleDeliveryCompleted,
+                      child: const Text('Entrega Concluída'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(150, 40),
+                        backgroundColor: Colors.green,
+                      ),
+                    ),
+                ],
+
+                // Espaço entre blocos caso seja ambos
+                if (isMotoboy && isFornecedor) const SizedBox(height: 30),
+
+                // ------------------ PERFIL FORNECEDOR ------------------
+                if (isFornecedor) ...[
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(
+                      "Saldo $saldo",
+                      style: const TextStyle(fontSize: 18, color: Colors.black),
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: saldoNum > 0
+                        ? () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => ResgatePage()),
+                            );
+                          }
+                        : null,
+                    child: const Text('Resgate'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(150, 40),
+                      backgroundColor: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/captador-panel');
+                    },
+                    child: const Text('Painel do Captador'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(150, 40),
+                      backgroundColor: Colors.purple,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 30),
+
+                // ---------------- BOTÃO ON/OFF – MOTOBOY ----------------
+                if (isMotoboy) ...[
+                  ElevatedButton(
+                    onPressed: () async {
+                      final novoStatus = !isMotoBoyOnline;
+                      await OnlineStatusService.setMotoStatus(novoStatus);
+
+                      if (!novoStatus && userId != null) {
+                        await API.motoOff(userId!);
+                      }
+
+                      setState(() => isMotoBoyOnline = novoStatus);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(200, 45),
+                      backgroundColor: isMotoBoyOnline
+                          ? const Color(0xFFF57C00)
+                          : const Color(0xFF2E7D32),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      isMotoBoyOnline
+                          ? "Passar para OffLine (MotoBoy)"
+                          : "Passar para OnLine (MotoBoy)",
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (!isMotoBoyOnline)
+                    const Text(
+                      "Você está OffLine (MotoBoy)",
+                      style: TextStyle(color: Colors.red, fontSize: 16),
+                    ),
+                  const SizedBox(height: 20),
+                ],
+
+                // ---------------- BOTÃO ON/OFF – FORNECEDOR ----------------
+                if (isFornecedor) ...[
+                  ElevatedButton(
+                    onPressed: () async {
+                      final novoStatus = !isFornecedorOnline;
+                      await OnlineStatusService.setFornecedorStatus(novoStatus);
+
+                      if (!novoStatus) {
+                        await API.fornecedorOff(idLoja: idLoja);
+                      }
+
+                      setState(() => isFornecedorOnline = novoStatus);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(200, 45),
+                      backgroundColor: isFornecedorOnline
+                          ? const Color(0xFF8E24AA)
+                          : const Color(0xFF2E7D32),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      isFornecedorOnline
+                          ? "Passar para OffLine (Fornecedor)"
+                          : "Passar para OnLine (Fornecedor)",
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (!isFornecedorOnline)
+                    const Text(
+                      "Você está OffLine (Fornecedor)",
+                      style: TextStyle(color: Colors.red, fontSize: 16),
+                    ),
+                  const SizedBox(height: 20),
+                ],
+              ],
             );
           },
         ),
@@ -380,61 +448,90 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildDeliveryDetails() {
+    // Segurança total contra campos faltando
+    final enderIN = deliveryData?['enderIN'] ?? 'Desconhecido';
+    final enderFN = deliveryData?['enderFN'] ?? 'Desconhecido';
+
+    final distRaw = deliveryData?['dist'];
+    final valorRaw = deliveryData?['valor'];
+
+    final double? dist = (distRaw is num)
+        ? distRaw.toDouble()
+        : double.tryParse(distRaw?.toString() ?? '');
+
+    final double? valor = (valorRaw is num)
+        ? valorRaw.toDouble()
+        : double.tryParse(valorRaw?.toString() ?? '');
+
     return Card(
-      margin: EdgeInsets.all(20),
+      margin: const EdgeInsets.all(20),
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Detalhes da Entrega:',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            SizedBox(height: 10),
-            ListTile(
-              leading: Icon(Icons.location_on),
-              title: Text('De: ${deliveryData!['enderIN']}'),
-              subtitle: Text('Para: ${deliveryData!['enderFN']}'),
+            const Text(
+              'Detalhes da Entrega:',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 10),
+
+            // ------------------ LOCAL ------------------
             ListTile(
-              leading: Icon(Icons.map),
-              title: Text('Distância: ${deliveryData!['dist']} km'),
+              leading: const Icon(Icons.location_on),
+              title: Text('De: $enderIN'),
+              subtitle: Text('Para: $enderFN'),
             ),
+
+            // ------------------ DISTÂNCIA ------------------
             ListTile(
-              leading: Icon(Icons.monetization_on, color: Colors.green),
+              leading: const Icon(Icons.map),
               title: Text(
-                  'Valor: R\$ ${deliveryData!['valor'].toStringAsFixed(2)}',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                dist != null
+                    ? 'Distância: ${dist.toStringAsFixed(1)} km'
+                    : 'Distância: --',
+              ),
             ),
+
+            // ------------------ VALOR ------------------
+            ListTile(
+              leading: const Icon(Icons.monetization_on, color: Colors.green),
+              title: Text(
+                valor != null
+                    ? 'Valor: R\$ ${valor.toStringAsFixed(2)}'
+                    : 'Valor: --',
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+
+            // ------------------ BOTÕES ------------------
             ButtonBar(
               alignment: MainAxisAlignment.center,
               children: [
                 ElevatedButton(
-                  onPressed: () {
-                    handleDeliveryResponse(true);
-                  },
-                  child: Text(
+                  onPressed: () => handleDeliveryResponse(true),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(150, 40),
+                    backgroundColor: Colors.green,
+                  ),
+                  child: const Text(
                     'Aceitar',
                     style: TextStyle(
                         color: Colors.white, fontWeight: FontWeight.bold),
                   ),
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: Size(150, 40),
-                    backgroundColor: Colors.green,
-                  ),
                 ),
                 ElevatedButton(
-                  onPressed: () {
-                    handleDeliveryResponse(false);
-                  },
-                  child: Text(
+                  onPressed: () => handleDeliveryResponse(false),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(150, 40),
+                    backgroundColor: Colors.red,
+                  ),
+                  child: const Text(
                     'Recusar',
                     style: TextStyle(
                         color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: Size(150, 40),
-                    backgroundColor: Colors.red,
                   ),
                 ),
               ],
@@ -453,15 +550,27 @@ class _HomePageState extends State<HomePage> {
       _timer?.cancel();
 
       _timer = Timer(Duration(seconds: seconds), () async {
-        final isOnline = await OnlineStatusService.getStatus();
+        bool isOnline = true;
 
+        // 🚀 Motoboy → respeita status do motoboy
+        if (isMotoboy) {
+          isOnline = await OnlineStatusService.getMotoStatus();
+        }
+
+        // 🚀 Fornecedor → respeita status do fornecedor
+        if (isFornecedor) {
+          isOnline = await OnlineStatusService.getFornecedorStatus();
+        }
+
+        // ❌ Se está offline → NÃO envia heartbeat
         if (!isOnline) {
-          _log("Heartbeat NÃO enviado porque está OFFLINE.");
+          _log("Heartbeat NÃO enviado porque o usuário está OFFLINE.");
           _scheduleNextHeartbeat(seconds); // reagenda mesmo offline
           return;
         }
 
-        await chamaHeartbeat(); // envia heartbeat normalmente
+        // ✔ Envia heartbeat normal
+        await chamaHeartbeat();
       });
     } catch (e, st) {
       _log('ERRO ao agendar heartbeat: $e\n$st');
@@ -1034,18 +1143,17 @@ class _HomePageState extends State<HomePage> {
       _playerAviso.stop();
     } catch (_) {}
   }
-}
 
-class OnlineStatusService {
-  static const String key = 'isOnline';
+  Future<void> _carregarOnlineStatus() async {
+    final moto = await OnlineStatusService.getMotoStatus();
+    final fornecedor = await OnlineStatusService.getFornecedorStatus();
 
-  static Future<bool> getStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(key) ?? true; // padrão: online
-  }
+    setState(() {
+      isMotoBoyOnline = moto;
+      isFornecedorOnline = fornecedor;
+    });
 
-  static Future<void> setStatus(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(key, value);
+    print("[HomePage] MotoBoy Online? $isMotoBoyOnline");
+    print("[HomePage] Fornecedor Online? $isFornecedorOnline");
   }
 }

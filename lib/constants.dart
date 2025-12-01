@@ -1,5 +1,5 @@
 class AppConfig {
-  static const String versaoApp = '1.4.2';
+  static const String versaoApp = '1.4.4';
 
   static int get versaoAppInt {
     final p = versaoApp.split('.');
@@ -11,9 +11,11 @@ class AppConfig {
 }
 
 // VERSÃO NÃO ENVIADA AO SERVIDOR
-// 1.4.3 Modo offline para MotoBoy e Fornecedor
+// 1.4.4 MotoBoy e Fornecedor ao mesmo tempo
 
 // VERSÃO JÁ ENVIADA AO SERVIDOR
+// 1.4.3 Mais logs no cadastro
+// 1.4.3 Modo offline para MotoBoy e Fornecedor
 // 1.4.2 Mostra melhor formatado a mensagem de usuário já existente no cadastro
 // 1.4.1 Prevenção para o erro de autenticação na gravação das configurações
 // 1.4.1 Recusa por versão antiga
@@ -23,7 +25,3 @@ class AppConfig {
 // 1.3.7 Correção do cadastro
 // 1.3.6 Log na conferência do convite
 // 1.3.5 Log para o servidor ao logar e ao cadastrar
-// 1.3.4 Confirmação de código na entrega
-// 1.3.3 Convite na fluxo certo de crítica
-// 1.3.2 Fornecedor
-// 1.3.1 Mostras as lojas on-line

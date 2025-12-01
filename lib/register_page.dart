@@ -7,6 +7,7 @@ import 'package:entregatudo/HomePage.dart';
 import 'package:entregatudo/constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.4.3 Mais logs no cadastro
 // 1.4.2 Mostra melhor formatado a mensagem de usuário já existente no cadastro
 // 1.3.8 Correção da crítica da placa
 // 1.3.7 Correção do cadastro

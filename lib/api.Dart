@@ -9,6 +9,7 @@ import 'package:entregatudo/constants.dart';
 import 'package:entregatudo/models/delivery_details.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.4.4 MotoBoy e Fornecedor ao mesmo tempo
 // 1.4.3 Modo offline para MotoBoy e Fornecedor
 // 1.4.1 Recusa por versão antiga
 // 1.4.0 Correção estavam sendo mostradas vendas falsas
@@ -19,7 +20,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 // 1.3.4 Confirmação de código na entrega
 // 1.3.3 Convite na fluxo certo de crítica
 // 1.3.2 Fornecedor
-// 1.2.7 Ajuste no Crud da configuração de valores
 
 class API {
   static final LocationService _locationService = LocationService();
@@ -518,24 +518,31 @@ class API {
   static Future<void> _salvarDadosLogin(Map<String, dynamic> ret) async {
     final prefs = await SharedPreferences.getInstance();
 
+    // 🔥 Dados básicos
     final int idUser = ret["id"] ?? 0;
-    await prefs.setInt('idUser', idUser);
-
     final String nomeUser = (ret["nome"] ?? "").toString();
+    final bool ehFornecedor = ret["eh_fornecedor"] == true;
+    final int idLoja = ret["id_loja"] ?? 0;
+
+    await prefs.setInt('idUser', idUser);
     await prefs.setString('nomeUser', nomeUser);
 
-    int idLoja = 0;
+    print(
+        "[API.veLogin] Salvando perfis → eh_fornecedor=$ehFornecedor id_loja=$idLoja");
 
-    print("[API.veLogin] eh_fornecedor = ${ret['eh_fornecedor']}");
-    print("[API.veLogin] id_loja = ${ret['id_loja']}");
+    // 🔥 PERFIL DO USUÁRIO
+    await prefs.setBool('isFornecedor', ehFornecedor);
+    await prefs.setBool('isMotoboy', !ehFornecedor);
 
-    if (ret["eh_fornecedor"] == true) {
-      idLoja = ret["id_loja"] ?? 0;
-      await prefs.setBool('isFornecedor', true);
-      print("[API.veLogin] Usuário é fornecedor. idLoja = $idLoja");
+    // 🔥 idLoja só existe para fornecedor
+    if (ehFornecedor && idLoja > 0) {
+      await prefs.setInt('idLoja', idLoja);
+    } else {
+      await prefs.remove('idLoja');
     }
 
-    await prefs.setInt('idLoja', idLoja);
+    print(
+        "[API.veLogin] OK → isMotoboy=${!ehFornecedor} | isFornecedor=$ehFornecedor | idLoja=${ehFornecedor ? idLoja : '(nenhum)'}");
   }
 
   static Future<void> _registrarErro(String msg, Map<String, dynamic> info) {
