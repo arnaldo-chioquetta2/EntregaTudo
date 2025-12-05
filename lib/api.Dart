@@ -290,9 +290,18 @@ class API {
     int lojasNoRaio = data['lojas_no_raio'] ?? 0;
     print('Lojas no Raio: $lojasNoRaio');
 
-    /// -----------------------------------
-    /// 🎯 AJUSTE CRÍTICO – EVITAR VENDA FAKE
-    /// -----------------------------------
+    // ==========================================================
+    //  🎯 AJUSTE CRÍTICO: SALVAR CÓDIGO DE CONFIRMAÇÃO
+    //  Origens possíveis:
+    //   1) novaVenda.codigoConfirmacao
+    //   2) codigoConfirmacao na RAIZ do JSON
+    //
+    //  → Somente limpar se ambos forem inexistentes ou 0
+    // ==========================================================
+
+    bool codigoSalvo = false;
+
+    // 1) novaVenda -> codigoConfirmacao
     if (data['novaVenda'] != null) {
       var nova = data['novaVenda'];
 
@@ -300,22 +309,26 @@ class API {
         int codigo = nova['codigoConfirmacao'];
 
         if (codigo > 0) {
-          /// código válido
           await prefs.setInt('codigoConfirmacao', codigo);
-          print("🔥 Nova venda válida — Código salvo: $codigo");
-        } else {
-          /// código = 0 = sem venda real
-          await prefs.remove('codigoConfirmacao');
-          print(
-              "⚠️ novaVenda recebida, mas codigoConfirmacao=0 → ignorando e limpando prefs");
+          print("🔥 Código via novaVenda: $codigo");
+          codigoSalvo = true;
         }
-      } else {
-        print("⚠️ novaVenda existe, mas sem codigoConfirmacao → ignorando");
-        await prefs.remove('codigoConfirmacao');
       }
-    } else {
-      print("Nenhuma novaVenda na resposta → limpando codigoConfirmacao");
-      await prefs.remove('codigoConfirmacao');
+    }
+
+    // 2) codigoConfirmacao na raiz
+    if (!codigoSalvo &&
+        data['codigoConfirmacao'] != null &&
+        data['codigoConfirmacao'] > 0) {
+      int codigo = data['codigoConfirmacao'];
+      await prefs.setInt('codigoConfirmacao', codigo);
+      print("🔥 Código via raiz: $codigo");
+      codigoSalvo = true;
+    }
+
+    // 3) Nenhum código válido → NÃO apagar código anterior
+    if (!codigoSalvo) {
+      print("ℹ Nenhum código novo recebido. Mantendo código existente.");
     }
 
     /// retorna o modelo original
@@ -518,31 +531,60 @@ class API {
   static Future<void> _salvarDadosLogin(Map<String, dynamic> ret) async {
     final prefs = await SharedPreferences.getInstance();
 
-    // 🔥 Dados básicos
+    // ------------------------------------------------------
+    // 🔹 Dados básicos do usuário
+    // ------------------------------------------------------
     final int idUser = ret["id"] ?? 0;
-    final String nomeUser = (ret["nome"] ?? "").toString();
-    final bool ehFornecedor = ret["eh_fornecedor"] == true;
-    final int idLoja = ret["id_loja"] ?? 0;
-
     await prefs.setInt('idUser', idUser);
+
+    final String nomeUser = (ret["nome"] ?? "").toString();
     await prefs.setString('nomeUser', nomeUser);
 
-    print(
-        "[API.veLogin] Salvando perfis → eh_fornecedor=$ehFornecedor id_loja=$idLoja");
+    print("[API.veLogin] SALVANDO PERFIS recebidos do backend:");
 
-    // 🔥 PERFIL DO USUÁRIO
+    // ------------------------------------------------------
+    // 🔹 PERFIL FORNECEDOR
+    // ------------------------------------------------------
+    final bool ehFornecedor = ret["eh_fornecedor"] == true;
     await prefs.setBool('isFornecedor', ehFornecedor);
-    await prefs.setBool('isMotoboy', !ehFornecedor);
+    print("eh_fornecedor = $ehFornecedor");
 
-    // 🔥 idLoja só existe para fornecedor
-    if (ehFornecedor && idLoja > 0) {
+    int idLoja = 0;
+    if (ehFornecedor) {
+      idLoja = ret["id_loja"] ?? 0;
       await prefs.setInt('idLoja', idLoja);
+      print("idLoja = $idLoja");
     } else {
       await prefs.remove('idLoja');
     }
 
-    print(
-        "[API.veLogin] OK → isMotoboy=${!ehFornecedor} | isFornecedor=$ehFornecedor | idLoja=${ehFornecedor ? idLoja : '(nenhum)'}");
+    // ------------------------------------------------------
+    // 🔹 PERFIL MOTOBOY (valor agora vem do servidor)
+    // ------------------------------------------------------
+    bool ehMotoboy = false;
+
+    if (ret.containsKey("eh_motoboy")) {
+      final v = ret["eh_motoboy"];
+
+      if (v is bool) {
+        ehMotoboy = v;
+      } else if (v is int) {
+        ehMotoboy = (v == 1);
+      } else if (v is String) {
+        ehMotoboy = (v == "1" || v.toLowerCase() == "true");
+      }
+    }
+
+    await prefs.setBool('isMotoboy', ehMotoboy);
+    print("eh_motoboy = $ehMotoboy");
+
+    // ------------------------------------------------------
+    // 🔹 Log final
+    // ------------------------------------------------------
+    print("[API.veLogin] OK → "
+        "isMotoboy=$ehMotoboy | "
+        "isFornecedor=$ehFornecedor | "
+        "idLoja=$idLoja");
   }
 
   static Future<void> _registrarErro(String msg, Map<String, dynamic> info) {

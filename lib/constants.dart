@@ -11,9 +11,9 @@ class AppConfig {
 }
 
 // VERSÃO NÃO ENVIADA AO SERVIDOR
-// 1.4.4 MotoBoy e Fornecedor ao mesmo tempo
 
 // VERSÃO JÁ ENVIADA AO SERVIDOR
+// 1.4.4 MotoBoy e Fornecedor ao mesmo tempo
 // 1.4.3 Mais logs no cadastro
 // 1.4.3 Modo offline para MotoBoy e Fornecedor
 // 1.4.2 Mostra melhor formatado a mensagem de usuário já existente no cadastro

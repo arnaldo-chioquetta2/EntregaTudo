@@ -1,5 +1,5 @@
-import 'dart:async';
 import 'dart:io';
+import 'dart:async';
 import 'resgate_page.dart';
 import 'settingsPage.dart';
 import 'package:intl/intl.dart';
@@ -27,6 +27,9 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  static const Color corOnline = Color(0xFFF57C00); // Laranja
+  static const Color corOffline = Color(0xFF2E7D32); // Verde
+
   Timer? _timer;
   Map<String, dynamic>? deliveryData;
   String? statusMessage;
@@ -48,6 +51,12 @@ class _HomePageState extends State<HomePage> {
   bool isFornecedor = false;
   bool isMotoBoyOnline = false;
   bool isFornecedorOnline = false;
+  bool hbPausadoPorEntrega = false;
+  bool hbPausadoPorVenda = false;
+  bool proximoEhFornecedor = true;
+
+  Map<String, dynamic>? deliveryDataMotoboy;
+  Map<String, dynamic>? deliveryDataFornecedor;
 
   void _toggleMotoBoyOnline() {
     setState(() => isMotoBoyOnline = !isMotoBoyOnline);
@@ -166,7 +175,9 @@ class _HomePageState extends State<HomePage> {
       // AGENDAR HEARTBEAT
       // ============================================================
       _log("Agendando heartbeat (intervalo=$intervalo s)...");
-      _scheduleNextHeartbeat(intervalo);
+
+      // _scheduleNextHeartbeat(intervalo);
+      agendarProximoHeartbeat();
 
       _log("Verificação concluída com sucesso.");
     } catch (e, st) {
@@ -199,58 +210,39 @@ class _HomePageState extends State<HomePage> {
               return Text('Erro: ${snapshot.error}');
             }
 
-            // 🔥 AQUI AGORA NÃO USA MAIS FutureBuilder<bool>
-            return Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // 👉 AQUI CONTINUA O RESTANTE DO SEU CÓDIGO,
-                // blocos de motoboy, fornecedor, botões, tudo igual
-
-                // ------------------ PERFIL MOTOBOY ------------------
-                if (isMotoboy) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 20),
-                    child: Text(
-                      'Lojas Abertas: $lojasNoRaio',
-                      style: const TextStyle(fontSize: 14, color: Colors.black),
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => SettingsPage()),
-                      );
-                    },
-                    child: const Text('Configurações'),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(150, 40),
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                  if (deliveryData != null && deliveryData!.isNotEmpty)
-                    _buildDeliveryDetails(),
-                  if (deliveryData == null &&
-                      (deliveryCompleted || !hasAcceptedDelivery)) ...[
-                    Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Text(
-                        "Saldo $saldo",
-                        style:
-                            const TextStyle(fontSize: 18, color: Colors.black),
-                      ),
-                    ),
+            return SingleChildScrollView(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // ------------------------------
+                  // CONFIGURAÇÕES (somente MOTOBOY)
+                  // ------------------------------
+                  if (isMotoboy) ...[
                     ElevatedButton(
-                      onPressed: null,
-                      child: const Text('Detalhes'),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => SettingsPage()),
+                        );
+                      },
+                      child: const Text('Configurações'),
                       style: ElevatedButton.styleFrom(
                         minimumSize: const Size(150, 40),
-                        backgroundColor: Colors.grey,
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
                       ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // ------------------------------
+                  // SALDO / RESGATE / PAINEL – EXIBIR APENAS UMA VEZ
+                  // (se o usuário for MotoBoy OU Fornecedor)
+                  // ------------------------------
+                  if (isMotoboy || isFornecedor) ...[
+                    Text(
+                      "Saldo $saldo",
+                      style: const TextStyle(fontSize: 18, color: Colors.black),
                     ),
                     const SizedBox(height: 10),
                     ElevatedButton(
@@ -259,7 +251,7 @@ class _HomePageState extends State<HomePage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (context) => ResgatePage()),
+                                    builder: (_) => ResgatePage()),
                               );
                             }
                           : null,
@@ -279,167 +271,141 @@ class _HomePageState extends State<HomePage> {
                         minimumSize: const Size(150, 40),
                         backgroundColor: Colors.purple,
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                  ],
+
+                  // =====================================================
+                  // BLOCO MOTOBOY – APENAS ITENS EXCLUSIVOS DO MOTOBOY
+                  // =====================================================
+                  if (isMotoboy) ...[
+                    Text(
+                      'Lojas Abertas: $lojasNoRaio',
+                      style: const TextStyle(fontSize: 14, color: Colors.black),
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Exibir detalhes da entrega APENAS quando houver entrega ativa do motoboy
+                    if (isMotoboy &&
+                        deliveryDataMotoboy != null &&
+                        deliveryDataMotoboy!.containsKey('chamado'))
+                      _buildDeliveryDetails(),
+
+                    // Botão "Detalhes" desabilitado quando NÃO existe entrega ativa
+                    if (deliveryDataMotoboy == null &&
+                        (deliveryCompleted || !hasAcceptedDelivery)) ...[
+                      ElevatedButton(
+                        onPressed: null,
+                        child: const Text('Detalhes'),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(150, 40),
+                          backgroundColor: Colors.grey,
                         ),
                       ),
-                    ),
+                    ],
+                    if (statusMessage != null)
+                      Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Text(
+                          statusMessage!,
+                          style:
+                              const TextStyle(fontSize: 18, color: Colors.red),
+                        ),
+                      ),
+                    if (hasAcceptedDelivery && !hasPickedUp)
+                      ElevatedButton(
+                        onPressed: handlePickedUp,
+                        child: const Text('Cheguei no Fornecedor'),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(150, 40),
+                          backgroundColor: Colors.orange,
+                        ),
+                      ),
+                    if (hasPickedUp && !deliveryCompleted)
+                      ElevatedButton(
+                        onPressed: handleDeliveryCompleted,
+                        child: const Text('Entrega Concluída'),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(150, 40),
+                          backgroundColor: Colors.green,
+                        ),
+                      ),
+                    const SizedBox(height: 20),
                   ],
-                  if (statusMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.all(20),
+
+                  // =====================================================
+                  // BLOCO FORNECEDOR – APENAS ITENS EXCLUSIVOS
+                  // =====================================================
+                  if (isFornecedor) ...[
+                    // (nenhum saldo/resgate/painel aqui)
+                    const SizedBox(height: 10),
+                  ],
+
+                  const SizedBox(height: 20),
+
+                  // ---------------------------
+                  // BOTÃO ON/OFF MOTOBOY
+                  // ---------------------------
+                  if (isMotoboy) ...[
+                    ElevatedButton(
+                      onPressed: () async {
+                        final novoStatus = !isMotoBoyOnline;
+                        await OnlineStatusService.setMotoStatus(novoStatus);
+
+                        if (!novoStatus && userId != null) {
+                          await API.motoOff(userId!);
+                        }
+
+                        setState(() => isMotoBoyOnline = novoStatus);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(200, 45),
+                        backgroundColor:
+                            isMotoBoyOnline ? corOnline : corOffline,
+                        foregroundColor: Colors.white,
+                      ),
                       child: Text(
-                        statusMessage!,
-                        style: const TextStyle(fontSize: 18, color: Colors.red),
+                        isMotoBoyOnline
+                            ? "Passar para OffLine (MotoBoy)"
+                            : "Passar para OnLine (MotoBoy)",
                       ),
                     ),
-                  if (hasAcceptedDelivery && !hasPickedUp)
+                    const SizedBox(height: 20),
+                  ],
+
+                  // ---------------------------
+                  // BOTÃO ON/OFF FORNECEDOR
+                  // ---------------------------
+                  if (isFornecedor) ...[
                     ElevatedButton(
-                      onPressed: handlePickedUp,
-                      child: const Text('Cheguei no Fornecedor'),
+                      onPressed: () async {
+                        final novoStatus = !isFornecedorOnline;
+                        await OnlineStatusService.setFornecedorStatus(
+                            novoStatus);
+
+                        if (!novoStatus) {
+                          await API.fornecedorOff(idLoja: idLoja);
+                        }
+
+                        setState(() => isFornecedorOnline = novoStatus);
+                      },
                       style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(150, 40),
-                        backgroundColor: Colors.orange,
+                        minimumSize: const Size(200, 45),
+                        backgroundColor:
+                            isFornecedorOnline ? corOnline : corOffline,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: Text(
+                        isFornecedorOnline
+                            ? "Passar para OffLine (Fornecedor)"
+                            : "Passar para OnLine (Fornecedor)",
                       ),
                     ),
-                  if (hasPickedUp && !deliveryCompleted)
-                    ElevatedButton(
-                      onPressed: handleDeliveryCompleted,
-                      child: const Text('Entrega Concluída'),
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(150, 40),
-                        backgroundColor: Colors.green,
-                      ),
-                    ),
+                    const SizedBox(height: 20),
+                  ],
                 ],
-
-                // Espaço entre blocos caso seja ambos
-                if (isMotoboy && isFornecedor) const SizedBox(height: 30),
-
-                // ------------------ PERFIL FORNECEDOR ------------------
-                if (isFornecedor) ...[
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Text(
-                      "Saldo $saldo",
-                      style: const TextStyle(fontSize: 18, color: Colors.black),
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: saldoNum > 0
-                        ? () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => ResgatePage()),
-                            );
-                          }
-                        : null,
-                    child: const Text('Resgate'),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(150, 40),
-                      backgroundColor: Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/captador-panel');
-                    },
-                    child: const Text('Painel do Captador'),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(150, 40),
-                      backgroundColor: Colors.purple,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ],
-
-                const SizedBox(height: 30),
-
-                // ---------------- BOTÃO ON/OFF – MOTOBOY ----------------
-                if (isMotoboy) ...[
-                  ElevatedButton(
-                    onPressed: () async {
-                      final novoStatus = !isMotoBoyOnline;
-                      await OnlineStatusService.setMotoStatus(novoStatus);
-
-                      if (!novoStatus && userId != null) {
-                        await API.motoOff(userId!);
-                      }
-
-                      setState(() => isMotoBoyOnline = novoStatus);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(200, 45),
-                      backgroundColor: isMotoBoyOnline
-                          ? const Color(0xFFF57C00)
-                          : const Color(0xFF2E7D32),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text(
-                      isMotoBoyOnline
-                          ? "Passar para OffLine (MotoBoy)"
-                          : "Passar para OnLine (MotoBoy)",
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  if (!isMotoBoyOnline)
-                    const Text(
-                      "Você está OffLine (MotoBoy)",
-                      style: TextStyle(color: Colors.red, fontSize: 16),
-                    ),
-                  const SizedBox(height: 20),
-                ],
-
-                // ---------------- BOTÃO ON/OFF – FORNECEDOR ----------------
-                if (isFornecedor) ...[
-                  ElevatedButton(
-                    onPressed: () async {
-                      final novoStatus = !isFornecedorOnline;
-                      await OnlineStatusService.setFornecedorStatus(novoStatus);
-
-                      if (!novoStatus) {
-                        await API.fornecedorOff(idLoja: idLoja);
-                      }
-
-                      setState(() => isFornecedorOnline = novoStatus);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(200, 45),
-                      backgroundColor: isFornecedorOnline
-                          ? const Color(0xFF8E24AA)
-                          : const Color(0xFF2E7D32),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text(
-                      isFornecedorOnline
-                          ? "Passar para OffLine (Fornecedor)"
-                          : "Passar para OnLine (Fornecedor)",
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  if (!isFornecedorOnline)
-                    const Text(
-                      "Você está OffLine (Fornecedor)",
-                      style: TextStyle(color: Colors.red, fontSize: 16),
-                    ),
-                  const SizedBox(height: 20),
-                ],
-              ],
+              ),
             );
           },
         ),
@@ -448,12 +414,16 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildDeliveryDetails() {
-    // Segurança total contra campos faltando
-    final enderIN = deliveryData?['enderIN'] ?? 'Desconhecido';
-    final enderFN = deliveryData?['enderFN'] ?? 'Desconhecido';
+    final data = deliveryDataMotoboy;
 
-    final distRaw = deliveryData?['dist'];
-    final valorRaw = deliveryData?['valor'];
+    if (data == null) return const SizedBox.shrink();
+
+    // Segurança total contra campos faltando
+    final enderIN = data['enderIN'] ?? 'Desconhecido';
+    final enderFN = data['enderFN'] ?? 'Desconhecido';
+
+    final distRaw = data['dist'];
+    final valorRaw = data['valor'];
 
     final double? dist = (distRaw is num)
         ? distRaw.toDouble()
@@ -545,58 +515,171 @@ class _HomePageState extends State<HomePage> {
   void _scheduleNextHeartbeat(int seconds) {
     try {
       _log(
-          'Agendando próximo heartbeat para $seconds s (cancelando anterior=${_timer != null})…');
+          "⏳ Agendando próximo heartbeat (${seconds}s)… cancelando anterior=${_timer != null}");
 
       _timer?.cancel();
 
       _timer = Timer(Duration(seconds: seconds), () async {
-        bool isOnline = true;
+        _log("⏱ Tick do heartbeat chegou");
 
-        // 🚀 Motoboy → respeita status do motoboy
-        if (isMotoboy) {
-          isOnline = await OnlineStatusService.getMotoStatus();
-        }
-
-        // 🚀 Fornecedor → respeita status do fornecedor
-        if (isFornecedor) {
-          isOnline = await OnlineStatusService.getFornecedorStatus();
-        }
-
-        // ❌ Se está offline → NÃO envia heartbeat
-        if (!isOnline) {
-          _log("Heartbeat NÃO enviado porque o usuário está OFFLINE.");
-          _scheduleNextHeartbeat(seconds); // reagenda mesmo offline
+        // ------------------------------------------------------
+        // 1) SE AMBOS ESTÃO OFFLINE NOS BOTÕES
+        // ------------------------------------------------------
+        if (!isMotoBoyOnline && !isFornecedorOnline) {
+          _log("⚠️ Nenhum perfil está online → Heartbeat não será enviado.");
+          _scheduleNextHeartbeat(seconds);
           return;
         }
 
-        // ✔ Envia heartbeat normal
-        await chamaHeartbeat();
+        // ------------------------------------------------------
+        // 2) SE AMBOS ESTÃO PAUSADOS
+        // ------------------------------------------------------
+        if (hbPausadoPorEntrega && hbPausadoPorVenda) {
+          _log("⚠️ Ambos os heartbeats estão PAUSADOS → Aguardando liberação.");
+          _scheduleNextHeartbeat(seconds);
+          return;
+        }
+
+        // ------------------------------------------------------
+        // 3) SE USUÁRIO É APENAS MOTOBOY
+        // ------------------------------------------------------
+        if (isMotoboy && !isFornecedor) {
+          if (!isMotoBoyOnline) {
+            _log("⚠️ MotoBoy está offline → não enviar heartbeat.");
+          } else if (hbPausadoPorVenda) {
+            _log("⚠️ Heartbeat MotoBoy PAUSADO por venda do fornecedor.");
+          } else {
+            await chamaHeartbeat();
+          }
+
+          _scheduleNextHeartbeat(seconds);
+          return;
+        }
+
+        // ------------------------------------------------------
+        // 4) SE USUÁRIO É APENAS FORNECEDOR
+        // ------------------------------------------------------
+        if (!isMotoboy && isFornecedor) {
+          if (!isFornecedorOnline) {
+            _log("⚠️ Fornecedor está offline → não enviar heartbeat.");
+          } else if (hbPausadoPorEntrega) {
+            _log("⚠️ Heartbeat Fornecedor PAUSADO por entrega do motoboy.");
+          } else {
+            await chamaHeartbeat();
+          }
+
+          _scheduleNextHeartbeat(seconds);
+          return;
+        }
+
+        // ------------------------------------------------------
+        // 5) SE É AMBOS OS PERFIS
+        // ------------------------------------------------------
+        if (isMotoboy && isFornecedor) {
+          _log("Modo AMBOS ATIVOS → Decision by chamaHeartbeat()");
+          await chamaHeartbeat();
+          _scheduleNextHeartbeat(seconds);
+          return;
+        }
       });
     } catch (e, st) {
-      _log('ERRO ao agendar heartbeat: $e\n$st');
+      _log("ERRO ao agendar heartbeat: $e\n$st");
     }
+  }
+
+  void pausarHeartbeatFornecedor() {
+    hbPausadoPorEntrega = true;
+    _log("⏸ HeartbeatF PAUSADO (Motoboy aceitou entrega)");
+  }
+
+  void pausarHeartbeatMotoBoy() {
+    hbPausadoPorVenda = true;
+    _log("⏸ HeartbeatM PAUSADO (Fornecedor aceitou venda)");
+  }
+
+  void despausarHeartbeatFornecedor() {
+    hbPausadoPorEntrega = false;
+    _log("▶ HeartbeatF DESPAUSADO");
+  }
+
+  void despausarHeartbeatMotoBoy() {
+    hbPausadoPorVenda = false;
+    _log("▶ HeartbeatM DESPAUSADO");
   }
 
   Future<void> chamaHeartbeat() async {
     _log('--- chamaHeartbeat START ---');
+
     SharedPreferences prefs = await SharedPreferences.getInstance();
 
     try {
       final pos = _locationService.ultimaPosicao;
       final latitude = pos?.latitude ?? -30.1165;
       final longitude = pos?.longitude ?? -51.1355;
-      _log("Enviando local: lat=$latitude, lon=$longitude");
 
-      final idLoja = prefs.getInt('idLoja');
-      _log('idLoja em prefs: $idLoja (idLoja>0 => fornecedor)');
+      _log("Local atual: lat=$latitude lon=$longitude");
 
-      final codConf = prefs.getInt('codigoConfirmacao');
-      if (codConf != null) _log("Código de confirmação atual: $codConf");
+      final bool usuarioEhMotoboy = isMotoboy;
+      final bool usuarioEhFornecedor = isFornecedor;
 
-      if (idLoja != null && idLoja > 0) {
-        await _processaFornecedor(prefs, latitude, longitude);
-      } else {
-        await _processaMotoboy(prefs, latitude, longitude);
+      // ============================================================
+      // 1) SE SÓ MOTOBOY
+      // ============================================================
+      if (usuarioEhMotoboy && !usuarioEhFornecedor) {
+        _log("Modo: SOMENTE MOTOBOY");
+        if (!hbPausadoPorVenda) {
+          await _processaMotoboy(prefs, latitude, longitude);
+        } else {
+          _log("Heartbeat MotoBoy PAUSADO (hbPausadoPorVenda=true)");
+        }
+
+        return; // continuará no finally para reagendar
+      }
+
+      // ============================================================
+      // 2) SE SÓ FORNECEDOR
+      // ============================================================
+      if (!usuarioEhMotoboy && usuarioEhFornecedor) {
+        _log("Modo: SOMENTE FORNECEDOR");
+        if (!hbPausadoPorEntrega) {
+          await _processaFornecedor(prefs, latitude, longitude);
+        } else {
+          _log("Heartbeat Fornecedor PAUSADO (hbPausadoPorEntrega=true)");
+        }
+
+        return;
+      }
+
+      // ============================================================
+      // 3) SE FOR AMBOS (MOTOBOY + FORNECEDOR)
+      // ============================================================
+      if (usuarioEhMotoboy && usuarioEhFornecedor) {
+        _log("Modo: AMBOS OS PERFIS ATIVOS");
+
+        // alternância
+        if (proximoEhFornecedor) {
+          _log("→ Tick atual: Fornecedor");
+
+          if (!hbPausadoPorEntrega) {
+            await _processaFornecedor(prefs, latitude, longitude);
+          } else {
+            _log("Fornecedor PAUSADO (hbPausadoPorEntrega=true)");
+          }
+
+          proximoEhFornecedor = false;
+        } else {
+          _log("→ Tick atual: Motoboy");
+
+          if (!hbPausadoPorVenda) {
+            await _processaMotoboy(prefs, latitude, longitude);
+          } else {
+            _log("Motoboy PAUSADO (hbPausadoPorVenda=true)");
+          }
+
+          proximoEhFornecedor = true;
+        }
+
+        return;
       }
     } catch (e, st) {
       _log('ERRO em chamaHeartbeat: $e\n$st');
@@ -618,18 +701,49 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
+    final temNovaVenda = fornecedorDetails.novaVenda != null;
+    final novaVenda = fornecedorDetails.novaVenda;
+    final itens = fornecedorDetails.itensVenda;
+
     _log('HeartbeatF OK: lojasNoRaio=${fornecedorDetails.lojasNoRaio}, '
         'idLoja=${fornecedorDetails.idLoja}, '
-        'novaVenda=${fornecedorDetails.novaVenda != null}');
+        'temNovaVenda=$temNovaVenda, '
+        'novaVendaObj=${novaVenda != null}, '
+        'itensVenda=${itens.length}');
 
-    if (fornecedorDetails.novaVenda != null) {
-      await _trataNovaVenda(fornecedorDetails, prefs);
+    // ----------------------------------------------------------
+    // 1) Processar nova venda SOMENTE se REAL e completa
+    // ----------------------------------------------------------
+    if (temNovaVenda && novaVenda != null && itens.isNotEmpty) {
+      _log("➡ Nova venda REAL detectada!");
+
+      await prefs.setString('hora', novaVenda.hora);
+      await prefs.setString('valor', novaVenda.valor);
+      await prefs.setString('cliente', novaVenda.cliente);
+      await prefs.setInt('idPed', novaVenda.idPed);
+      await prefs.setInt('idAviso', novaVenda.idAviso);
+
+      // Exibir aviso ao fornecedor (popup + som)
+      await mostrarAvisoNovaVenda(novaVenda, itens);
+    } else {
+      _log("Nenhuma nova venda REAL. Nada será exibido.");
     }
 
+    // ----------------------------------------------------------
+    // 2) Atualiza SOMENTE a UI do fornecedor
+    //    (não interfere mais no deliveryData do motoboy)
+    // ----------------------------------------------------------
     setState(() {
       lojasNoRaio = fornecedorDetails.lojasNoRaio;
-      deliveryData = {'idLoja': fornecedorDetails.idLoja};
+
+      deliveryDataFornecedor = {
+        'idLoja': fornecedorDetails.idLoja,
+        'lojasNoRaio': fornecedorDetails.lojasNoRaio,
+        // Se quiser adicionar mais informações no futuro, coloque aqui.
+      };
     });
+
+    _log("Processamento Fornecedor concluído.");
   }
 
   Future<void> _trataNovaVenda(FornecedorHeartbeatResponse fornecedorDetails,
@@ -657,58 +771,45 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    _log('Heartbeat OK: lojasNoRaio=${deliveryDetails.lojasNoRaio}, '
+    _log('HeartbeatM OK: lojasNoRaio=${deliveryDetails.lojasNoRaio}, '
         'valor=${deliveryDetails.valor}, chamado=${deliveryDetails.chamado}');
 
-    /// ----------------------------------------------------
-    /// 🔥 1) PROTEÇÃO CONTRA CHAMADO FALSO
-    /// ----------------------------------------------------
+    // --------------------------------------------------------------
+    // 1) Nenhum chamado válido → limpar UI motoboy
+    // --------------------------------------------------------------
     if (deliveryDetails.chamado == null || deliveryDetails.chamado == 0) {
-      _log("⚠️ Nenhum chamado válido recebido (chamado=0). Ignorando.");
+      _log("Nenhum chamado válido (chamado=0). Limpando dados do motoboy.");
 
       setState(() {
         lojasNoRaio = deliveryDetails.lojasNoRaio;
-        deliveryData = null;
+        deliveryDataMotoboy = null;
       });
 
       return;
     }
 
-    /// ----------------------------------------------------
-    /// 🔥 2) PROTEÇÃO CONTRA codigoConfirmacao FALSO
-    /// ----------------------------------------------------
-    final codigo = prefs.getInt('codigoConfirmacao');
+    // --------------------------------------------------------------
+    // 2) NÃO validar codigoConfirmacao aqui!
+    //    Apenas mostrar a entrega. Código só importa na finalização.
+    // --------------------------------------------------------------
+    _log(
+        "Entrega recebida (chamado=${deliveryDetails.chamado}) → exibindo ao motoboy.");
+    hbPausadoPorEntrega = true;
 
-    if (codigo == null || codigo == 0) {
-      _log(
-          "⚠️ Nenhum codigoConfirmacao válido (codigo=$codigo). Ignorando venda.");
-      return;
-    }
+    // --------------------------------------------------------------
+    // 3) Parse seguro — SEM risco de null
+    // --------------------------------------------------------------
+    final valorSeguro = (deliveryDetails.valor ?? 0).toDouble();
+    final distSeguro = (deliveryDetails.dist ?? 0).toDouble();
+    final pesoSeguro = (deliveryDetails.peso ?? 0).toDouble();
 
-    _log("Código de confirmação válido disponível: $codigo");
-
-    /// ----------------------------------------------------
-    /// ⭐ CORREÇÃO IMPORTANTE:
-    /// Garantir que valor NUNCA seja null ou string
-    /// ----------------------------------------------------
-    final valorSeguro = (deliveryDetails.valor is num)
-        ? deliveryDetails.valor
-        : double.tryParse("${deliveryDetails.valor}") ?? 0.0;
-
-    final distSeguro = (deliveryDetails.dist is num)
-        ? deliveryDetails.dist
-        : double.tryParse("${deliveryDetails.dist}") ?? 0.0;
-
-    final pesoSeguro = (deliveryDetails.peso is num)
-        ? deliveryDetails.peso
-        : double.tryParse("${deliveryDetails.peso}") ?? 0.0;
-
-    /// ----------------------------------------------------
-    /// ✔ 3) ATUALIZAÇÃO DE UI — SOMENTE PARA VENDA REAL
-    /// ----------------------------------------------------
+    // --------------------------------------------------------------
+    // 4) Atualizar dados do motoboy para exibir entrega
+    // --------------------------------------------------------------
     setState(() {
       lojasNoRaio = deliveryDetails.lojasNoRaio;
-      deliveryData = {
+
+      deliveryDataMotoboy = {
         'enderIN': deliveryDetails.enderIN ?? 'Desconhecido',
         'enderFN': deliveryDetails.enderFN ?? 'Desconhecido',
         'dist': distSeguro,
@@ -719,9 +820,9 @@ class _HomePageState extends State<HomePage> {
       };
     });
 
-    /// ----------------------------------------------------
-    /// ✔ 4) EVITA ENVIO DUPLICADO DE REPORT
-    /// ----------------------------------------------------
+    // --------------------------------------------------------------
+    // 5) Enviar report apenas quando for um chamado novo
+    // --------------------------------------------------------------
     final currentChamado = prefs.getInt('currentChamado');
 
     if (currentChamado != deliveryDetails.chamado) {
@@ -737,6 +838,13 @@ class _HomePageState extends State<HomePage> {
     } else {
       _log("Chamado já processado anteriormente. Ignorando report.");
     }
+
+    // --------------------------------------------------------------
+    // 6) HeartbeatFornecedoR não deve ser pausado aqui
+    //    Apenas quando motoboy ACEITA a entrega.
+    // --------------------------------------------------------------
+
+    _log("Processamento Motoboy concluído.");
   }
 
   Future<void> mostrarAvisoNovaVenda(
@@ -744,7 +852,6 @@ class _HomePageState extends State<HomePage> {
     List<ItemVenda> itensVenda,
   ) async {
     if (!mounted || _dialogAberto) return;
-
     _dialogAberto = true;
     int segundosRestantes = 60;
     late Timer contagemRegressiva;
@@ -769,77 +876,66 @@ class _HomePageState extends State<HomePage> {
 
     void fecharDialogo([bool recusado = false]) async {
       if (!_dialogAberto) return;
-
       pararSom();
       contagemRegressiva.cancel();
       Navigator.of(context, rootNavigator: true).pop();
       _dialogAberto = false;
-
-      // Só motoboy aceita/recusa entrega
-      if (!isFornecedor) {
-        if (recusado) {
-          handleDeliveryResponse(false);
-        } else {
-          handleDeliveryResponse(true);
-        }
-        return;
-      }
-
-      // 👉 Fornecedor chegou aqui
-      final prefs = await SharedPreferences.getInstance();
-      final idAviso = prefs.getInt('idAviso');
-      final idPed = prefs.getInt('idPed');
-
-      if (idAviso != null && idPed != null) {
-        _log("Enviando confirmação da venda: idAviso=$idAviso, idPed=$idPed");
-        await API.fornecedorConfirmou(idAviso, idPed);
-      } else {
-        _log("ERRO: idAviso ou idPed ausentes no SharedPreferences");
-      }
+      await _processarFechamentoDialogo(recusado);
     }
-
-    // void fecharDialogo([bool recusado = false]) async {
-    //   if (!_dialogAberto) return;
-
-    //   pararSom();
-    //   contagemRegressiva.cancel();
-    //   Navigator.of(context, rootNavigator: true).pop();
-    //   _dialogAberto = false;
-
-    //   // Só motoboy aceita/recusa entrega
-    //   if (!isFornecedor) {
-    //     if (recusado) {
-    //       handleDeliveryResponse(false);
-    //     } else {
-    //       handleDeliveryResponse(true);
-    //     }
-    //     return;
-    //   }
-
-    //   // 👉 Fornecedor chegou aqui
-    //   final prefs = await SharedPreferences.getInstance();
-    //   final idAviso = prefs.getInt('idAviso');
-    //   final idPed = prefs.getInt('idPed');
-
-    //   if (idAviso != null && idPed != null) {
-    //     _log("Enviando confirmação da venda: idAviso=$idAviso, idPed=$idPed");
-    //     await API.fornecedorConfirmou(idAviso, idPed);
-    //   } else {
-    //     _log("ERRO: idAviso ou idPed ausentes no SharedPreferences");
-    //   }
-    // }
 
     contagemRegressiva = Timer.periodic(
       const Duration(seconds: 1),
       (timer) {
         segundosRestantes--;
         if (segundosRestantes <= 0) {
-          fecharDialogo(true); // timeout
+          fecharDialogo(true);
         }
       },
     );
 
-    await showDialog(
+    await _exibirDialogoNovaVenda(
+        novaVenda, itensVenda, segundosRestantes, fecharDialogo);
+
+    contagemRegressiva.cancel();
+    pararSom();
+    _dialogAberto = false;
+    _log("Diálogo de venda fechado.");
+  }
+
+  Future<void> _processarFechamentoDialogo(bool recusado) async {
+    final prefs = await SharedPreferences.getInstance();
+    final idAviso = prefs.getInt('idAviso');
+    final idPed = prefs.getInt('idPed');
+
+    if (!isFornecedor) {
+      handleDeliveryResponse(!recusado);
+      return;
+    }
+
+    if (recusado) {
+      _log("Fornecedor recusou venda.");
+      return;
+    }
+
+    _log("Fornecedor ACEITOU nova venda.");
+    hbPausadoPorVenda = true;
+    _log("⏸ Heartbeat do Motoboy pausado (hbPausadoPorVenda=true)");
+
+    if (idAviso != null && idPed != null) {
+      _log("Enviando confirmação da venda: idAviso=$idAviso, idPed=$idPed");
+      await API.fornecedorConfirmou(idAviso, idPed);
+    } else {
+      _log("ERRO: idAviso ou idPed ausentes no SharedPreferences");
+    }
+  }
+
+  Future<void> _exibirDialogoNovaVenda(
+    NovaVenda novaVenda,
+    List<ItemVenda> itensVenda,
+    int segundosRestantes,
+    void Function([bool]) fecharDialogo,
+  ) {
+    return showDialog(
       barrierDismissible: false,
       context: context,
       builder: (_) {
@@ -890,18 +986,16 @@ class _HomePageState extends State<HomePage> {
           },
         );
       },
-    ).then((_) {
-      contagemRegressiva.cancel();
-      pararSom();
-      _dialogAberto = false;
-      _log("Diálogo de venda fechado.");
-    });
+    );
   }
 
   void handleDeliveryResponse(bool accept) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     int? userId = prefs.getInt('idUser');
-    int? deliveryId = deliveryData?['chamado'];
+
+    // PEGAR O CHAMADO A PARTIR DE deliveryDataMotoboy
+    int? deliveryId = deliveryDataMotoboy?['chamado'];
+
     if (userId == null || deliveryId == null) {
       setState(() {
         statusMessage = "Erro: Dados da entrega não encontrados.";
@@ -912,14 +1006,24 @@ class _HomePageState extends State<HomePage> {
     bool sucesso = await API.respondToDelivery(userId, deliveryId, accept);
 
     if (sucesso) {
+      if (accept) {
+        hbPausadoPorEntrega = true;
+        _log("⚠️ Motoboy aceitou entrega → pausando HeartbeatFornecedor");
+      } else {
+        hbPausadoPorEntrega = false;
+        _log("✔ Motoboy recusou entrega → HeartbeatFornecedor liberado");
+      }
+
       setState(() {
         hasAcceptedDelivery = accept;
         hasPickedUp = false;
-        deliveryCompleted = !accept; // Se recusou, já marca como concluída
+        deliveryCompleted = !accept;
+
         statusMessage = accept
             ? "Entrega aceita. A caminho do fornecedor."
             : "Entrega recusada.";
-        deliveryData = null;
+
+        deliveryDataMotoboy = null; // limpar SOMENTE motoboy
       });
     } else {
       setState(() {
@@ -950,9 +1054,23 @@ class _HomePageState extends State<HomePage> {
       );
       _log("Entrega finalizada com sucesso.");
 
+      // ------------------------------------------------------
+      // 🔥 NOVO: Entrega concluída → liberar HeartbeatFornecedor
+      // ------------------------------------------------------
+      hbPausadoPorEntrega = false;
+      _log("✔ Entrega concluída → HeartbeatFornecedor retomado");
+
       // opcional: limpar código salvo
       SharedPreferences prefs = await SharedPreferences.getInstance();
       prefs.remove('codigoConfirmacao');
+
+      setState(() {
+        hasAcceptedDelivery = false;
+        hasPickedUp = false;
+        deliveryCompleted = true;
+        deliveryData = null;
+        statusMessage = "Entrega finalizada.";
+      });
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Erro ao concluir entrega.")),
@@ -1155,5 +1273,115 @@ class _HomePageState extends State<HomePage> {
 
     print("[HomePage] MotoBoy Online? $isMotoBoyOnline");
     print("[HomePage] Fornecedor Online? $isFornecedorOnline");
+  }
+
+  Future<void> executarHeartbeat() async {
+    _log("🔥 executarHeartbeat() chamado.");
+
+    // =========================================================
+    // ⛔ 1) PAUSA GLOBAL DO MOTOBOY ENQUANTO ELE ESTÁ ANALISANDO ENTREGA
+    // =========================================================
+    if (isMotoboy && hbPausadoPorEntrega) {
+      _log("⛔ Heartbeat Motoboy PAUSADO (aguardando decisão do motoboy)");
+      agendarProximoHeartbeat();
+      return;
+    }
+
+    // =========================================================
+    // 1) Usuário é AMBOS
+    // =========================================================
+    if (isMotoboy && isFornecedor) {
+      // 👉 Se Motoboy está em entrega → PAUSAR Fornecedor
+      if (hbPausadoPorEntrega) {
+        _log("⛔ Heartbeat Fornecedor PAUSADO por entrega do Motoboy.");
+        await chamaHeartbeatMotoboy();
+        agendarProximoHeartbeat();
+        return;
+      }
+
+      // 👉 Se Fornecedor está em venda → PAUSAR Motoboy
+      if (hbPausadoPorVenda) {
+        _log("⛔ Heartbeat Motoboy PAUSADO por venda do Fornecedor.");
+        await chamaHeartbeatFornecedor();
+        agendarProximoHeartbeat();
+        return;
+      }
+
+      // 👉 Alternância normal
+      if (proximoEhFornecedor) {
+        _log("Heartbeat → Fornecedor (alternância)");
+        await chamaHeartbeatFornecedor();
+        proximoEhFornecedor = false;
+      } else {
+        _log("Heartbeat → Motoboy (alternância)");
+        await chamaHeartbeatMotoboy();
+        proximoEhFornecedor = true;
+      }
+
+      agendarProximoHeartbeat();
+      return;
+    }
+
+    // =========================================================
+    // 2) Apenas FORNECEDOR
+    // =========================================================
+    if (isFornecedor) {
+      await chamaHeartbeatFornecedor();
+      agendarProximoHeartbeat();
+      return;
+    }
+
+    // =========================================================
+    // 3) Apenas MOTOBOY
+    // =========================================================
+    if (isMotoboy) {
+      await chamaHeartbeatMotoboy();
+      agendarProximoHeartbeat();
+      return;
+    }
+  }
+
+  void agendarProximoHeartbeat() {
+    _timer?.cancel();
+
+    _log("⏳ Agendando próximo heartbeat em $intervalo segundos...");
+
+    _timer = Timer(Duration(seconds: intervalo), () {
+      executarHeartbeat();
+    });
+  }
+
+  Future<void> chamaHeartbeatFornecedor() async {
+    try {
+      await _processaFornecedorComLatLong();
+    } catch (e, st) {
+      _log("ERRO chamaHeartbeatFornecedor: $e\n$st");
+    }
+  }
+
+  Future<void> chamaHeartbeatMotoboy() async {
+    try {
+      await _processaMotoboyComLatLong();
+    } catch (e, st) {
+      _log("ERRO chamaHeartbeatMotoboy: $e\n$st");
+    }
+  }
+
+  Future<void> _processaFornecedorComLatLong() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final pos = _locationService.ultimaPosicao;
+    final latitude = pos?.latitude ?? -30.1165;
+    final longitude = pos?.longitude ?? -51.1355;
+
+    await _processaFornecedor(prefs, latitude, longitude);
+  }
+
+  Future<void> _processaMotoboyComLatLong() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final pos = _locationService.ultimaPosicao;
+    final latitude = pos?.latitude ?? -30.1165;
+    final longitude = pos?.longitude ?? -51.1355;
+
+    await _processaMotoboy(prefs, latitude, longitude);
   }
 }

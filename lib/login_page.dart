@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:entregatudo/register_page.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+// 1.4.4 MotoBoy e Fornecedor ao mesmo tempo
 // 1.4.1 Recusa por versão antiga
 
 void main() async {
@@ -104,87 +105,87 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  Future<void> _loginComGoogle() async {
-    print('[UI] _loginComGoogle START (REAL)');
-    if (!mounted) return;
-    setState(() => _loadingGoogle = true);
+  // Future<void> _loginComGoogle() async {
+  //   print('[UI] _loginComGoogle START (REAL)');
+  //   if (!mounted) return;
+  //   setState(() => _loadingGoogle = true);
 
-    try {
-      final auth = AuthService();
+  //   try {
+  //     final auth = AuthService();
 
-      // 1) Inicia o fluxo: nextId -> Google Sign-In -> callback ?ID=<nextId>
-      print('[UI] chamando signInWithGoogle() (real)');
-      final init = await auth.signInWithGoogle();
-      print(
-          '[UI] init => success=${init.success} | msg=${init.message} | queryId=${init.queryId} | userId=${init.userId} | isNew=${init.isNewUser}');
+  //     // 1) Inicia o fluxo: nextId -> Google Sign-In -> callback ?ID=<nextId>
+  //     print('[UI] chamando signInWithGoogle() (real)');
+  //     final init = await auth.signInWithGoogle();
+  //     print(
+  //         '[UI] init => success=${init.success} | msg=${init.message} | queryId=${init.queryId} | userId=${init.userId} | isNew=${init.isNewUser}');
 
-      if (!init.success) {
-        showErrorDialog(init.message ?? 'Falha ao iniciar o login Google.');
-        return;
-      }
+  //     if (!init.success) {
+  //       showErrorDialog(init.message ?? 'Falha ao iniciar o login Google.');
+  //       return;
+  //     }
 
-      // 2) Se o backend já devolveu user_id/tokens, navegamos imediatamente
-      if (init.userId != null) {
-        if (init.isNewUser == true) {
-          print('[UI] login finalizado (novo usuário) → RegisterPage');
-          if (!mounted) return;
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const RegisterPage()),
-          );
-        } else {
-          print('[UI] login finalizado (usuário existente) → HomePage');
-          if (!mounted) return;
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomePage()),
-          );
-        }
-        return;
-      }
+  //     // 2) Se o backend já devolveu user_id/tokens, navegamos imediatamente
+  //     if (init.userId != null) {
+  //       if (init.isNewUser == true) {
+  //         print('[UI] login finalizado (novo usuário) → RegisterPage');
+  //         if (!mounted) return;
+  //         Navigator.pushReplacement(
+  //           context,
+  //           MaterialPageRoute(builder: (_) => const RegisterPage()),
+  //         );
+  //       } else {
+  //         print('[UI] login finalizado (usuário existente) → HomePage');
+  //         if (!mounted) return;
+  //         Navigator.pushReplacement(
+  //           context,
+  //           MaterialPageRoute(builder: (_) => const HomePage()),
+  //         );
+  //       }
+  //       return;
+  //     }
 
-      // 3) Caso contrário, seguimos com o POLLING usando o MESMO queryId
-      final qid = init.queryId ?? auth.lastQueryId;
-      if (qid == null) {
-        print('[UI] ERRO: queryId ausente para polling');
-        showErrorDialog('Falha interna: ID de consulta ausente para polling.');
-        return;
-      }
+  //     // 3) Caso contrário, seguimos com o POLLING usando o MESMO queryId
+  //     final qid = init.queryId ?? auth.lastQueryId;
+  //     if (qid == null) {
+  //       print('[UI] ERRO: queryId ausente para polling');
+  //       showErrorDialog('Falha interna: ID de consulta ausente para polling.');
+  //       return;
+  //     }
 
-      print('[UI] iniciando polling com queryId=$qid');
-      final cred = await auth.trazCredenciais(userIdForQuery: qid);
-      print(
-          '[UI] polling result => success=${cred.success} | msg=${cred.message} | userId=${cred.userId} | isNew=${cred.isNewUser}');
+  //     print('[UI] iniciando polling com queryId=$qid');
+  //     final cred = await auth.trazCredenciais(userIdForQuery: qid);
+  //     print(
+  //         '[UI] polling result => success=${cred.success} | msg=${cred.message} | userId=${cred.userId} | isNew=${cred.isNewUser}');
 
-      if (!cred.success) {
-        showErrorDialog(cred.message ?? 'Falha no login.');
-        return;
-      }
+  //     if (!cred.success) {
+  //       showErrorDialog(cred.message ?? 'Falha no login.');
+  //       return;
+  //     }
 
-      // 4) Navegação após polling concluído
-      if (cred.isNewUser == true) {
-        print('[UI] novo usuário (via polling) → RegisterPage');
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const RegisterPage()),
-        );
-      } else {
-        print('[UI] usuário existente (via polling) → HomePage');
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomePage()),
-        );
-      }
-    } catch (e) {
-      print('[UI] EXCEPTION (real): $e');
-      if (mounted) showErrorDialog('Erro: $e');
-    } finally {
-      if (mounted) setState(() => _loadingGoogle = false);
-      print('[UI] _loginComGoogle END (REAL)');
-    }
-  }
+  //     // 4) Navegação após polling concluído
+  //     if (cred.isNewUser == true) {
+  //       print('[UI] novo usuário (via polling) → RegisterPage');
+  //       if (!mounted) return;
+  //       Navigator.pushReplacement(
+  //         context,
+  //         MaterialPageRoute(builder: (_) => const RegisterPage()),
+  //       );
+  //     } else {
+  //       print('[UI] usuário existente (via polling) → HomePage');
+  //       if (!mounted) return;
+  //       Navigator.pushReplacement(
+  //         context,
+  //         MaterialPageRoute(builder: (_) => const HomePage()),
+  //       );
+  //     }
+  //   } catch (e) {
+  //     print('[UI] EXCEPTION (real): $e');
+  //     if (mounted) showErrorDialog('Erro: $e');
+  //   } finally {
+  //     if (mounted) setState(() => _loadingGoogle = false);
+  //     print('[UI] _loginComGoogle END (REAL)');
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
