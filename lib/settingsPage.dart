@@ -3,6 +3,7 @@ import 'package:entregatudo/login_page.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.4.5 Correção dos valores de configuração do MotoBoy
 // 1.4.1 Prevenção par a erro de autenticação na gravação das configurações
 
 class SettingsPage extends StatefulWidget {
@@ -11,7 +12,6 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  // Controladores
   final TextEditingController _minValueController = TextEditingController();
   final TextEditingController _kmRateController = TextEditingController();
   final TextEditingController _rainSurchargeController =
@@ -168,26 +168,36 @@ class _SettingsPageState extends State<SettingsPage> {
       final result = await API.obtemCfgValores(-23.5505, -46.6333);
       setState(() {
         _vazio = result['vazio'];
-        _minValueController.text =
-            result['minValue'] == 0 ? '' : _formatValue(result['minValue']);
-        _kmRateController.text =
-            result['kmRate'] == 0 ? '' : _formatValue(result['kmRate']);
-        _rainSurchargeController.text = result['rainSurcharge'] == 0
+        _minValueController.text = _toDouble(result['minValue']) == 0
             ? ''
-            : _formatValue(result['rainSurcharge']);
-        _nightSurchargeController.text = result['nightSurcharge'] == 0
+            : _formatValue(_toDouble(result['minValue']));
+
+        _kmRateController.text = _toDouble(result['kmRate']) == 0
             ? ''
-            : _formatValue(result['nightSurcharge']);
-        _dawnSurchargeController.text = result['dawnSurcharge'] == 0
+            : _formatValue(_toDouble(result['kmRate']));
+
+        _rainSurchargeController.text = _toDouble(result['rainSurcharge']) == 0
             ? ''
-            : _formatValue(result['dawnSurcharge']);
-        _weightSurchargeController.text = result['weightSurcharge'] == 0
-            ? ''
-            : _formatValue(result['weightSurcharge']);
-        _customDeliverySurchargeController.text =
-            result['customDeliverySurcharge'] == 0
+            : _formatValue(_toDouble(result['rainSurcharge']));
+
+        _nightSurchargeController.text =
+            _toDouble(result['nightSurcharge']) == 0
                 ? ''
-                : _formatValue(result['customDeliverySurcharge']);
+                : _formatValue(_toDouble(result['nightSurcharge']));
+
+        _dawnSurchargeController.text = _toDouble(result['dawnSurcharge']) == 0
+            ? ''
+            : _formatValue(_toDouble(result['dawnSurcharge']));
+
+        _weightSurchargeController.text =
+            _toDouble(result['weightSurcharge']) == 0
+                ? ''
+                : _formatValue(_toDouble(result['weightSurcharge']));
+
+        _customDeliverySurchargeController.text =
+            _toDouble(result['customDeliverySurcharge']) == 0
+                ? ''
+                : _formatValue(_toDouble(result['customDeliverySurcharge']));
       });
     } catch (e) {
       print('Erro ao carregar configurações: $e');
@@ -299,5 +309,13 @@ class _SettingsPageState extends State<SettingsPage> {
     _weightSurchargeController.dispose();
     _customDeliverySurchargeController.dispose();
     super.dispose();
+  }
+
+  double _toDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
   }
 }

@@ -1,5 +1,5 @@
 class AppConfig {
-  static const String versaoApp = '1.4.4';
+  static const String versaoApp = '1.4.5';
 
   static int get versaoAppInt {
     final p = versaoApp.split('.');
@@ -13,6 +13,7 @@ class AppConfig {
 // VERSÃO NÃO ENVIADA AO SERVIDOR
 
 // VERSÃO JÁ ENVIADA AO SERVIDOR
+// 1.4.5 Correção dos valores de configuração do MotoBoy
 // 1.4.4 MotoBoy e Fornecedor ao mesmo tempo
 // 1.4.3 Mais logs no cadastro
 // 1.4.3 Modo offline para MotoBoy e Fornecedor
