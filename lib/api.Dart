@@ -6,20 +6,12 @@ import 'features/location_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:entregatudo/constants.dart';
+import 'package:entregatudo/models/entrega_ativa.dart';
 import 'package:entregatudo/models/delivery_details.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// 1.4.4 MotoBoy e Fornecedor ao mesmo tempo
-// 1.4.3 Modo offline para MotoBoy e Fornecedor
-// 1.4.1 Recusa por versão antiga
-// 1.4.0 Correção estavam sendo mostradas vendas falsas
-// 1.3.9 Fornecedor recebe aviso pelo App sobre a venda
-// 1.3.7 Correção do cadastro
-// 1.3.6 Log na conferência do convite
-// 1.3.5 Log para o servidor ao logar e ao cadastrar
-// 1.3.4 Confirmação de código na entrega
-// 1.3.3 Convite na fluxo certo de crítica
-// 1.3.2 Fornecedor
+// 1.4.7 Fornecedor por horários
+// 1.4.6 Correção do convite que estava aparecendo um errado no painel do captador
 
 class API {
   static final LocationService _locationService = LocationService();
@@ -282,6 +274,9 @@ class API {
     print('Response Body: ${response.body}');
     final data = json.decode(response.body);
 
+    print("JSON COMPLETO DECODIFICADO: $data");
+    print("Contém lojas_no_raio? ${data.containsKey('lojas_no_raio')}");
+
     /// salvar 'modo'
     int modo = data['modo'] ?? 3;
     await prefs.setInt('modo', modo);
@@ -532,7 +527,7 @@ class API {
     final prefs = await SharedPreferences.getInstance();
 
     // ------------------------------------------------------
-    // 🔹 Dados básicos do usuário
+    // 🔹 Dados básicos
     // ------------------------------------------------------
     final int idUser = ret["id"] ?? 0;
     await prefs.setInt('idUser', idUser);
@@ -559,24 +554,34 @@ class API {
     }
 
     // ------------------------------------------------------
-    // 🔹 PERFIL MOTOBOY (valor agora vem do servidor)
+    // 🔹 PERFIL MOTOBOY
     // ------------------------------------------------------
     bool ehMotoboy = false;
-
     if (ret.containsKey("eh_motoboy")) {
       final v = ret["eh_motoboy"];
-
-      if (v is bool) {
-        ehMotoboy = v;
-      } else if (v is int) {
-        ehMotoboy = (v == 1);
-      } else if (v is String) {
-        ehMotoboy = (v == "1" || v.toLowerCase() == "true");
-      }
+      if (v is bool) ehMotoboy = v;
+      if (v is int) ehMotoboy = v == 1;
+      if (v is String) ehMotoboy = v == "1" || v.toLowerCase() == "true";
     }
 
     await prefs.setBool('isMotoboy', ehMotoboy);
     print("eh_motoboy = $ehMotoboy");
+
+    // ------------------------------------------------------
+    // 🔥 CONVITE (AQUI ESTAVA O BUG)
+    // ------------------------------------------------------
+    final token = ret["token"];
+    if (token is Map<String, dynamic>) {
+      final convite = token["convite"]?.toString().trim();
+      if (convite != null && convite.isNotEmpty) {
+        await prefs.setString('convite', convite);
+        print("[API.veLogin] Convite salvo nas prefs: $convite");
+      } else {
+        print("[API.veLogin] Nenhum convite no token");
+      }
+    } else {
+      print("[API.veLogin] Token inexistente ou inválido");
+    }
 
     // ------------------------------------------------------
     // 🔹 Log final
@@ -595,32 +600,6 @@ class API {
     await _locationService.requestPermissions();
     return await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high);
-  }
-
-  static Future<bool> sacar(int userId) async {
-    var url = Uri.parse('https://teletudo.com/api/sacar');
-    print("Acionando API de saque");
-    var headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-    var body = json.encode({
-      'userid': userId.toString(),
-    });
-    bool ret = false;
-    try {
-      var response = await http.post(url, headers: headers, body: body);
-      if (response.statusCode == 200) {
-        print("Resposta da API: ${response.body}");
-        ret = true;
-      } else {
-        print("Erro ao sacar: ${response.statusCode}");
-      }
-    } catch (e) {
-      print("Erro ao enviar requisição: $e");
-    }
-    return ret;
-    // return true;
   }
 
   static Future<bool> respondToDelivery(
@@ -1065,6 +1044,25 @@ class API {
       return false;
     }
   }
+
+  static Future<EntregaAtiva?> getEntregaAtiva(int idMotoboy) async {
+    final url = Uri.parse("https://teletudo.com/api/entrega/ativa/$idMotoboy");
+
+    final response = await http.get(url);
+
+    if (response.statusCode != 200) {
+      print("Erro ao buscar entrega ativa");
+      return null;
+    }
+
+    final data = json.decode(response.body);
+
+    if (data['success'] != true) {
+      return null;
+    }
+
+    return EntregaAtiva.fromJson(data);
+  }
 }
 
 class FornecedorHeartbeatResponse {
@@ -1149,3 +1147,15 @@ class NovaVenda {
     );
   }
 }
+
+// 1.4.4 MotoBoy e Fornecedor ao mesmo tempo
+// 1.4.3 Modo offline para MotoBoy e Fornecedor
+// 1.4.1 Recusa por versão antiga
+// 1.4.0 Correção estavam sendo mostradas vendas falsas
+// 1.3.9 Fornecedor recebe aviso pelo App sobre a venda
+// 1.3.7 Correção do cadastro
+// 1.3.6 Log na conferência do convite
+// 1.3.5 Log para o servidor ao logar e ao cadastrar
+// 1.3.4 Confirmação de código na entrega
+// 1.3.3 Convite na fluxo certo de crítica
+// 1.3.2 Fornecedor

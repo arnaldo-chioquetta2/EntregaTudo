@@ -1,6 +1,6 @@
 import 'package:entregatudo/api.dart';
-import 'package:entregatudo/login_page.dart';
 import 'package:flutter/material.dart';
+import 'package:entregatudo/login_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // 1.4.5 Correção dos valores de configuração do MotoBoy

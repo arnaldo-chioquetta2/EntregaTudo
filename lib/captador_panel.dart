@@ -4,6 +4,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+// 1.4.6 Correção do convite que estava aparecendo um errado no painel do captador
+
 class CaptadorPanelPage extends StatefulWidget {
   const CaptadorPanelPage({super.key});
 
@@ -142,26 +144,34 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
     print('[CAPTADOR] Iniciando _carregarCodigoInicial()');
 
     final prefs = await SharedPreferences.getInstance();
+
     _userId = prefs.getInt('idUser');
     final nomeUsuario = prefs.getString('nomeUser');
 
     print('[CAPTADOR] prefs: idUser=$_userId, nomeUser="$nomeUsuario"');
 
-    // ⚠️ Se quiser adicionar o método getUserInviteCodeFromPrefs() em API, ok.
-    // Mas se ainda não existe, basta ler direto:
+    // 🔹 1) Convite vindo do backend (login)
+    final backendConvite = prefs.getString('convite');
+    print('[CAPTADOR] Convite do backend (prefs.convite): "$backendConvite"');
+
+    // 🔹 2) Código salvo manualmente no painel
     final localCode = prefs.getString('inviteCode');
-    print('[CAPTADOR] Código salvo localmente: "$localCode"');
+    print('[CAPTADOR] Código salvo localmente (prefs.inviteCode): "$localCode"');
 
-    String? codigoFinal;
+    String codigoFinal = '';
 
-    if (localCode != null && localCode.isNotEmpty) {
-      codigoFinal = localCode;
-      print('[CAPTADOR] Usando código salvo: $codigoFinal');
-    } else if (nomeUsuario != null && nomeUsuario.isNotEmpty) {
+    if (backendConvite != null && backendConvite.trim().isNotEmpty) {
+      // 👉 PRIORIDADE MÁXIMA
+      codigoFinal = backendConvite.trim().toUpperCase();
+      print('[CAPTADOR] Usando convite do backend: $codigoFinal');
+    } else if (localCode != null && localCode.trim().isNotEmpty) {
+      codigoFinal = localCode.trim().toUpperCase();
+      print('[CAPTADOR] Usando código salvo localmente: $codigoFinal');
+    } else if (nomeUsuario != null && nomeUsuario.trim().isNotEmpty) {
       codigoFinal = _gerarCodigoDeNome(nomeUsuario);
       print('[CAPTADOR] Gerado a partir do nome: $codigoFinal');
     } else {
-      print('[CAPTADOR] Nenhum nome salvo — campo ficará vazio.');
+      print('[CAPTADOR] Nenhum dado disponível para gerar código.');
       codigoFinal = '';
     }
 
@@ -171,7 +181,7 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
     }
 
     setState(() {
-      _inviteController.text = codigoFinal ?? '';
+      _inviteController.text = codigoFinal;
     });
 
     print('[CAPTADOR] Campo atualizado: "${_inviteController.text}"');

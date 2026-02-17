@@ -1,9 +1,10 @@
 import 'dart:io';
 import 'dart:async';
-import 'resgate_page.dart';
 import 'settingsPage.dart';
 import 'package:intl/intl.dart';
+import 'models/entrega_ativa.dart';
 import 'package:entregatudo/api.dart';
+import 'services/entrega_service.dart';
 import 'package:flutter/material.dart';
 import 'features/location_service.dart';
 import 'package:flutter/foundation.dart';
@@ -13,6 +14,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:entregatudo/utils/online_status_service.dart';
 
+// 1.4.7 Fornecedor por horários
 // 1.4.4 MotoBoy e Fornecedor ao mesmo tempo
 // 1.4.3 Modo offline para MotoBoy e Fornecedor
 // 1.4.0 Correção estavam sendo mostradas vendas falsas
@@ -54,6 +56,8 @@ class _HomePageState extends State<HomePage> {
   bool hbPausadoPorEntrega = false;
   bool hbPausadoPorVenda = false;
   bool proximoEhFornecedor = true;
+
+  EntregaAtiva? entregaAtiva;
 
   Map<String, dynamic>? deliveryDataMotoboy;
   Map<String, dynamic>? deliveryDataFornecedor;
@@ -214,6 +218,17 @@ class _HomePageState extends State<HomePage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  // ===========================================================
+                  // 🔐 ENTREGA ATIVA (NOVO BLOCO 1.5.x)
+                  // ===========================================================
+                  if (entregaAtiva != null) buildEntregaAtivaCard(),
+
+                  // 🔔 Oferta nova (somente se NÃO houver entrega ativa)
+                  if (entregaAtiva == null &&
+                      deliveryDataMotoboy != null &&
+                      deliveryDataMotoboy!.containsKey('chamado'))
+                    _buildDeliveryDetails(),
+
                   // ------------------------------
                   // CONFIGURAÇÕES (somente MOTOBOY)
                   // ------------------------------
@@ -236,30 +251,12 @@ class _HomePageState extends State<HomePage> {
                   ],
 
                   // ------------------------------
-                  // SALDO / RESGATE / PAINEL – EXIBIR APENAS UMA VEZ
-                  // (se o usuário for MotoBoy OU Fornecedor)
+                  // SALDO / RESGATE / PAINEL
                   // ------------------------------
                   if (isMotoboy || isFornecedor) ...[
                     Text(
                       "Saldo $saldo",
                       style: const TextStyle(fontSize: 18, color: Colors.black),
-                    ),
-                    const SizedBox(height: 10),
-                    ElevatedButton(
-                      onPressed: saldoNum > 0
-                          ? () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) => ResgatePage()),
-                              );
-                            }
-                          : null,
-                      child: const Text('Resgate'),
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(150, 40),
-                        backgroundColor: Colors.grey,
-                      ),
                     ),
                     const SizedBox(height: 10),
                     ElevatedButton(
@@ -277,7 +274,7 @@ class _HomePageState extends State<HomePage> {
                   ],
 
                   // =====================================================
-                  // BLOCO MOTOBOY – APENAS ITENS EXCLUSIVOS DO MOTOBOY
+                  // BLOCO MOTOBOY
                   // =====================================================
                   if (isMotoboy) ...[
                     Text(
@@ -285,25 +282,6 @@ class _HomePageState extends State<HomePage> {
                       style: const TextStyle(fontSize: 14, color: Colors.black),
                     ),
                     const SizedBox(height: 10),
-
-                    // Exibir detalhes da entrega APENAS quando houver entrega ativa do motoboy
-                    if (isMotoboy &&
-                        deliveryDataMotoboy != null &&
-                        deliveryDataMotoboy!.containsKey('chamado'))
-                      _buildDeliveryDetails(),
-
-                    // Botão "Detalhes" desabilitado quando NÃO existe entrega ativa
-                    if (deliveryDataMotoboy == null &&
-                        (deliveryCompleted || !hasAcceptedDelivery)) ...[
-                      ElevatedButton(
-                        onPressed: null,
-                        child: const Text('Detalhes'),
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(150, 40),
-                          backgroundColor: Colors.grey,
-                        ),
-                      ),
-                    ],
                     if (statusMessage != null)
                       Padding(
                         padding: const EdgeInsets.all(20),
@@ -332,14 +310,6 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                     const SizedBox(height: 20),
-                  ],
-
-                  // =====================================================
-                  // BLOCO FORNECEDOR – APENAS ITENS EXCLUSIVOS
-                  // =====================================================
-                  if (isFornecedor) ...[
-                    // (nenhum saldo/resgate/painel aqui)
-                    const SizedBox(height: 10),
                   ],
 
                   const SizedBox(height: 20),
@@ -989,12 +959,11 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void handleDeliveryResponse(bool accept) async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    int? userId = prefs.getInt('idUser');
+  Future<void> handleDeliveryResponse(bool accept) async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getInt('idUser');
 
-    // PEGAR O CHAMADO A PARTIR DE deliveryDataMotoboy
-    int? deliveryId = deliveryDataMotoboy?['chamado'];
+    final int? deliveryId = deliveryDataMotoboy?['chamado'];
 
     if (userId == null || deliveryId == null) {
       setState(() {
@@ -1003,33 +972,59 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    bool sucesso = await API.respondToDelivery(userId, deliveryId, accept);
+    _log("📦 Respondendo entrega $deliveryId | accept=$accept");
 
-    if (sucesso) {
-      if (accept) {
-        hbPausadoPorEntrega = true;
-        _log("⚠️ Motoboy aceitou entrega → pausando HeartbeatFornecedor");
-      } else {
-        hbPausadoPorEntrega = false;
-        _log("✔ Motoboy recusou entrega → HeartbeatFornecedor liberado");
-      }
+    final sucesso = await API.respondToDelivery(userId, deliveryId, accept);
 
-      setState(() {
-        hasAcceptedDelivery = accept;
-        hasPickedUp = false;
-        deliveryCompleted = !accept;
-
-        statusMessage = accept
-            ? "Entrega aceita. A caminho do fornecedor."
-            : "Entrega recusada.";
-
-        deliveryDataMotoboy = null; // limpar SOMENTE motoboy
-      });
-    } else {
+    if (!sucesso) {
       setState(() {
         statusMessage = "Erro ao comunicar resposta ao servidor.";
       });
+      return;
     }
+
+    // -----------------------------
+    // 🔴 CASO RECUSA
+    // -----------------------------
+    if (!accept) {
+      setState(() {
+        statusMessage = "Entrega recusada.";
+        deliveryDataMotoboy = null;
+        hasAcceptedDelivery = false;
+      });
+
+      hbPausadoPorEntrega = false;
+      _log("✔ Entrega recusada → heartbeat liberado.");
+      return;
+    }
+
+    // -----------------------------
+    // 🟢 CASO ACEITE
+    // -----------------------------
+    _log("✅ Entrega aceita. Buscando entrega ativa...");
+
+    final entrega = await EntregaService.carregarEntregaAtiva();
+
+    if (entrega == null) {
+      setState(() {
+        statusMessage = "Erro ao carregar dados da entrega.";
+      });
+      return;
+    }
+
+    setState(() {
+      entregaAtiva = entrega;
+      hasAcceptedDelivery = true;
+      hasPickedUp = false;
+      deliveryCompleted = false;
+      statusMessage = "Entrega aceita. Dirija-se ao fornecedor.";
+
+      deliveryDataMotoboy = null; // limpa oferta
+    });
+
+    hbPausadoPorEntrega = true;
+
+    _log("🔐 Código de retirada carregado: ${entrega.codigoRetirada}");
   }
 
   Future<void> handleDeliveryCompleted() async {
@@ -1383,5 +1378,251 @@ class _HomePageState extends State<HomePage> {
     final longitude = pos?.longitude ?? -51.1355;
 
     await _processaMotoboy(prefs, latitude, longitude);
+  }
+
+// ===========================================================
+// VERSÃO 1.5.0 - 2025-12-06
+// Implementação do Card de Entrega Ativa com Código de Retirada
+// ===========================================================
+  Widget buildEntregaAtivaCard() {
+    _log("📌 [v1.5.0] buildEntregaAtivaCard() renderizando");
+
+    if (entregaAtiva == null) {
+      return SizedBox.shrink();
+    }
+
+    return Card(
+      elevation: 6,
+      color: Colors.orange.shade50,
+      margin: EdgeInsets.all(16),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              "ENTREGA ACEITA",
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.orange,
+              ),
+            ),
+            SizedBox(height: 10),
+            Text(
+              "Pedido: #${entregaAtiva!.idPedido}",
+              style: TextStyle(fontSize: 16),
+            ),
+            SizedBox(height: 20),
+            Text(
+              "🔐 CÓDIGO DE RETIRADA",
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 10),
+            Text(
+              entregaAtiva!.codigoRetirada,
+              style: TextStyle(
+                fontSize: 40,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 4,
+                color: Colors.black,
+              ),
+            ),
+            SizedBox(height: 10),
+            Text(
+              "Informe este código ao fornecedor para retirar o produto.",
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 20),
+            Text(
+              "🏪 ${entregaAtiva!.fornecedor}",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            Text(entregaAtiva!.enderecoFornecedor),
+            if (entregaAtiva!.codigoColeta != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Text(
+                  "Código de coleta: ${entregaAtiva!.codigoColeta}",
+                  style: TextStyle(fontStyle: FontStyle.italic),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEntregaAtivaSection() {
+    if (entregaAtiva == null) return const SizedBox();
+
+    return buildEntregaAtivaCard();
+  }
+
+// ===========================================================
+// VERSÃO 1.5.2 - 2026-02-15
+// Correção: buildOfertaMotoboyCard nunca retorna null
+// Exibe oferta de entrega antes da aceitação
+// ===========================================================
+
+  Widget buildOfertaMotoboyCard() {
+    if (deliveryDataMotoboy == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      margin: const EdgeInsets.all(16),
+      elevation: 6,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Text(
+              "🚚 NOVA ENTREGA DISPONÍVEL",
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text("Origem: ${deliveryDataMotoboy!['enderIN']}"),
+            Text("Destino: ${deliveryDataMotoboy!['enderFN']}"),
+            const SizedBox(height: 8),
+            Text("Distância: ${deliveryDataMotoboy!['dist']} km"),
+            Text("Valor: R\$ ${deliveryDataMotoboy!['valor']}"),
+            Text("Peso: ${deliveryDataMotoboy!['peso']} kg"),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton(
+                  onPressed: () {
+                    _log("Motoboy clicou em RECUSAR");
+                    handleDeliveryResponse(false);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(120, 45),
+                  ),
+                  child: const Text("Recusar"),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    _log("Motoboy clicou em ACEITAR");
+                    handleDeliveryResponse(true);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(120, 45),
+                  ),
+                  child: const Text("Aceitar"),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSaldoSection() {
+    if (!(isMotoboy || isFornecedor)) {
+      return const SizedBox();
+    }
+
+    return Column(
+      children: [
+        Text(
+          "Saldo $saldo",
+          style: const TextStyle(fontSize: 18, color: Colors.black),
+        ),
+        const SizedBox(height: 10),
+      ],
+    );
+  }
+
+  Widget _buildMotoboySection() {
+    if (!isMotoboy) return const SizedBox();
+
+    return Column(
+      children: [
+        Text(
+          'Lojas Abertas: $lojasNoRaio',
+          style: const TextStyle(fontSize: 14),
+        ),
+        const SizedBox(height: 10),
+        if (entregaAtiva == null &&
+            deliveryDataMotoboy != null &&
+            deliveryDataMotoboy!.containsKey('chamado'))
+          _buildDeliveryDetails(),
+        if (entregaAtiva != null && entregaAtiva!.status == 3)
+          ElevatedButton(
+            onPressed: handlePickedUp,
+            child: const Text('Cheguei no Fornecedor'),
+          ),
+        if (entregaAtiva != null && entregaAtiva!.status == 4)
+          ElevatedButton(
+            onPressed: handleDeliveryCompleted,
+            child: const Text('Entrega Concluída'),
+          ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  Widget _buildFornecedorSection() {
+    if (!isFornecedor) return const SizedBox();
+    return const SizedBox(height: 10);
+  }
+
+  Widget _buildMotoOnlineButton() {
+    if (!isMotoboy) return const SizedBox();
+
+    return ElevatedButton(
+      onPressed: () async {
+        final novoStatus = !isMotoBoyOnline;
+        await OnlineStatusService.setMotoStatus(novoStatus);
+        setState(() => isMotoBoyOnline = novoStatus);
+      },
+      child: Text(
+        isMotoBoyOnline
+            ? "Passar para OffLine (MotoBoy)"
+            : "Passar para OnLine (MotoBoy)",
+      ),
+    );
+  }
+
+  Widget _buildFornecedorOnlineButton() {
+    if (!isFornecedor) return const SizedBox();
+
+    return ElevatedButton(
+      onPressed: () async {
+        final novoStatus = !isFornecedorOnline;
+        await OnlineStatusService.setFornecedorStatus(novoStatus);
+        setState(() => isFornecedorOnline = novoStatus);
+      },
+      child: Text(
+        isFornecedorOnline
+            ? "Passar para OffLine (Fornecedor)"
+            : "Passar para OnLine (Fornecedor)",
+      ),
+    );
+  }
+
+  Widget _buildOfertaSection() {
+    if (entregaAtiva == null && deliveryDataMotoboy != null) {
+      return buildOfertaMotoboyCard();
+    }
+    return const SizedBox();
   }
 }
