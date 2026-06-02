@@ -10,6 +10,7 @@ import 'package:entregatudo/models/entrega_ativa.dart';
 import 'package:entregatudo/models/delivery_details.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 1.4.8 Ajustes nas Apis
 // 1.4.7 Fornecedor por horários
 // 1.4.6 Correção do convite que estava aparecendo um errado no painel do captador
 

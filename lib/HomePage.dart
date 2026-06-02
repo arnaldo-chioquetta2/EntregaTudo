@@ -14,6 +14,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:entregatudo/utils/online_status_service.dart';
 
+// 1.4.8 Ajustes nas Apis
 // 1.4.7 Fornecedor por horários
 // 1.4.4 MotoBoy e Fornecedor ao mesmo tempo
 // 1.4.3 Modo offline para MotoBoy e Fornecedor
