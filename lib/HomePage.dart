@@ -56,6 +56,11 @@ class _HomePageState extends State<HomePage> {
   bool hbPausadoPorEntrega = false;
   bool hbPausadoPorVenda = false;
   bool proximoEhFornecedor = true;
+  final TextEditingController _codigoClienteController =
+      TextEditingController();
+  String? erroCodigoCliente;
+  bool enviandoCodigoCliente = false;
+  double? valorEntregaAtual;
 
   EntregaAtiva? entregaAtiva;
 
@@ -194,6 +199,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _timer?.cancel();
+    _codigoClienteController.dispose();
     super.dispose();
   }
 
@@ -287,26 +293,12 @@ class _HomePageState extends State<HomePage> {
                         padding: const EdgeInsets.all(20),
                         child: Text(
                           statusMessage!,
-                          style:
-                              const TextStyle(fontSize: 18, color: Colors.red),
-                        ),
-                      ),
-                    if (hasAcceptedDelivery && !hasPickedUp)
-                      ElevatedButton(
-                        onPressed: handlePickedUp,
-                        child: const Text('Cheguei no Fornecedor'),
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(150, 40),
-                          backgroundColor: Colors.orange,
-                        ),
-                      ),
-                    if (hasPickedUp && !deliveryCompleted)
-                      ElevatedButton(
-                        onPressed: handleDeliveryCompleted,
-                        child: const Text('Entrega Concluída'),
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(150, 40),
-                          backgroundColor: Colors.green,
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: statusMessage!.startsWith("Voce ganhou")
+                                ? Colors.green
+                                : Colors.red,
+                          ),
                         ),
                       ),
                     const SizedBox(height: 20),
@@ -787,6 +779,10 @@ class _HomePageState extends State<HomePage> {
         'peso': pesoSeguro,
         'chamado': deliveryDetails.chamado,
         'lojasNoRaio': deliveryDetails.lojasNoRaio,
+        'fornecedor': deliveryDetails.fornecedor,
+        'codigoRetirada': deliveryDetails.codigoRetirada,
+        'codigoColeta': deliveryDetails.codigoColeta,
+        'codigoConfirmacao': deliveryDetails.codigoConfirmacao,
       };
     });
 
@@ -962,8 +958,9 @@ class _HomePageState extends State<HomePage> {
   Future<void> handleDeliveryResponse(bool accept) async {
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getInt('idUser');
+    final dadosOferta = deliveryDataMotoboy;
 
-    final int? deliveryId = deliveryDataMotoboy?['chamado'];
+    final int? deliveryId = dadosOferta?['chamado'];
 
     if (userId == null || deliveryId == null) {
       setState(() {
@@ -1003,20 +1000,35 @@ class _HomePageState extends State<HomePage> {
     // -----------------------------
     _log("✅ Entrega aceita. Buscando entrega ativa...");
 
-    final entrega = await EntregaService.carregarEntregaAtiva();
+    var entrega = await EntregaService.carregarEntregaAtiva();
 
     if (entrega == null) {
-      setState(() {
-        statusMessage = "Erro ao carregar dados da entrega.";
-      });
-      return;
+      _log("Entrega ativa ainda indisponÃ­vel. Usando dados da oferta aceita.");
+
+      entrega = EntregaAtiva(
+        idPedido: deliveryId,
+        codigoRetirada: (dadosOferta?['codigoRetirada'] ??
+                dadosOferta?['codigoColeta'] ??
+                '')
+            .toString(),
+        fornecedor: (dadosOferta?['fornecedor'] ?? '').toString(),
+        enderecoFornecedor: (dadosOferta?['enderIN'] ?? '').toString(),
+        codigoColeta: dadosOferta?['codigoColeta']?.toString(),
+        status: 1,
+      );
     }
 
     setState(() {
       entregaAtiva = entrega;
+      valorEntregaAtual = (dadosOferta?['valor'] is num)
+          ? (dadosOferta?['valor'] as num).toDouble()
+          : double.tryParse(dadosOferta?['valor']?.toString() ?? '');
       hasAcceptedDelivery = true;
       hasPickedUp = false;
       deliveryCompleted = false;
+      erroCodigoCliente = null;
+      enviandoCodigoCliente = false;
+      _codigoClienteController.clear();
       statusMessage = "Entrega aceita. Dirija-se ao fornecedor.";
 
       deliveryDataMotoboy = null; // limpa oferta
@@ -1031,19 +1043,36 @@ class _HomePageState extends State<HomePage> {
     _log("Entrega Concluída acionada.");
 
     // 1. Mostrar tela de código
-    final resultado = await mostrarTelaCodigoConfirmacao();
+    final codigoCliente = _codigoClienteController.text.trim();
 
-    if (resultado != true) {
-      _log("Entrega cancelada ou código incorreto.");
+    if (codigoCliente.length != 4 || int.tryParse(codigoCliente) == null) {
+      setState(() { erroCodigoCliente = "Digite um codigo valido de 4 digitos"; });
       return;
     }
 
     // 2. Código OK → efetivar entrega
     _log("Código verificado! Enviando encerramento...");
 
-    bool ok = await API.notifyDeliveryCompleted();
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getInt('idUser');
+
+    setState(() {
+      enviandoCodigoCliente = true;
+      erroCodigoCliente = null;
+    });
+
+    bool ok = await API.notifyDeliveryCompleted(
+      idPedido: entregaAtiva?.idPedido,
+      idMotoboy: userId,
+      codigo: codigoCliente,
+    );
+
+    if (!mounted) return;
 
     if (ok) {
+      final valorFinal = API.ultimoValorEntrega ?? valorEntregaAtual ?? 0;
+      final valorGanho = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$')
+          .format(valorFinal);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Entrega concluída com sucesso!")),
       );
@@ -1056,7 +1085,6 @@ class _HomePageState extends State<HomePage> {
       _log("✔ Entrega concluída → HeartbeatFornecedor retomado");
 
       // opcional: limpar código salvo
-      SharedPreferences prefs = await SharedPreferences.getInstance();
       prefs.remove('codigoConfirmacao');
 
       setState(() {
@@ -1064,12 +1092,18 @@ class _HomePageState extends State<HomePage> {
         hasPickedUp = false;
         deliveryCompleted = true;
         deliveryData = null;
-        statusMessage = "Entrega finalizada.";
+        deliveryDataMotoboy = null;
+        entregaAtiva = null;
+        erroCodigoCliente = null;
+        enviandoCodigoCliente = false;
+        _codigoClienteController.clear();
+        statusMessage = "Voce ganhou $valorGanho";
       });
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Erro ao concluir entrega.")),
-      );
+      setState(() {
+        enviandoCodigoCliente = false;
+        erroCodigoCliente = "Codigo do cliente invalido.";
+      });
       _log("Falha no encerramento da entrega.");
     }
   }
@@ -1085,12 +1119,29 @@ class _HomePageState extends State<HomePage> {
   }
 
   void handlePickedUp() async {
-    bool success = await API.notifyPickedUp();
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getInt('idUser');
+    final idPedido = entregaAtiva?.idPedido;
+
+    _log("Registrando chegada no fornecedor idPedido=$idPedido idMotoboy=$userId");
+
+    final codigoColeta =
+        entregaAtiva?.codigoColeta ?? entregaAtiva?.codigoRetirada;
+
+    bool success = await API.notifyPickedUp(
+      idPedido: idPedido,
+      idMotoboy: userId,
+      codigo: codigoColeta,
+    );
+
     if (success) {
       setState(() {
         hasPickedUp = true;
         statusMessage = "Peguei a encomenda com o fornecedor.";
         deliveryCompleted = false;
+        erroCodigoCliente = null;
+        enviandoCodigoCliente = false;
+        _codigoClienteController.clear();
       });
     } else {
       setState(() {
@@ -1135,120 +1186,6 @@ class _HomePageState extends State<HomePage> {
       print("Atualização do saldo concluída");
     }
   }
-
-  Future<bool> mostrarTelaCodigoConfirmacao() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    final int? codigoCorreto = prefs.getInt('codigoConfirmacao');
-
-    if (codigoCorreto == null) {
-      _log("ERRO: Nenhum código de confirmação salvo.");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Nenhum código disponível para confirmar."),
-        ),
-      );
-      return false; // RETORNO OBRIGATÓRIO
-    }
-
-    TextEditingController controller = TextEditingController();
-    String? erro;
-    bool processando = false;
-
-    /// resultado final que este método vai retornar
-    bool resultado = false;
-
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text("Confirmar Entrega"),
-              content: SizedBox(
-                width: 350,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text("Informe o código recebido do cliente:"),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: controller,
-                      autofocus: true,
-                      keyboardType: TextInputType.number,
-                      maxLength: 4,
-                      decoration: InputDecoration(
-                        labelText: "Código",
-                        errorText: erro,
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                    if (processando)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 12),
-                        child: CircularProgressIndicator(),
-                      ),
-                  ],
-                ),
-              ),
-              actions: [
-                // CANCELAR
-                TextButton(
-                  onPressed: () {
-                    resultado = false;
-                    Navigator.pop(context);
-                  },
-                  child: const Text("Cancelar"),
-                ),
-
-                // RELATAR PROBLEMA
-                TextButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          "Funcionalidade não disponível no momento.",
-                        ),
-                      ),
-                    );
-                  },
-                  child: const Text("Relatar Problema"),
-                ),
-
-                // OK (VALIDAR CÓDIGO)
-                TextButton(
-                  onPressed: () {
-                    final digitado = controller.text.trim();
-
-                    if (digitado.length != 4 ||
-                        int.tryParse(digitado) == null) {
-                      setState(
-                          () => erro = "Digite um código válido de 4 dígitos");
-                      return;
-                    }
-
-                    if (digitado != codigoCorreto.toString()) {
-                      setState(
-                          () => erro = "Código incorreto. Tente novamente.");
-                      return;
-                    }
-
-                    // Código correto
-                    resultado = true;
-                    Navigator.pop(context);
-                  },
-                  child: const Text("OK"),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    return resultado; // <-- RETORNO FINAL
-  }
-
   final AudioPlayer _playerAviso = AudioPlayer();
 
   void pararSomVenda() {
@@ -1391,6 +1328,37 @@ class _HomePageState extends State<HomePage> {
       return SizedBox.shrink();
     }
 
+    if (hasPickedUp && !deliveryCompleted) {
+      return Card(
+        elevation: 6,
+        color: Colors.green.shade50,
+        margin: EdgeInsets.all(16),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                "FINALIZAR ENTREGA",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green.shade800,
+                ),
+              ),
+              SizedBox(height: 10),
+              Text(
+                "Pedido: #${entregaAtiva!.idPedido}",
+                style: TextStyle(fontSize: 16),
+              ),
+              SizedBox(height: 20),
+              _buildCodigoClientePanel(),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Card(
       elevation: 6,
       color: Colors.orange.shade50,
@@ -1414,6 +1382,8 @@ class _HomePageState extends State<HomePage> {
               style: TextStyle(fontSize: 16),
             ),
             SizedBox(height: 20),
+            if (!hasPickedUp) ...[
+            if (entregaAtiva!.codigoRetirada.isNotEmpty) ...[
             Text(
               "🔐 CÓDIGO DE RETIRADA",
               style: TextStyle(
@@ -1436,6 +1406,18 @@ class _HomePageState extends State<HomePage> {
               "Informe este código ao fornecedor para retirar o produto.",
               textAlign: TextAlign.center,
             ),
+            ] else ...[
+              Text(
+                "Codigo de retirada ainda nao recebido.",
+                textAlign: TextAlign.center,
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 10),
+              Text(
+                "Nao use o codigo do cliente nesta etapa.",
+                textAlign: TextAlign.center,
+              ),
+            ],
             SizedBox(height: 20),
             Text(
               "🏪 ${entregaAtiva!.fornecedor}",
@@ -1450,6 +1432,88 @@ class _HomePageState extends State<HomePage> {
                   style: TextStyle(fontStyle: FontStyle.italic),
                 ),
               ),
+            if (hasAcceptedDelivery && !hasPickedUp) ...[
+              SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: handlePickedUp,
+                child: const Text('Cheguei no Fornecedor'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(180, 44),
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+            ],
+            if (hasPickedUp && !deliveryCompleted) ...[
+              SizedBox(height: 24),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.shade300),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      "CODIGO DO CLIENTE",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green.shade800,
+                      ),
+                    ),
+                    SizedBox(height: 10),
+                    Text(
+                      "Informe o codigo recebido do cliente para finalizar.",
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 14),
+                    TextField(
+                      controller: _codigoClienteController,
+                      enabled: !enviandoCodigoCliente,
+                      keyboardType: TextInputType.number,
+                      maxLength: 4,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 4,
+                      ),
+                      decoration: InputDecoration(
+                        counterText: '',
+                        errorText: erroCodigoCliente,
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    SizedBox(height: 14),
+                    ElevatedButton(
+                      onPressed: enviandoCodigoCliente
+                          ? null
+                          : handleDeliveryCompleted,
+                      child: enviandoCodigoCliente
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Confirmar Codigo do Cliente'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(220, 44),
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -1460,6 +1524,73 @@ class _HomePageState extends State<HomePage> {
     if (entregaAtiva == null) return const SizedBox();
 
     return buildEntregaAtivaCard();
+  }
+
+  Widget _buildCodigoClientePanel() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.green.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            "CODIGO DO CLIENTE",
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.green.shade800,
+            ),
+          ),
+          SizedBox(height: 10),
+          Text(
+            "Informe o codigo recebido do cliente para finalizar.",
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: 14),
+          TextField(
+            controller: _codigoClienteController,
+            enabled: !enviandoCodigoCliente,
+            keyboardType: TextInputType.number,
+            maxLength: 4,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 4,
+            ),
+            decoration: InputDecoration(
+              counterText: '',
+              errorText: erroCodigoCliente,
+              border: OutlineInputBorder(),
+            ),
+          ),
+          SizedBox(height: 14),
+          ElevatedButton(
+            onPressed: enviandoCodigoCliente ? null : handleDeliveryCompleted,
+            child: enviandoCodigoCliente
+                ? SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text('Confirmar Codigo do Cliente'),
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(220, 44),
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
 // ===========================================================
@@ -1565,16 +1696,7 @@ class _HomePageState extends State<HomePage> {
             deliveryDataMotoboy != null &&
             deliveryDataMotoboy!.containsKey('chamado'))
           _buildDeliveryDetails(),
-        if (entregaAtiva != null && entregaAtiva!.status == 3)
-          ElevatedButton(
-            onPressed: handlePickedUp,
-            child: const Text('Cheguei no Fornecedor'),
-          ),
-        if (entregaAtiva != null && entregaAtiva!.status == 4)
-          ElevatedButton(
-            onPressed: handleDeliveryCompleted,
-            child: const Text('Entrega Concluída'),
-          ),
+        if (entregaAtiva != null) buildEntregaAtivaCard(),
         const SizedBox(height: 20),
       ],
     );

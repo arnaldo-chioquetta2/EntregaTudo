@@ -15,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class API {
   static final LocationService _locationService = LocationService();
+  static double? ultimoValorEntrega;
 
   static Future<http.Response> _realizarRequisicaoLogin(
       String user, String password, double lat, double lon) {
@@ -312,13 +313,19 @@ class API {
     }
 
     // 2) codigoConfirmacao na raiz
-    if (!codigoSalvo &&
-        data['codigoConfirmacao'] != null &&
-        data['codigoConfirmacao'] > 0) {
-      int codigo = data['codigoConfirmacao'];
-      await prefs.setInt('codigoConfirmacao', codigo);
-      print("🔥 Código via raiz: $codigo");
-      codigoSalvo = true;
+    if (!codigoSalvo && data['codigoConfirmacao'] != null) {
+      int? codigo;
+      if (data['codigoConfirmacao'] is int) {
+        codigo = data['codigoConfirmacao'] as int;
+      } else if (data['codigoConfirmacao'] is String) {
+        codigo = int.tryParse(data['codigoConfirmacao'] as String);
+      }
+
+      if (codigo != null && codigo > 0) {
+        await prefs.setInt('codigoConfirmacao', codigo);
+        print("🔥 Código via raiz: $codigo");
+        codigoSalvo = true;
+      }
     }
 
     // 3) Nenhum código válido → NÃO apagar código anterior
@@ -654,40 +661,89 @@ class API {
     }
   }
 
-  static Future<bool> notifyPickedUp() async {
+  static Future<bool> notifyPickedUp({
+    int? idPedido,
+    int? idMotoboy,
+    String? codigo,
+  }) async {
     try {
       String baseUrl = "https://teletudo.com/api/notifyPickedUp";
       final SharedPreferences prefs = await SharedPreferences.getInstance();
-      int? currentChamado = prefs.getInt('currentChamado');
-      final response = await http.post(
+      int? currentChamado = idPedido ?? prefs.getInt('currentChamado');
+      int? userid = idMotoboy ?? prefs.getInt('idUser');
+
+      if (currentChamado == null ||
+          userid == null ||
+          codigo == null ||
+          codigo.isEmpty) {
+        print(
+            "notifyPickedUp: dados ausentes currentChamado=$currentChamado idUser=$userid codigo=$codigo");
+        return false;
+      }
+
+      final body = {
+        'chamado': currentChamado,
+        'userid': userid,
+        'codigo': codigo,
+      };
+
+      print("notifyPickedUp payload: $body");
+
+      var response = await http.post(
         Uri.parse(baseUrl),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: json.encode({'chamado': currentChamado}),
+        body: json.encode(body),
       );
-      if (response.statusCode == 200) {
-        return true;
-      } else {
+
+      print(
+          "notifyPickedUp response: status=${response.statusCode} body=${response.body}");
+
+      if (response.statusCode != 200) {
         return false;
       }
+
+      if (response.body.trim().isEmpty) {
+        return true;
+      }
+
+      try {
+        final data = json.decode(response.body);
+        if (data is Map && data.containsKey('success')) {
+          return data['success'] == true;
+        }
+      } catch (_) {
+        return true;
+      }
+
+      return true;
     } catch (e) {
+      print("Erro notifyPickedUp(): $e");
       return false;
     }
     // return true;
   }
 
-  static Future<bool> notifyDeliveryCompleted() async {
+  static Future<bool> notifyDeliveryCompleted({
+    int? idPedido,
+    int? idMotoboy,
+    String? codigo,
+  }) async {
     print("API.notifyDeliveryCompleted() chamado");
 
     try {
       const String baseUrl = "https://teletudo.com/api/notifyDeliveryCompleted";
 
       final SharedPreferences prefs = await SharedPreferences.getInstance();
-      int? currentChamado = prefs.getInt('currentChamado');
+      int? currentChamado = idPedido ?? prefs.getInt('currentChamado');
+      int? userid = idMotoboy ?? prefs.getInt('idUser');
 
-      if (currentChamado == null) {
+      if (currentChamado == null ||
+          userid == null ||
+          codigo == null ||
+          codigo.isEmpty) {
         print("❌ ERRO: currentChamado não encontrado no SharedPreferences.");
         return false;
       }
@@ -700,13 +756,26 @@ class API {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: json.encode({'chamado': currentChamado}),
+        body: json.encode({
+          'chamado': currentChamado,
+          'userid': userid,
+          'codigo': codigo,
+        }),
       );
 
       print("Status HTTP = ${response.statusCode}");
 
       if (response.statusCode == 200) {
         print("✅ Sucesso ao notificar o servidor: ${response.body}");
+        if (response.body.trim().isNotEmpty) {
+          final data = json.decode(response.body);
+          if (data is Map && data['valorEntrega'] != null) {
+            final rawValor = data['valorEntrega'];
+            ultimoValorEntrega = rawValor is num
+                ? rawValor.toDouble()
+                : double.tryParse(rawValor.toString());
+          }
+        }
         return true;
       } else {
         print("❌ Falha ao notificar servidor: ${response.body}");
@@ -1056,8 +1125,14 @@ class API {
     }
 
     final data = json.decode(response.body);
+    print("Resposta entrega ativa: $data");
 
     if (data['success'] != true) {
+      return null;
+    }
+
+    if (!EntregaAtiva.canParse(data)) {
+      print("Entrega ativa sem dados do pedido: $data");
       return null;
     }
 

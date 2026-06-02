@@ -22,16 +22,59 @@ class EntregaAtiva {
     this.codigoFinalizacaoCliente,
   });
 
+  static int _toInt(dynamic value, {int fallback = 0}) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  static String _toString(dynamic value, {String fallback = ''}) {
+    final text = value?.toString();
+    return text == null || text.isEmpty ? fallback : text;
+  }
+
+  static Map<String, dynamic>? _extractPedido(Map<String, dynamic> json) {
+    final pedido = json['pedido'] ?? json['data'] ?? json['entrega'];
+
+    if (pedido is Map) {
+      return Map<String, dynamic>.from(pedido);
+    }
+
+    if (json.containsKey('idPed') ||
+        json.containsKey('idPedido') ||
+        json.containsKey('chamado')) {
+      return json;
+    }
+
+    return null;
+  }
+
+  static bool canParse(Map<String, dynamic> json) {
+    return _extractPedido(json) != null;
+  }
+
   factory EntregaAtiva.fromJson(Map<String, dynamic> json) {
-    final pedido = json['pedido'];
+    final pedido = _extractPedido(json);
+
+    if (pedido == null) {
+      throw FormatException('Resposta de entrega ativa sem dados do pedido.');
+    }
 
     return EntregaAtiva(
-      idPedido: pedido['idPed'],
-      codigoRetirada: pedido['confirmCode'].toString(),
-      fornecedor: pedido['fornecedor'] ?? '',
-      enderecoFornecedor: pedido['enderecoFornecedor'] ?? '',
-      codigoColeta: pedido['codigoColeta'],
-      status: pedido['status'],
+      idPedido: _toInt(
+        pedido['idPed'] ?? pedido['idPedido'] ?? pedido['chamado'],
+      ),
+      codigoRetirada: _toString(
+        pedido['confirmCode'] ??
+            pedido['codigoRetirada'] ??
+            pedido['codigoFornecedor'] ??
+            pedido['codigoColeta'],
+      ),
+      fornecedor: _toString(pedido['fornecedor']),
+      enderecoFornecedor:
+          _toString(pedido['enderecoFornecedor'] ?? pedido['enderIN']),
+      codigoColeta: pedido['codigoColeta']?.toString(),
+      status: _toInt(pedido['status']),
     );
   }
 }
