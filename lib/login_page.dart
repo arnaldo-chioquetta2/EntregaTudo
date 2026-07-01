@@ -7,6 +7,7 @@ import 'package:entregatudo/auth_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:entregatudo/register_page.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'forgot_password_page.dart';
 
 // 1.4.4 MotoBoy e Fornecedor ao mesmo tempo
 // 1.4.1 Recusa por versão antiga
@@ -236,6 +237,17 @@ class _LoginPageState extends State<LoginPage> {
                     _rememberPassword = val ?? false;
                   });
                 },
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ForgotPasswordPage(),
+                    ),
+                  );
+                },
+                child: const Text("Esqueci minha senha"),
               ),
               const SizedBox(height: 16),
               ElevatedButton(

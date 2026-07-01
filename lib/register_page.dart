@@ -60,6 +60,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final FocusNode _focusDistancia = FocusNode();
 
   bool _cadastrando = false;
+  bool _mostrarBotaoConvitePadrao = true;
 
   final _formKey = GlobalKey<FormState>();
 
@@ -99,6 +100,14 @@ class _RegisterPageState extends State<RegisterPage> {
         _inviteStatus = "Erro ao validar convite.";
       });
     }
+  }
+
+  Future<void> _usarConvitePadrao() async {
+    setState(() {
+      _mostrarBotaoConvitePadrao = false;
+      _inviteController.text = 'TELETUDO';
+    });
+    await _verifyInvite();
   }
 
   @override
@@ -331,6 +340,16 @@ class _RegisterPageState extends State<RegisterPage> {
                     )
                   : const Text("Cadastrar"),
             ),
+            if (_mostrarBotaoConvitePadrao) ...[
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: _cadastrando ? null : _usarConvitePadrao,
+                child: const Text(
+                  "Não tenho o convite",
+                  style: TextStyle(fontSize: 13),
+                ),
+              ),
+            ],
           ],
         ),
       ),

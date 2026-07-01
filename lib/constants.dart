@@ -1,5 +1,5 @@
 class AppConfig {
-  static const String versaoApp = '1.4.7';
+  static const String versaoApp = '1.4.9';
 
   static int get versaoAppInt {
     final p = versaoApp.split('.');
@@ -13,6 +13,8 @@ class AppConfig {
 // VERSÃO NÃO ENVIADA AO SERVIDOR
 
 // VERSÃO JÁ ENVIADA AO SERVIDOR
+// 1.4.9 Esqueci minha senha
+// 1.4.8 Permite entrar sem convite
 // 1.4.7 Fornecedor por horários
 // 1.4.6 Correção do convite que estava aparecendo um errado no painel do captador
 // 1.4.5 Correção dos valores de configuração do MotoBoy

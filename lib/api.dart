@@ -41,6 +41,104 @@ class API {
     );
   }
 
+  static Future<Map<String, dynamic>> forgotPassword(String user) async {
+    try {
+      final response = await http.post(
+        Uri.parse("https://teletudo.com/api/password/forgot"),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'user': user,
+          'versaoApp': AppConfig.versaoAppInt,
+          'sistema': PlataformaInfo.sistema,
+          'versaoSO': PlataformaInfo.versao,
+        }),
+      );
+
+      await API.logApp(
+        "forgotPassword",
+        "HTTP ${response.statusCode}",
+      );
+
+      if (response.statusCode != 200) {
+        return {
+          'Erro': 1,
+          'msg': 'Não foi possível processar a solicitação. Tente novamente.',
+        };
+      }
+
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+
+      return {
+        'Erro': 1,
+        'msg': 'Não foi possível processar a solicitação. Tente novamente.',
+      };
+    } catch (_) {
+      await API.logApp("forgotPassword", "Exception");
+      return {
+        'Erro': 1,
+        'msg': 'Não foi possível processar a solicitação. Tente novamente.',
+      };
+    }
+  }
+
+  static Future<Map<String, dynamic>> resetPassword({
+    required String user,
+    required String code,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse("https://teletudo.com/api/password/reset"),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'user': user,
+          'code': code,
+          'new_password': newPassword,
+          'versaoApp': AppConfig.versaoAppInt,
+          'sistema': PlataformaInfo.sistema,
+          'versaoSO': PlataformaInfo.versao,
+        }),
+      );
+
+      await API.logApp(
+        "resetPassword",
+        "HTTP ${response.statusCode}",
+      );
+
+      if (response.statusCode != 200) {
+        return {
+          'Erro': 1,
+          'msg': 'Não foi possível processar a solicitação. Tente novamente.',
+        };
+      }
+
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+
+      return {
+        'Erro': 1,
+        'msg': 'Não foi possível processar a solicitação. Tente novamente.',
+      };
+    } catch (_) {
+      await API.logApp("resetPassword", "Exception");
+      return {
+        'Erro': 1,
+        'msg': 'Não foi possível processar a solicitação. Tente novamente.',
+      };
+    }
+  }
+
   static Future<Map<String, dynamic>> saveConfigurations(
     double minValue,
     double kmRate,
