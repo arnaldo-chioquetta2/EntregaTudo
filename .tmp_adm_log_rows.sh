@@ -1,0 +1,2 @@
+cd /var/www/teletudo
+php -r 'require "vendor/autoload.php"; $app=require "bootstrap/app.php"; $kernel=$app->make(Illuminate\Contracts\Console\Kernel::class); $kernel->bootstrap(); $rows=Illuminate\Support\Facades\DB::table("tt_LogDebug")->select("id","Caminho","Header","Tipo","created_at","momento")->where("Caminho","AdmController")->orderByDesc("id")->limit(10)->get(); foreach($rows as $row){ echo $row->id," | ",$row->Caminho," | ",$row->Header," | ",$row->Tipo," | ",$row->created_at," | ",$row->momento,PHP_EOL; }'

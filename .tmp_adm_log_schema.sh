@@ -1,0 +1,2 @@
+cd /var/www/teletudo
+php -r 'require "vendor/autoload.php"; $app=require "bootstrap/app.php"; $kernel=$app->make(Illuminate\Contracts\Console\Kernel::class); $kernel->bootstrap(); $cols=Illuminate\Support\Facades\DB::select("DESCRIBE tt_LogDebug"); foreach($cols as $col){ echo $col->Field,PHP_EOL; }'

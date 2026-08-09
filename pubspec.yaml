@@ -19,8 +19,9 @@ dependencies:
   permission_handler: ^11.0.1
   flutter_secure_storage: ^9.2.2
   url_launcher: ^6.3.0
-  font_awesome_flutter: ^10.7.0
+  font_awesome_flutter: ^11.0.0
   audioplayers: ^6.0.0
+  package_info_plus: ^9.0.1
 
 dev_dependencies:
   flutter_test:

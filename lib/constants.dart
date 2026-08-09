@@ -1,5 +1,5 @@
 class AppConfig {
-  static const String versaoApp = '1.4.9';
+  static const String versaoApp = '1.5.2';
 
   static int get versaoAppInt {
     final p = versaoApp.split('.');
@@ -13,6 +13,9 @@ class AppConfig {
 // VERSÃO NÃO ENVIADA AO SERVIDOR
 
 // VERSÃO JÁ ENVIADA AO SERVIDOR
+// 1.5.2 Mostra se tem atualização do App
+// 1.5.1 Correção da convite whats
+// 1.5.0 Entregadores Favoritos
 // 1.4.9 Esqueci minha senha
 // 1.4.8 Permite entrar sem convite
 // 1.4.7 Fornecedor por horários

@@ -9,6 +9,16 @@ import 'package:entregatudo/constants.dart';
 import 'package:entregatudo/models/entrega_ativa.dart';
 import 'package:entregatudo/models/delivery_details.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'services/web_debug_log_service.dart';
+
+class ApiRequestException implements Exception {
+  const ApiRequestException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
 
 // 1.4.8 Ajustes nas Apis
 // 1.4.7 Fornecedor por horários
@@ -17,6 +27,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 class API {
   static final LocationService _locationService = LocationService();
   static double? ultimoValorEntrega;
+
+  static void _loginDebug(String message) {
+    WebDebugLogService.instance.add(message);
+    print('[API.veLogin] $message');
+  }
 
   static Future<http.Response> _realizarRequisicaoLogin(
       String user, String password, double lat, double lon) {
@@ -500,19 +515,26 @@ class API {
     return null;
   }
 
-  // curl -X POST https://teletudo.com/api/login -H "Content-Type: application/json" -H "Accept: application/json" -d "{\"user\": \"teste\", \"password\": \"teste\", \"lat\": -23.55052, \"lon\": -46.633308}" -k
+  // Login endpoint: https://teletudo.com/api/login
 
   static Future<String> veLogin(
       String user, String password, double lat, double lon) async {
+    _loginDebug('INICIANDO LOGIN');
+    if (kIsWeb) {
+      _loginDebug('origin=${Uri.base.origin}');
+    }
     print("==============================================");
     print("[API.veLogin] INICIANDO LOGIN");
     print("[API.veLogin] user=$user  password=***  lat=$lat lon=$lon");
 
     try {
+      _loginDebug('requisicao_iniciada');
       final response = await _realizarRequisicaoLogin(user, password, lat, lon);
 
+      _loginDebug(
+          'resposta_recebida status=${response.statusCode} bytes=${response.body.length}');
       print("[API.veLogin] HTTP STATUS: ${response.statusCode}");
-      print("[API.veLogin] RAW: ${response.body}");
+      print("[API.veLogin] resposta recebida (${response.body.length} bytes)");
 
       // ------------------------------------------------------
       // 🔥 Tentar decodificar JSON SEMPRE — mesmo em erro 403
@@ -521,26 +543,27 @@ class API {
 
       try {
         ret = json.decode(response.body) as Map<String, dynamic>;
+        _loginDebug(
+            'json_decodificado Erro=${ret['Erro'].runtimeType} id=${ret['id'].runtimeType} token=${ret['token'].runtimeType}');
       } catch (_) {
+        _loginDebug('ERRO_2 resposta_nao_json');
         await _registrarErro("ERRO_2 - JSON inválido no login", {
           "statusCode": response.statusCode,
-          "body": response.body,
-          "user": user,
         });
 
         return "ERRO_2";
       }
 
       // 🔥 Agora ret nunca mais é nulo → podemos usar !
-      final int erro = ret!["Erro"] ?? 1;
+      final int erro = _asInt(ret!["Erro"]) ?? 1;
       print("[API.veLogin] campo Erro = $erro");
 
       // ------------------------------------------------------
       // 🔥 1) Bloqueio de versão antiga (Erro = 5)
       // ------------------------------------------------------
       if (erro == 5) {
-        final int versaoAtualInt = ret["versaoAtual"] ?? 0;
-        final int versaoMinInt = ret["versaoMin"] ?? 0;
+        final int versaoAtualInt = _asInt(ret["versaoAtual"]) ?? 0;
+        final int versaoMinInt = _asInt(ret["versaoMin"]) ?? 0;
 
         final versaoAtual = formatarVersaoInt(versaoAtualInt);
         final versaoMin = formatarVersaoInt(versaoMinInt);
@@ -557,11 +580,13 @@ class API {
       // 🔥 2) Qualquer outro erro HTTP ≠ 200
       // ------------------------------------------------------
       if (response.statusCode != 200) {
+        _loginDebug('resposta_negada status=${response.statusCode} Erro=$erro');
+        if (response.statusCode == 401 || erro == 4) {
+          return "Usuário ou senha inválidos.";
+        }
         await _registrarErro("ERRO_1 - Status != 200", {
           "statusCode": response.statusCode,
-          "body": response.body,
           "json": ret,
-          "user": user,
         });
         return "ERRO_1";
       }
@@ -570,10 +595,10 @@ class API {
       // 🔥 3) Erros normais
       // ------------------------------------------------------
       if (erro != 0) {
+        _loginDebug('backend_retornou_erro Erro=$erro');
         await _registrarErro("ERRO_3 - backend retornou erro", {
           "erro": erro,
           "json": ret,
-          "user": user,
         });
         return "ERRO_3";
       }
@@ -583,22 +608,173 @@ class API {
       // ------------------------------------------------------
       await _salvarDadosLogin(ret);
 
+      _loginDebug('retorno_sucesso');
       print("[API.veLogin] ✅ LOGIN OK");
       print("==============================================");
 
       return "";
     } catch (e, st) {
-      print("[API.veLogin] ❌ ERRO_4 EXCEPTION: $e");
-      print("[API.veLogin] STACKTRACE: $st");
+      _loginDebug('ERRO_4 tipo=${e.runtimeType} mensagem=$e stackTrace=$st');
+      print("[API.veLogin] ERRO_4 tipo=${e.runtimeType}");
+      print("[API.veLogin] ERRO_4 mensagem=$e");
+      print("[API.veLogin] ERRO_4 stackTrace=$st");
 
       await _registrarErro("ERRO_4 - Exception geral", {
         "exception": e.toString(),
         "stack": st.toString(),
-        "user": user,
       });
 
       return "ERRO_4";
     }
+  }
+
+  static Future<int> _preferencesUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getInt('idUser');
+    if (userId == null || userId <= 0) {
+      throw const ApiRequestException('Usuario nao identificado.');
+    }
+    return userId;
+  }
+
+  static Map<String, String> _preferencesJsonHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+  }
+
+  static Future<Map<String, dynamic>> getFornecedorEntregadorPreferencias() async {
+    final userId = await _preferencesUserId();
+    final response = await http.get(
+      Uri.parse('https://teletudo.com/api/fornecedor/entregadores/preferencias')
+          .replace(queryParameters: {'userid': userId.toString()}),
+      headers: _preferencesJsonHeaders(),
+    ).timeout(const Duration(seconds: 15));
+    return _decodeApiMap(response);
+  }
+
+  static Future<Map<String, dynamic>> buscarFornecedorEntregadores(String query) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('idUser');
+      final normalizedQuery = query.trim();
+      print('[API.buscarFornecedorEntregadores] userid presente: '
+          '${userId != null && userId > 0 ? 'sim' : 'nao'}');
+      print('[API.buscarFornecedorEntregadores] query="$normalizedQuery"');
+      if (userId == null || userId <= 0) {
+        throw const ApiRequestException('Usuario nao identificado.');
+      }
+
+      final uri = Uri.parse('https://teletudo.com/api/fornecedor/entregadores/buscar')
+          .replace(queryParameters: {
+        'userid': userId.toString(),
+        'q': normalizedQuery,
+      });
+      print('[API.buscarFornecedorEntregadores] url=$uri');
+      print('[API.buscarFornecedorEntregadores] requisicao_iniciada');
+      final response = await http
+          .get(uri, headers: _preferencesJsonHeaders())
+          .timeout(const Duration(seconds: 15));
+      print('[API.buscarFornecedorEntregadores] status=${response.statusCode}');
+      print('[API.buscarFornecedorEntregadores] bytes=${response.body.length}');
+      if (response.statusCode >= 400) {
+        print('[API.buscarFornecedorEntregadores] '
+            'erro_http status=${response.statusCode}');
+      }
+
+      try {
+        final decoded = jsonDecode(response.body);
+        final bodyType = decoded is Map
+            ? 'map'
+            : decoded is List
+                ? 'list'
+                : 'outro';
+        final quantity = decoded is Map && decoded['items'] is List
+            ? (decoded['items'] as List).length
+            : decoded is List
+                ? decoded.length
+                : 0;
+        print('[API.buscarFornecedorEntregadores] body_tipo=$bodyType');
+        print('[API.buscarFornecedorEntregadores] quantidade_resultados=$quantity');
+      } catch (error) {
+        print('[API.buscarFornecedorEntregadores] erro_parse=$error');
+      }
+
+      return _decodeApiMap(response);
+    } catch (error) {
+      print('[API.buscarFornecedorEntregadores] excecao=${error.runtimeType}');
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> favoritosRecebidos(int userId) async {
+    final uri = Uri.parse(
+      'https://teletudo.com/api/entregador/favoritos-recebidos',
+    ).replace(queryParameters: {'userid': userId.toString()});
+    print('[API.favoritosRecebidos] userid presente: sim');
+    print('[API.favoritosRecebidos] url=$uri');
+    print('[API.favoritosRecebidos] requisicao_iniciada');
+    try {
+      final response = await http
+          .get(uri, headers: _preferencesJsonHeaders())
+          .timeout(const Duration(seconds: 15));
+      print('[API.favoritosRecebidos] status=${response.statusCode}');
+      print('[API.favoritosRecebidos] bytes=${response.body.length}');
+      return _decodeApiMap(response);
+    } catch (error) {
+      print('[API.favoritosRecebidos] excecao=${error.runtimeType}');
+      rethrow;
+    }
+  }
+
+  static Future<bool> marcarFornecedorEntregador(int idEntregador, String tipo) async {
+    final userId = await _preferencesUserId();
+    final response = await http.post(
+      Uri.parse('https://teletudo.com/api/fornecedor/entregadores/$idEntregador/$tipo')
+          .replace(queryParameters: {'userid': userId.toString()}),
+      headers: _preferencesJsonHeaders(),
+      body: jsonEncode({'userid': userId}),
+    ).timeout(const Duration(seconds: 15));
+    return _decodeApiMap(response)['success'] == true;
+  }
+
+  static Future<bool> removerFornecedorEntregadorPreferencia(int idEntregador) async {
+    final userId = await _preferencesUserId();
+    final response = await http.delete(
+      Uri.parse('https://teletudo.com/api/fornecedor/entregadores/$idEntregador/preferencia')
+          .replace(queryParameters: {'userid': userId.toString()}),
+      headers: _preferencesJsonHeaders(),
+      body: jsonEncode({'userid': userId}),
+    ).timeout(const Duration(seconds: 15));
+    return _decodeApiMap(response)['success'] == true;
+  }
+
+  static Map<String, dynamic> _decodeApiMap(http.Response response) {
+    if (response.statusCode == 401) {
+      throw const ApiRequestException('Sua sessao expirou. Entre novamente.');
+    }
+    if (response.statusCode == 403) {
+      throw const ApiRequestException('Voce nao tem permissao para esta operacao.');
+    }
+    if (response.statusCode == 404) {
+      throw const ApiRequestException('Recurso nao encontrado.');
+    }
+    if (response.statusCode == 422) {
+      throw const ApiRequestException('Dados invalidos para esta operacao.');
+    }
+    if (response.statusCode >= 500) {
+      throw const ApiRequestException('Servidor indisponivel. Tente novamente.');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is Map<String, dynamic>) return decoded;
+    throw const FormatException('Resposta inválida do servidor.');
+  }
+
+  static int? _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
   }
 
   static String formatarVersaoInt(int v) {
@@ -630,12 +806,13 @@ class API {
   }
 
   static Future<void> _salvarDadosLogin(Map<String, dynamic> ret) async {
+    _loginDebug('shared_preferences_iniciada');
     final prefs = await SharedPreferences.getInstance();
 
     // ------------------------------------------------------
     // 🔹 Dados básicos
     // ------------------------------------------------------
-    final int idUser = ret["id"] ?? 0;
+    final int idUser = _asInt(ret["id"]) ?? 0;
     await prefs.setInt('idUser', idUser);
 
     final String nomeUser = (ret["nome"] ?? "").toString();
@@ -652,7 +829,7 @@ class API {
 
     int idLoja = 0;
     if (ehFornecedor) {
-      idLoja = ret["id_loja"] ?? 0;
+      idLoja = _asInt(ret["id_loja"]) ?? 0;
       await prefs.setInt('idLoja', idLoja);
       print("idLoja = $idLoja");
     } else {
@@ -677,7 +854,9 @@ class API {
     // 🔥 CONVITE (AQUI ESTAVA O BUG)
     // ------------------------------------------------------
     final token = ret["token"];
-    if (token is Map<String, dynamic>) {
+    if (token is String && token.isNotEmpty) {
+      await prefs.setString('authToken', token);
+    } else if (token is Map<String, dynamic>) {
       final convite = token["convite"]?.toString().trim();
       if (convite != null && convite.isNotEmpty) {
         await prefs.setString('convite', convite);
@@ -686,6 +865,7 @@ class API {
         print("[API.veLogin] Nenhum convite no token");
       }
     } else {
+      await prefs.remove('authToken');
       print("[API.veLogin] Token inexistente ou inválido");
     }
 
@@ -696,6 +876,7 @@ class API {
         "isMotoboy=$ehMotoboy | "
         "isFornecedor=$ehFornecedor | "
         "idLoja=$idLoja");
+    _loginDebug('shared_preferences_concluida');
   }
 
   static Future<void> _registrarErro(String msg, Map<String, dynamic> info) {

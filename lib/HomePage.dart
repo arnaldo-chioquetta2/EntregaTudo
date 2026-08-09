@@ -4,6 +4,9 @@ import 'settingsPage.dart';
 import 'package:intl/intl.dart';
 import 'models/entrega_ativa.dart';
 import 'package:entregatudo/api.dart';
+import 'package:entregatudo/app_update_info.dart';
+import 'package:entregatudo/app_update_service.dart';
+import 'package:entregatudo/constants.dart';
 import 'services/entrega_service.dart';
 import 'package:flutter/material.dart';
 import 'features/location_service.dart';
@@ -13,14 +16,15 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:entregatudo/utils/online_status_service.dart';
+import 'fornecedor_entregadores_preferences_page.dart';
 
 // 1.4.8 Ajustes nas Apis
-// 1.4.7 Fornecedor por horários
+// 1.4.7 Fornecedor por horÃƒÂ¡rios
 // 1.4.4 MotoBoy e Fornecedor ao mesmo tempo
 // 1.4.3 Modo offline para MotoBoy e Fornecedor
-// 1.4.0 Correção estavam sendo mostradas vendas falsas
+// 1.4.0 CorreÃƒÂ§ÃƒÂ£o estavam sendo mostradas vendas falsas
 // 1.3.9 Fornecedor recebe aviso pelo App sobre a venda
-// 1.2.4 Conserto do link para as configurações
+// 1.2.4 Conserto do link para as configuraÃƒÂ§ÃƒÂµes
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -54,6 +58,8 @@ class _HomePageState extends State<HomePage> {
   bool isFornecedor = false;
   bool isMotoBoyOnline = false;
   bool isFornecedorOnline = false;
+  int _quantidadeFavoritosRecebidos = 0;
+  String? _nomeEmpresaFavorita;
   bool hbPausadoPorEntrega = false;
   bool hbPausadoPorVenda = false;
   bool proximoEhFornecedor = true;
@@ -62,6 +68,7 @@ class _HomePageState extends State<HomePage> {
   String? erroCodigoCliente;
   bool enviandoCodigoCliente = false;
   double? valorEntregaAtual;
+  AppUpdateInfo? _appUpdateInfo;
 
   EntregaAtiva? entregaAtiva;
 
@@ -115,38 +122,73 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _initLogFile();
 
-    // 🔥 Carrega estados de online/offline
+    // Ã°Å¸â€Â¥ Carrega estados de online/offline
     _carregarOnlineStatus();
 
-    // 🔥 Continua fluxo normal
+    // Ã°Å¸â€Â¥ Continua fluxo normal
     _initFuture = _verificarLoginOuCadastro();
+    _verificarAtualizacaoApp();
+  }
+
+  Future<void> _verificarAtualizacaoApp() async {
+    debugPrint('[HomePage][AppUpdate] verificacao_solicitada');
+    final resultado = await AppUpdateService.checkForUpdate();
+    if (!mounted) {
+      debugPrint('[HomePage][AppUpdate] tela_descartada_antes_do_resultado');
+      return;
+    }
+    setState(() => _appUpdateInfo = resultado);
+    debugPrint('[HomePage][AppUpdate] consulta_concluida');
+    debugPrint('[HomePage][AppUpdate] status=' + resultado.status.name);
+    debugPrint('[HomePage][AppUpdate] current_version=' +
+        (resultado.currentVersion ?? '(indisponivel)'));
+    debugPrint('[HomePage][AppUpdate] latest_version=' +
+        (resultado.latestVersion ?? '(indisponivel)'));
+    debugPrint('[HomePage][AppUpdate] update_available=' +
+        (resultado.status == AppUpdateStatus.updateAvailable).toString());
+    debugPrint('[HomePage][AppUpdate] estado_atualizado');
+  }
+
+  Future<void> _abrirDownloadAtualizacao() async {
+    final info = _appUpdateInfo;
+    if (info == null) return;
+    debugPrint('[HomePage][AppUpdate] download_acionado');
+    final opened = await AppUpdateService.openDownload(info);
+    debugPrint('[HomePage][AppUpdate] download_aberto=' + opened.toString());
+    if (!mounted || opened) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+          content:
+              Text('NÃ£o foi possÃ­vel abrir o download da atualizaÃ§Ã£o.')),
+    );
   }
 
   Future<void> _verificarLoginOuCadastro() async {
     if (isCheckingLogin) {
-      _log('Ignorado: verificação já em andamento.');
+      _log('Ignorado: verificaÃƒÂ§ÃƒÂ£o jÃƒÂ¡ em andamento.');
       return;
     }
     isCheckingLogin = true;
-    _log("Iniciando verificação de login ou cadastro");
+    _log("Iniciando verificaÃƒÂ§ÃƒÂ£o de login ou cadastro");
 
     try {
       final prefs = await SharedPreferences.getInstance();
       userId = prefs.getInt('idUser');
 
       // ============================================================
-      // PERFIS – O usuário pode ser SOMENTE motoboy OU fornecedor
+      // PERFIS Ã¢â‚¬â€œ O usuÃƒÂ¡rio pode ser SOMENTE motoboy OU fornecedor
       // ============================================================
       isFornecedor = prefs.getBool('isFornecedor') ?? false;
       isMotoboy = prefs.getBool('isMotoboy') ?? false;
 
-      _log("Perfis carregados → Motoboy=$isMotoboy | Fornecedor=$isFornecedor");
+      _log(
+          "Perfis carregados Ã¢â€ â€™ Motoboy=$isMotoboy | Fornecedor=$isFornecedor");
 
       // ============================================================
       // VERIFICA LOGIN
       // ============================================================
       if (userId == null || userId == 0) {
-        _log("Usuário não logado. Indo para tela de registro.");
+        _log("UsuÃ¡rio nÃ£o logado. Indo para tela de registro.");
         if (!mounted) return;
         Navigator.of(context).pushReplacementNamed('/register');
         return;
@@ -160,19 +202,28 @@ class _HomePageState extends State<HomePage> {
         _log("idLoja carregado = $idLoja");
       }
 
+      if (isMotoboy) {
+        await _carregarFavoritosRecebidos();
+      } else {
+        print(
+            '[PerfilEntregador] carregamento_ignorado motivo=usuario_nao_motoboy');
+      }
+
       // ============================================================
       // CARREGAR ESTADO ONLINE/OFFLINE
       // ============================================================
       isMotoBoyOnline = await OnlineStatusService.getMotoStatus();
-      isFornecedorOnline = await OnlineStatusService.getFornecedorStatus();
+      isFornecedorOnline = isFornecedor
+          ? await OnlineStatusService.getFornecedorStatus()
+          : false;
 
       _log(
-          "OnlineStatus → MotoBoy=$isMotoBoyOnline | Fornecedor=$isFornecedorOnline");
+          "OnlineStatus Ã¢â€ â€™ MotoBoy=$isMotoBoyOnline | Fornecedor=$isFornecedorOnline");
 
       // ============================================================
-      // PERMISSÕES DE LOCALIZAÇÃO
+      // PERMISSÃƒâ€¢ES DE LOCALIZAÃƒâ€¡ÃƒÆ’O
       // ============================================================
-      _log("Solicitando permissões de localização…");
+      _log("Solicitando permissÃƒÂµes de localizaÃƒÂ§ÃƒÂ£oÃ¢â‚¬Â¦");
       _locationService.requestPermissions();
 
       // ============================================================
@@ -189,7 +240,7 @@ class _HomePageState extends State<HomePage> {
       // _scheduleNextHeartbeat(intervalo);
       agendarProximoHeartbeat();
 
-      _log("Verificação concluída com sucesso.");
+      _log("VerificaÃƒÂ§ÃƒÂ£o concluÃƒÂ­da com sucesso.");
     } catch (e, st) {
       _log('ERRO em _verificarLoginOuCadastro: $e\n$st');
     } finally {
@@ -208,7 +259,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Teletudo App - Entregas'),
+        title: const Text('EntregaTudo ${AppConfig.versaoApp}'),
         centerTitle: true,
       ),
       body: Center(
@@ -226,18 +277,18 @@ class _HomePageState extends State<HomePage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // ===========================================================
-                  // 🔐 ENTREGA ATIVA (NOVO BLOCO 1.5.x)
+                  // Ã°Å¸â€Â ENTREGA ATIVA (NOVO BLOCO 1.5.x)
                   // ===========================================================
                   if (entregaAtiva != null) buildEntregaAtivaCard(),
 
-                  // 🔔 Oferta nova (somente se NÃO houver entrega ativa)
+                  // Ã°Å¸â€â€ Oferta nova (somente se NÃƒÆ’O houver entrega ativa)
                   if (entregaAtiva == null &&
                       deliveryDataMotoboy != null &&
                       deliveryDataMotoboy!.containsKey('chamado'))
                     _buildDeliveryDetails(),
 
                   // ------------------------------
-                  // CONFIGURAÇÕES (somente MOTOBOY)
+                  // CONFIGURAÃƒâ€¡Ãƒâ€¢ES (somente MOTOBOY)
                   // ------------------------------
                   if (isMotoboy) ...[
                     ElevatedButton(
@@ -247,7 +298,7 @@ class _HomePageState extends State<HomePage> {
                           MaterialPageRoute(builder: (_) => SettingsPage()),
                         );
                       },
-                      child: const Text('Configurações'),
+                      child: const Text('ConfiguraÃ§Ãµes'),
                       style: ElevatedButton.styleFrom(
                         minimumSize: const Size(150, 40),
                         backgroundColor: Colors.blue,
@@ -265,6 +316,69 @@ class _HomePageState extends State<HomePage> {
                       "Saldo $saldo",
                       style: const TextStyle(fontSize: 18, color: Colors.black),
                     ),
+                    if (_appUpdateInfo?.status ==
+                            AppUpdateStatus.updateAvailable &&
+                        (_appUpdateInfo?.latestVersion?.trim().isNotEmpty ??
+                            false))
+                      Card(
+                        margin: const EdgeInsets.only(top: 10, bottom: 10),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.system_update),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Nova versÃ£o ' +
+                                          _appUpdateInfo!.latestVersion! +
+                                          ' disponÃ­vel',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: _abrirDownloadAtualizacao,
+                                  child: Text('Atualizar para ' +
+                                      _appUpdateInfo!.latestVersion!),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    if (isMotoboy &&
+                        _quantidadeFavoritosRecebidos == 1 &&
+                        _nomeEmpresaFavorita != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          '${_nomeEmpresaFavorita!} tem vocÃª como favorito',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.blue,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    if (isMotoboy && _quantidadeFavoritosRecebidos > 1)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          '$_quantidadeFavoritosRecebidos fornecedores tÃªm vocÃª como favorito',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.blue,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 10),
                     ElevatedButton(
                       onPressed: () {
@@ -308,7 +422,7 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(height: 20),
 
                   // ---------------------------
-                  // BOTÃO ON/OFF MOTOBOY
+                  // BOTÃƒÆ’O ON/OFF MOTOBOY
                   // ---------------------------
                   if (isMotoboy) ...[
                     ElevatedButton(
@@ -338,9 +452,22 @@ class _HomePageState extends State<HomePage> {
                   ],
 
                   // ---------------------------
-                  // BOTÃO ON/OFF FORNECEDOR
+                  // BOTÃƒÆ’O ON/OFF FORNECEDOR
                   // ---------------------------
                   if (isFornecedor) ...[
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const FornecedorEntregadoresPreferencesPage(),
+                          ),
+                        );
+                      },
+                      child: const Text('PreferÃªncias de entregadores'),
+                    ),
+                    const SizedBox(height: 20),
                     ElevatedButton(
                       onPressed: () async {
                         final novoStatus = !isFornecedorOnline;
@@ -381,7 +508,7 @@ class _HomePageState extends State<HomePage> {
 
     if (data == null) return const SizedBox.shrink();
 
-    // Segurança total contra campos faltando
+    // SeguranÃƒÂ§a total contra campos faltando
     final enderIN = data['enderIN'] ?? 'Desconhecido';
     final enderFN = data['enderFN'] ?? 'Desconhecido';
 
@@ -417,13 +544,13 @@ class _HomePageState extends State<HomePage> {
               subtitle: Text('Para: $enderFN'),
             ),
 
-            // ------------------ DISTÂNCIA ------------------
+            // ------------------ DISTÃƒâ€šNCIA ------------------
             ListTile(
               leading: const Icon(Icons.map),
               title: Text(
                 dist != null
-                    ? 'Distância: ${dist.toStringAsFixed(1)} km'
-                    : 'Distância: --',
+                    ? 'DistÃ¢ncia: ${dist.toStringAsFixed(1)} km'
+                    : 'DistÃ¢ncia: --',
               ),
             ),
 
@@ -439,7 +566,7 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
 
-            // ------------------ BOTÕES ------------------
+            // ------------------ BOTÃƒâ€¢ES ------------------
             ButtonBar(
               alignment: MainAxisAlignment.center,
               children: [
@@ -478,39 +605,43 @@ class _HomePageState extends State<HomePage> {
   void _scheduleNextHeartbeat(int seconds) {
     try {
       _log(
-          "⏳ Agendando próximo heartbeat (${seconds}s)… cancelando anterior=${_timer != null}");
+          "Ã¢ÂÂ³ Agendando prÃƒÂ³ximo heartbeat (${seconds}s)Ã¢â‚¬Â¦ cancelando anterior=${_timer != null}");
 
       _timer?.cancel();
 
       _timer = Timer(Duration(seconds: seconds), () async {
-        _log("⏱ Tick do heartbeat chegou");
+        _log("Ã¢ÂÂ± Tick do heartbeat chegou");
 
         // ------------------------------------------------------
-        // 1) SE AMBOS ESTÃO OFFLINE NOS BOTÕES
+        // 1) SE AMBOS ESTÃƒÆ’O OFFLINE NOS BOTÃƒâ€¢ES
         // ------------------------------------------------------
         if (!isMotoBoyOnline && !isFornecedorOnline) {
-          _log("⚠️ Nenhum perfil está online → Heartbeat não será enviado.");
+          _log(
+              "Ã¢Å¡Â Ã¯Â¸Â Nenhum perfil estÃƒÂ¡ online Ã¢â€ â€™ Heartbeat nÃƒÂ£o serÃƒÂ¡ enviado.");
           _scheduleNextHeartbeat(seconds);
           return;
         }
 
         // ------------------------------------------------------
-        // 2) SE AMBOS ESTÃO PAUSADOS
+        // 2) SE AMBOS ESTÃƒÆ’O PAUSADOS
         // ------------------------------------------------------
         if (hbPausadoPorEntrega && hbPausadoPorVenda) {
-          _log("⚠️ Ambos os heartbeats estão PAUSADOS → Aguardando liberação.");
+          _log(
+              "Ã¢Å¡Â Ã¯Â¸Â Ambos os heartbeats estÃƒÂ£o PAUSADOS Ã¢â€ â€™ Aguardando liberaÃƒÂ§ÃƒÂ£o.");
           _scheduleNextHeartbeat(seconds);
           return;
         }
 
         // ------------------------------------------------------
-        // 3) SE USUÁRIO É APENAS MOTOBOY
+        // 3) SE USUÃƒÂRIO Ãƒâ€° APENAS MOTOBOY
         // ------------------------------------------------------
         if (isMotoboy && !isFornecedor) {
           if (!isMotoBoyOnline) {
-            _log("⚠️ MotoBoy está offline → não enviar heartbeat.");
+            _log(
+                "Ã¢Å¡Â Ã¯Â¸Â MotoBoy estÃƒÂ¡ offline Ã¢â€ â€™ nÃƒÂ£o enviar heartbeat.");
           } else if (hbPausadoPorVenda) {
-            _log("⚠️ Heartbeat MotoBoy PAUSADO por venda do fornecedor.");
+            _log(
+                "Ã¢Å¡Â Ã¯Â¸Â Heartbeat MotoBoy PAUSADO por venda do fornecedor.");
           } else {
             await chamaHeartbeat();
           }
@@ -520,13 +651,15 @@ class _HomePageState extends State<HomePage> {
         }
 
         // ------------------------------------------------------
-        // 4) SE USUÁRIO É APENAS FORNECEDOR
+        // 4) SE USUÃƒÂRIO Ãƒâ€° APENAS FORNECEDOR
         // ------------------------------------------------------
         if (!isMotoboy && isFornecedor) {
           if (!isFornecedorOnline) {
-            _log("⚠️ Fornecedor está offline → não enviar heartbeat.");
+            _log(
+                "Ã¢Å¡Â Ã¯Â¸Â Fornecedor estÃƒÂ¡ offline Ã¢â€ â€™ nÃƒÂ£o enviar heartbeat.");
           } else if (hbPausadoPorEntrega) {
-            _log("⚠️ Heartbeat Fornecedor PAUSADO por entrega do motoboy.");
+            _log(
+                "Ã¢Å¡Â Ã¯Â¸Â Heartbeat Fornecedor PAUSADO por entrega do motoboy.");
           } else {
             await chamaHeartbeat();
           }
@@ -536,10 +669,10 @@ class _HomePageState extends State<HomePage> {
         }
 
         // ------------------------------------------------------
-        // 5) SE É AMBOS OS PERFIS
+        // 5) SE Ãƒâ€° AMBOS OS PERFIS
         // ------------------------------------------------------
         if (isMotoboy && isFornecedor) {
-          _log("Modo AMBOS ATIVOS → Decision by chamaHeartbeat()");
+          _log("Modo AMBOS ATIVOS Ã¢â€ â€™ Decision by chamaHeartbeat()");
           await chamaHeartbeat();
           _scheduleNextHeartbeat(seconds);
           return;
@@ -552,22 +685,22 @@ class _HomePageState extends State<HomePage> {
 
   void pausarHeartbeatFornecedor() {
     hbPausadoPorEntrega = true;
-    _log("⏸ HeartbeatF PAUSADO (Motoboy aceitou entrega)");
+    _log("Ã¢ÂÂ¸ HeartbeatF PAUSADO (Motoboy aceitou entrega)");
   }
 
   void pausarHeartbeatMotoBoy() {
     hbPausadoPorVenda = true;
-    _log("⏸ HeartbeatM PAUSADO (Fornecedor aceitou venda)");
+    _log("Ã¢ÂÂ¸ HeartbeatM PAUSADO (Fornecedor aceitou venda)");
   }
 
   void despausarHeartbeatFornecedor() {
     hbPausadoPorEntrega = false;
-    _log("▶ HeartbeatF DESPAUSADO");
+    _log("Ã¢â€“Â¶ HeartbeatF DESPAUSADO");
   }
 
   void despausarHeartbeatMotoBoy() {
     hbPausadoPorVenda = false;
-    _log("▶ HeartbeatM DESPAUSADO");
+    _log("Ã¢â€“Â¶ HeartbeatM DESPAUSADO");
   }
 
   Future<void> chamaHeartbeat() async {
@@ -586,7 +719,7 @@ class _HomePageState extends State<HomePage> {
       final bool usuarioEhFornecedor = isFornecedor;
 
       // ============================================================
-      // 1) SE SÓ MOTOBOY
+      // 1) SE SÃƒâ€œ MOTOBOY
       // ============================================================
       if (usuarioEhMotoboy && !usuarioEhFornecedor) {
         _log("Modo: SOMENTE MOTOBOY");
@@ -596,11 +729,11 @@ class _HomePageState extends State<HomePage> {
           _log("Heartbeat MotoBoy PAUSADO (hbPausadoPorVenda=true)");
         }
 
-        return; // continuará no finally para reagendar
+        return; // continuarÃƒÂ¡ no finally para reagendar
       }
 
       // ============================================================
-      // 2) SE SÓ FORNECEDOR
+      // 2) SE SÃƒâ€œ FORNECEDOR
       // ============================================================
       if (!usuarioEhMotoboy && usuarioEhFornecedor) {
         _log("Modo: SOMENTE FORNECEDOR");
@@ -619,9 +752,9 @@ class _HomePageState extends State<HomePage> {
       if (usuarioEhMotoboy && usuarioEhFornecedor) {
         _log("Modo: AMBOS OS PERFIS ATIVOS");
 
-        // alternância
+        // alternÃƒÂ¢ncia
         if (proximoEhFornecedor) {
-          _log("→ Tick atual: Fornecedor");
+          _log("Ã¢â€ â€™ Tick atual: Fornecedor");
 
           if (!hbPausadoPorEntrega) {
             await _processaFornecedor(prefs, latitude, longitude);
@@ -631,7 +764,7 @@ class _HomePageState extends State<HomePage> {
 
           proximoEhFornecedor = false;
         } else {
-          _log("→ Tick atual: Motoboy");
+          _log("Ã¢â€ â€™ Tick atual: Motoboy");
 
           if (!hbPausadoPorVenda) {
             await _processaMotoboy(prefs, latitude, longitude);
@@ -647,7 +780,7 @@ class _HomePageState extends State<HomePage> {
     } catch (e, st) {
       _log('ERRO em chamaHeartbeat: $e\n$st');
     } finally {
-      _log('Reagendando heartbeat (intervalo=$intervalo s)…');
+      _log('Reagendando heartbeat (intervalo=$intervalo s)Ã¢â‚¬Â¦');
       _scheduleNextHeartbeat(intervalo);
       _log('--- chamaHeartbeat END ---');
     }
@@ -655,7 +788,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _processaFornecedor(
       SharedPreferences prefs, double latitude, double longitude) async {
-    _log('Fornecedor detectado. Chamando API.sendHeartbeatF…');
+    _log('Fornecedor detectado. Chamando API.sendHeartbeatFÃ¢â‚¬Â¦');
 
     final fornecedorDetails = await API.sendHeartbeatF(latitude, longitude);
 
@@ -678,7 +811,7 @@ class _HomePageState extends State<HomePage> {
     // 1) Processar nova venda SOMENTE se REAL e completa
     // ----------------------------------------------------------
     if (temNovaVenda && novaVenda != null && itens.isNotEmpty) {
-      _log("➡ Nova venda REAL detectada!");
+      _log("Ã¢Å¾Â¡ Nova venda REAL detectada!");
 
       await prefs.setString('hora', novaVenda.hora);
       await prefs.setString('valor', novaVenda.valor);
@@ -689,12 +822,12 @@ class _HomePageState extends State<HomePage> {
       // Exibir aviso ao fornecedor (popup + som)
       await mostrarAvisoNovaVenda(novaVenda, itens);
     } else {
-      _log("Nenhuma nova venda REAL. Nada será exibido.");
+      _log("Nenhuma nova venda REAL. Nada serÃƒÂ¡ exibido.");
     }
 
     // ----------------------------------------------------------
     // 2) Atualiza SOMENTE a UI do fornecedor
-    //    (não interfere mais no deliveryData do motoboy)
+    //    (nÃƒÂ£o interfere mais no deliveryData do motoboy)
     // ----------------------------------------------------------
     setState(() {
       lojasNoRaio = fornecedorDetails.lojasNoRaio;
@@ -702,11 +835,11 @@ class _HomePageState extends State<HomePage> {
       deliveryDataFornecedor = {
         'idLoja': fornecedorDetails.idLoja,
         'lojasNoRaio': fornecedorDetails.lojasNoRaio,
-        // Se quiser adicionar mais informações no futuro, coloque aqui.
+        // Se quiser adicionar mais informaÃƒÂ§ÃƒÂµes no futuro, coloque aqui.
       };
     });
 
-    _log("Processamento Fornecedor concluído.");
+    _log("Processamento Fornecedor concluÃƒÂ­do.");
   }
 
   Future<void> _trataNovaVenda(FornecedorHeartbeatResponse fornecedorDetails,
@@ -725,7 +858,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _processaMotoboy(
       SharedPreferences prefs, double latitude, double longitude) async {
-    _log('Motoboy detectado. Chamando API.sendHeartbeat…');
+    _log('Motoboy detectado. Chamando API.sendHeartbeatÃ¢â‚¬Â¦');
 
     final deliveryDetails = await API.sendHeartbeat(latitude, longitude);
 
@@ -738,10 +871,10 @@ class _HomePageState extends State<HomePage> {
         'valor=${deliveryDetails.valor}, chamado=${deliveryDetails.chamado}');
 
     // --------------------------------------------------------------
-    // 1) Nenhum chamado válido → limpar UI motoboy
+    // 1) Nenhum chamado vÃƒÂ¡lido Ã¢â€ â€™ limpar UI motoboy
     // --------------------------------------------------------------
     if (deliveryDetails.chamado == null || deliveryDetails.chamado == 0) {
-      _log("Nenhum chamado válido (chamado=0). Limpando dados do motoboy.");
+      _log("Nenhum chamado vÃƒÂ¡lido (chamado=0). Limpando dados do motoboy.");
 
       setState(() {
         lojasNoRaio = deliveryDetails.lojasNoRaio;
@@ -752,15 +885,15 @@ class _HomePageState extends State<HomePage> {
     }
 
     // --------------------------------------------------------------
-    // 2) NÃO validar codigoConfirmacao aqui!
-    //    Apenas mostrar a entrega. Código só importa na finalização.
+    // 2) NÃƒÆ’O validar codigoConfirmacao aqui!
+    //    Apenas mostrar a entrega. CÃƒÂ³digo sÃƒÂ³ importa na finalizaÃƒÂ§ÃƒÂ£o.
     // --------------------------------------------------------------
     _log(
-        "Entrega recebida (chamado=${deliveryDetails.chamado}) → exibindo ao motoboy.");
+        "Entrega recebida (chamado=${deliveryDetails.chamado}) Ã¢â€ â€™ exibindo ao motoboy.");
     hbPausadoPorEntrega = true;
 
     // --------------------------------------------------------------
-    // 3) Parse seguro — SEM risco de null
+    // 3) Parse seguro Ã¢â‚¬â€ SEM risco de null
     // --------------------------------------------------------------
     final valorSeguro = (deliveryDetails.valor ?? 0).toDouble();
     final distSeguro = (deliveryDetails.dist ?? 0).toDouble();
@@ -793,25 +926,25 @@ class _HomePageState extends State<HomePage> {
     final currentChamado = prefs.getInt('currentChamado');
 
     if (currentChamado != deliveryDetails.chamado) {
-      _log("Novo chamado detectado — atualizando currentChamado");
+      _log("Novo chamado detectado Ã¢â‚¬â€ atualizando currentChamado");
 
       await prefs.setInt('currentChamado', deliveryDetails.chamado ?? 0);
 
       final userId = prefs.getInt('idUser');
       if (userId != null) {
-        _log("Reportando visualização ao servidor… userId=$userId");
+        _log("Reportando visualizaÃƒÂ§ÃƒÂ£o ao servidorÃ¢â‚¬Â¦ userId=$userId");
         await API.reportViewToServer(userId, deliveryDetails.chamado);
       }
     } else {
-      _log("Chamado já processado anteriormente. Ignorando report.");
+      _log("Chamado jÃƒÂ¡ processado anteriormente. Ignorando report.");
     }
 
     // --------------------------------------------------------------
-    // 6) HeartbeatFornecedoR não deve ser pausado aqui
+    // 6) HeartbeatFornecedoR nÃƒÂ£o deve ser pausado aqui
     //    Apenas quando motoboy ACEITA a entrega.
     // --------------------------------------------------------------
 
-    _log("Processamento Motoboy concluído.");
+    _log("Processamento Motoboy concluÃƒÂ­do.");
   }
 
   Future<void> mostrarAvisoNovaVenda(
@@ -866,7 +999,7 @@ class _HomePageState extends State<HomePage> {
     contagemRegressiva.cancel();
     pararSom();
     _dialogAberto = false;
-    _log("Diálogo de venda fechado.");
+    _log("DiÃƒÂ¡logo de venda fechado.");
   }
 
   Future<void> _processarFechamentoDialogo(bool recusado) async {
@@ -886,10 +1019,11 @@ class _HomePageState extends State<HomePage> {
 
     _log("Fornecedor ACEITOU nova venda.");
     hbPausadoPorVenda = true;
-    _log("⏸ Heartbeat do Motoboy pausado (hbPausadoPorVenda=true)");
+    _log("Ã¢ÂÂ¸ Heartbeat do Motoboy pausado (hbPausadoPorVenda=true)");
 
     if (idAviso != null && idPed != null) {
-      _log("Enviando confirmação da venda: idAviso=$idAviso, idPed=$idPed");
+      _log(
+          "Enviando confirmaÃƒÂ§ÃƒÂ£o da venda: idAviso=$idAviso, idPed=$idPed");
       await API.fornecedorConfirmou(idAviso, idPed);
     } else {
       _log("ERRO: idAviso ou idPed ausentes no SharedPreferences");
@@ -933,7 +1067,7 @@ class _HomePageState extends State<HomePage> {
                       (item) => Text("- ${item.produto} x${item.quantidade}")),
                   const SizedBox(height: 12),
                   Text(
-                    '⏳ Fechando em $segundosRestantes s',
+                    'Ã¢ÂÂ³ Fechando em $segundosRestantes s',
                     style: const TextStyle(color: Colors.red),
                   ),
                 ],
@@ -965,12 +1099,12 @@ class _HomePageState extends State<HomePage> {
 
     if (userId == null || deliveryId == null) {
       setState(() {
-        statusMessage = "Erro: Dados da entrega não encontrados.";
+        statusMessage = "Erro: Dados da entrega nÃ£o encontrados.";
       });
       return;
     }
 
-    _log("📦 Respondendo entrega $deliveryId | accept=$accept");
+    _log("Ã°Å¸â€œÂ¦ Respondendo entrega $deliveryId | accept=$accept");
 
     final sucesso = await API.respondToDelivery(userId, deliveryId, accept);
 
@@ -982,7 +1116,7 @@ class _HomePageState extends State<HomePage> {
     }
 
     // -----------------------------
-    // 🔴 CASO RECUSA
+    // Ã°Å¸â€Â´ CASO RECUSA
     // -----------------------------
     if (!accept) {
       setState(() {
@@ -992,14 +1126,14 @@ class _HomePageState extends State<HomePage> {
       });
 
       hbPausadoPorEntrega = false;
-      _log("✔ Entrega recusada → heartbeat liberado.");
+      _log("Ã¢Å“â€ Entrega recusada Ã¢â€ â€™ heartbeat liberado.");
       return;
     }
 
     // -----------------------------
-    // 🟢 CASO ACEITE
+    // Ã°Å¸Å¸Â¢ CASO ACEITE
     // -----------------------------
-    _log("✅ Entrega aceita. Buscando entrega ativa...");
+    _log("Ã¢Å“â€¦ Entrega aceita. Buscando entrega ativa...");
 
     var entrega = await EntregaService.carregarEntregaAtiva();
 
@@ -1037,22 +1171,24 @@ class _HomePageState extends State<HomePage> {
 
     hbPausadoPorEntrega = true;
 
-    _log("🔐 Código de retirada carregado: ${entrega.codigoRetirada}");
+    _log("Ã°Å¸â€Â CÃ³digo de retirada carregado: ${entrega.codigoRetirada}");
   }
 
   Future<void> handleDeliveryCompleted() async {
-    _log("Entrega Concluída acionada.");
+    _log("Entrega ConcluÃƒÂ­da acionada.");
 
-    // 1. Mostrar tela de código
+    // 1. Mostrar tela de cÃƒÂ³digo
     final codigoCliente = _codigoClienteController.text.trim();
 
     if (codigoCliente.length != 4 || int.tryParse(codigoCliente) == null) {
-      setState(() { erroCodigoCliente = "Digite um codigo valido de 4 digitos"; });
+      setState(() {
+        erroCodigoCliente = "Digite um codigo valido de 4 digitos";
+      });
       return;
     }
 
-    // 2. Código OK → efetivar entrega
-    _log("Código verificado! Enviando encerramento...");
+    // 2. CÃƒÂ³digo OK Ã¢â€ â€™ efetivar entrega
+    _log("CÃƒÂ³digo verificado! Enviando encerramento...");
 
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getInt('idUser');
@@ -1075,17 +1211,18 @@ class _HomePageState extends State<HomePage> {
       final valorGanho = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$')
           .format(valorFinal);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Entrega concluída com sucesso!")),
+        const SnackBar(content: Text("Entrega concluÃ­da com sucesso!")),
       );
       _log("Entrega finalizada com sucesso.");
 
       // ------------------------------------------------------
-      // 🔥 NOVO: Entrega concluída → liberar HeartbeatFornecedor
+      // Ã°Å¸â€Â¥ NOVO: Entrega concluÃƒÂ­da Ã¢â€ â€™ liberar HeartbeatFornecedor
       // ------------------------------------------------------
       hbPausadoPorEntrega = false;
-      _log("✔ Entrega concluída → HeartbeatFornecedor retomado");
+      _log(
+          "Ã¢Å“â€ Entrega concluÃƒÂ­da Ã¢â€ â€™ HeartbeatFornecedor retomado");
 
-      // opcional: limpar código salvo
+      // opcional: limpar cÃƒÂ³digo salvo
       prefs.remove('codigoConfirmacao');
 
       setState(() {
@@ -1124,7 +1261,8 @@ class _HomePageState extends State<HomePage> {
     final userId = prefs.getInt('idUser');
     final idPedido = entregaAtiva?.idPedido;
 
-    _log("Registrando chegada no fornecedor idPedido=$idPedido idMotoboy=$userId");
+    _log(
+        "Registrando chegada no fornecedor idPedido=$idPedido idMotoboy=$userId");
 
     final codigoColeta =
         entregaAtiva?.codigoColeta ?? entregaAtiva?.codigoRetirada;
@@ -1153,13 +1291,13 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> updateSaldo() async {
     if (isSaldoAtualizado) return;
-    print("Iniciando atualização do saldo");
+    print("Iniciando atualizaÃƒÂ§ÃƒÂ£o do saldo");
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getInt('idUser');
     if (userId == null) return;
 
     try {
-      print("Buscando saldo para o usuário: $userId");
+      print("Buscando saldo para o usuÃƒÂ¡rio: $userId");
       final raw = await API.saldo(userId); // ex.: "123" ou "R$ 123,45"
       print("Saldo bruto da API: '$raw'");
 
@@ -1184,9 +1322,10 @@ class _HomePageState extends State<HomePage> {
         saldo = 'R\$ 0,00';
       });
     } finally {
-      print("Atualização do saldo concluída");
+      print("AtualizaÃƒÂ§ÃƒÂ£o do saldo concluÃƒÂ­da");
     }
   }
+
   final AudioPlayer _playerAviso = AudioPlayer();
 
   void pararSomVenda() {
@@ -1196,9 +1335,14 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _carregarOnlineStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final perfilFornecedor = prefs.getBool('isFornecedor') ?? false;
     final moto = await OnlineStatusService.getMotoStatus();
-    final fornecedor = await OnlineStatusService.getFornecedorStatus();
+    final fornecedor = perfilFornecedor
+        ? await OnlineStatusService.getFornecedorStatus()
+        : false;
 
+    if (!mounted) return;
     setState(() {
       isMotoBoyOnline = moto;
       isFornecedorOnline = fornecedor;
@@ -1208,45 +1352,81 @@ class _HomePageState extends State<HomePage> {
     print("[HomePage] Fornecedor Online? $isFornecedorOnline");
   }
 
+  Future<void> _carregarFavoritosRecebidos() async {
+    print('[PerfilEntregador] carregamento_iniciado');
+    final id = userId;
+    if (id == null || id <= 0) {
+      print('[PerfilEntregador] carregamento_ignorado motivo=userid_ausente');
+      return;
+    }
+
+    print('[PerfilEntregador] userid=$id');
+    print('[PerfilEntregador] chamando_api');
+    try {
+      final data = await API.favoritosRecebidos(id);
+      final recebido = data['favoritosRecebidos'];
+      final quantidadeRaw = recebido is Map ? recebido['quantidade'] : 0;
+      final quantidade = quantidadeRaw is num
+          ? quantidadeRaw.toInt()
+          : int.tryParse('$quantidadeRaw') ?? 0;
+      final nome =
+          recebido is Map ? recebido['nomeEmpresa']?.toString().trim() : null;
+
+      print('[PerfilEntregador] status=200');
+      print('[PerfilEntregador] quantidade=$quantidade');
+      print('[PerfilEntregador] nome_empresa_presente='
+          '${nome != null && nome.isNotEmpty ? 'sim' : 'nao'}');
+      if (!mounted) return;
+      setState(() {
+        _quantidadeFavoritosRecebidos = quantidade;
+        _nomeEmpresaFavorita = nome != null && nome.isNotEmpty ? nome : null;
+      });
+      print('[PerfilEntregador] estado_atualizado');
+    } catch (error) {
+      print('[PerfilEntregador] erro=${error.runtimeType}: $error');
+    }
+  }
+
   Future<void> executarHeartbeat() async {
-    _log("🔥 executarHeartbeat() chamado.");
+    _log("Ã°Å¸â€Â¥ executarHeartbeat() chamado.");
 
     // =========================================================
-    // ⛔ 1) PAUSA GLOBAL DO MOTOBOY ENQUANTO ELE ESTÁ ANALISANDO ENTREGA
+    // Ã¢â€ºâ€ 1) PAUSA GLOBAL DO MOTOBOY ENQUANTO ELE ESTÃƒÂ ANALISANDO ENTREGA
     // =========================================================
     if (isMotoboy && hbPausadoPorEntrega) {
-      _log("⛔ Heartbeat Motoboy PAUSADO (aguardando decisão do motoboy)");
+      _log(
+          "Ã¢â€ºâ€ Heartbeat Motoboy PAUSADO (aguardando decisÃƒÂ£o do motoboy)");
       agendarProximoHeartbeat();
       return;
     }
 
     // =========================================================
-    // 1) Usuário é AMBOS
+    // 1) UsuÃƒÂ¡rio ÃƒÂ© AMBOS
     // =========================================================
     if (isMotoboy && isFornecedor) {
-      // 👉 Se Motoboy está em entrega → PAUSAR Fornecedor
+      // Ã°Å¸â€˜â€° Se Motoboy estÃƒÂ¡ em entrega Ã¢â€ â€™ PAUSAR Fornecedor
       if (hbPausadoPorEntrega) {
-        _log("⛔ Heartbeat Fornecedor PAUSADO por entrega do Motoboy.");
+        _log("Ã¢â€ºâ€ Heartbeat Fornecedor PAUSADO por entrega do Motoboy.");
         await chamaHeartbeatMotoboy();
         agendarProximoHeartbeat();
         return;
       }
 
-      // 👉 Se Fornecedor está em venda → PAUSAR Motoboy
+      // Ã°Å¸â€˜â€° Se Fornecedor estÃƒÂ¡ em venda Ã¢â€ â€™ PAUSAR Motoboy
       if (hbPausadoPorVenda) {
-        _log("⛔ Heartbeat Motoboy PAUSADO por venda do Fornecedor.");
+        _log("Ã¢â€ºâ€ Heartbeat Motoboy PAUSADO por venda do Fornecedor.");
         await chamaHeartbeatFornecedor();
         agendarProximoHeartbeat();
         return;
       }
 
-      // 👉 Alternância normal
+      // Ã°Å¸â€˜â€° AlternÃƒÂ¢ncia normal
       if (proximoEhFornecedor) {
-        _log("Heartbeat → Fornecedor (alternância)");
+        _log("Heartbeat Ã¢â€ â€™ Fornecedor (alternÃƒÂ¢ncia)");
         await chamaHeartbeatFornecedor();
         proximoEhFornecedor = false;
       } else {
-        _log("Heartbeat → Motoboy (alternância)");
+        _log("Heartbeat Ã¢â€ â€™ Motoboy (alternÃƒÂ¢ncia)");
         await chamaHeartbeatMotoboy();
         proximoEhFornecedor = true;
       }
@@ -1277,7 +1457,7 @@ class _HomePageState extends State<HomePage> {
   void agendarProximoHeartbeat() {
     _timer?.cancel();
 
-    _log("⏳ Agendando próximo heartbeat em $intervalo segundos...");
+    _log("Ã¢ÂÂ³ Agendando prÃƒÂ³ximo heartbeat em $intervalo segundos...");
 
     _timer = Timer(Duration(seconds: intervalo), () {
       executarHeartbeat();
@@ -1319,11 +1499,11 @@ class _HomePageState extends State<HomePage> {
   }
 
 // ===========================================================
-// VERSÃO 1.5.0 - 2025-12-06
-// Implementação do Card de Entrega Ativa com Código de Retirada
+// VERSÃƒÆ’O 1.5.0 - 2025-12-06
+// ImplementaÃƒÂ§ÃƒÂ£o do Card de Entrega Ativa com CÃƒÂ³digo de Retirada
 // ===========================================================
   Widget buildEntregaAtivaCard() {
-    _log("📌 [v1.5.0] buildEntregaAtivaCard() renderizando");
+    _log("Ã°Å¸â€œÅ’ [v1.5.0] buildEntregaAtivaCard() renderizando");
 
     if (entregaAtiva == null) {
       return SizedBox.shrink();
@@ -1384,67 +1564,67 @@ class _HomePageState extends State<HomePage> {
             ),
             SizedBox(height: 20),
             if (!hasPickedUp) ...[
-            if (entregaAtiva!.codigoRetirada.isNotEmpty) ...[
-            Text(
-              "🔐 CÓDIGO DE RETIRADA",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 10),
-            Text(
-              entregaAtiva!.codigoRetirada,
-              style: TextStyle(
-                fontSize: 40,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 4,
-                color: Colors.black,
-              ),
-            ),
-            SizedBox(height: 10),
-            Text(
-              "Informe este código ao fornecedor para retirar o produto.",
-              textAlign: TextAlign.center,
-            ),
-            ] else ...[
+              if (entregaAtiva!.codigoRetirada.isNotEmpty) ...[
+                Text(
+                  "Ã°Å¸â€Â CÃ“DIGO DE RETIRADA",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  entregaAtiva!.codigoRetirada,
+                  style: TextStyle(
+                    fontSize: 40,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 4,
+                    color: Colors.black,
+                  ),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  "Informe este cÃ³digo ao fornecedor para retirar o produto.",
+                  textAlign: TextAlign.center,
+                ),
+              ] else ...[
+                Text(
+                  "Codigo de retirada ainda nao recebido.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  "Nao use o codigo do cliente nesta etapa.",
+                  textAlign: TextAlign.center,
+                ),
+              ],
+              SizedBox(height: 20),
               Text(
-                "Codigo de retirada ainda nao recebido.",
-                textAlign: TextAlign.center,
+                "Ã°Å¸ÂÂª ${entregaAtiva!.fornecedor}",
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
-              SizedBox(height: 10),
-              Text(
-                "Nao use o codigo do cliente nesta etapa.",
-                textAlign: TextAlign.center,
-              ),
-            ],
-            SizedBox(height: 20),
-            Text(
-              "🏪 ${entregaAtiva!.fornecedor}",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            Text(entregaAtiva!.enderecoFornecedor),
-            if (entregaAtiva!.codigoColeta != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Text(
-                  "Código de coleta: ${entregaAtiva!.codigoColeta}",
-                  style: TextStyle(fontStyle: FontStyle.italic),
+              Text(entregaAtiva!.enderecoFornecedor),
+              if (entregaAtiva!.codigoColeta != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Text(
+                    "CÃ³digo de coleta: ${entregaAtiva!.codigoColeta}",
+                    style: TextStyle(fontStyle: FontStyle.italic),
+                  ),
                 ),
-              ),
-            if (hasAcceptedDelivery && !hasPickedUp) ...[
-              SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: handlePickedUp,
-                child: const Text('Cheguei no Fornecedor'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(180, 44),
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
+              if (hasAcceptedDelivery && !hasPickedUp) ...[
+                SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: handlePickedUp,
+                  child: const Text('Cheguei no Fornecedor'),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(180, 44),
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
-              ),
-            ],
+              ],
             ],
             if (hasPickedUp && !deliveryCompleted) ...[
               SizedBox(height: 24),
@@ -1595,9 +1775,9 @@ class _HomePageState extends State<HomePage> {
   }
 
 // ===========================================================
-// VERSÃO 1.5.2 - 2026-02-15
-// Correção: buildOfertaMotoboyCard nunca retorna null
-// Exibe oferta de entrega antes da aceitação
+// VERSÃƒÆ’O 1.5.2 - 2026-02-15
+// CorreÃƒÂ§ÃƒÂ£o: buildOfertaMotoboyCard nunca retorna null
+// Exibe oferta de entrega antes da aceitaÃƒÂ§ÃƒÂ£o
 // ===========================================================
 
   Widget buildOfertaMotoboyCard() {
@@ -1617,7 +1797,7 @@ class _HomePageState extends State<HomePage> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             const Text(
-              "🚚 NOVA ENTREGA DISPONÍVEL",
+              "Ã°Å¸Å¡Å¡ NOVA ENTREGA DISPONÃVEL",
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -1628,7 +1808,7 @@ class _HomePageState extends State<HomePage> {
             Text("Origem: ${deliveryDataMotoboy!['enderIN']}"),
             Text("Destino: ${deliveryDataMotoboy!['enderFN']}"),
             const SizedBox(height: 8),
-            Text("Distância: ${deliveryDataMotoboy!['dist']} km"),
+            Text("DistÃ¢ncia: ${deliveryDataMotoboy!['dist']} km"),
             Text("Valor: R\$ ${deliveryDataMotoboy!['valor']}"),
             Text("Peso: ${deliveryDataMotoboy!['peso']} kg"),
             const SizedBox(height: 20),

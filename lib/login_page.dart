@@ -1,4 +1,6 @@
-import 'package:entregatudo/api.dart';
+﻿import 'package:entregatudo/api.dart';
+import 'package:entregatudo/app_update_info.dart';
+import 'package:entregatudo/app_update_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:entregatudo/HomePage.dart';
@@ -8,9 +10,10 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:entregatudo/register_page.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'forgot_password_page.dart';
+import 'widgets/web_debug_log_panel.dart';
 
 // 1.4.4 MotoBoy e Fornecedor ao mesmo tempo
-// 1.4.1 Recusa por versão antiga
+// 1.4.1 Recusa por versÃ£o antiga
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,17 +47,18 @@ class _LoginPageState extends State<LoginPage> {
   final _storage = const FlutterSecureStorage();
   bool _rememberPassword = true;
   bool _obscurePassword = true;
+  AppUpdateInfo? _appUpdateInfo;
 
   @override
   void initState() {
     super.initState();
     if (kIsWeb) {
       _userController.text = "teste";
-      _passwordController.text = "teste";
     } else {
       _loadSavedCredentials();
     }
     tentarSilent();
+    _verificarAtualizacao();
   }
 
   Future<void> _loadSavedCredentials() async {
@@ -65,7 +69,7 @@ class _LoginPageState extends State<LoginPage> {
       _passwordController.text = savedPass;
       await API.logApp(
         "Login",
-        "Usuário carregado do storage",
+        "UsuÃ¡rio carregado do storage",
         {"user": savedUser},
       );
     }
@@ -81,7 +85,7 @@ class _LoginPageState extends State<LoginPage> {
           '[UI] silent => success=${res.success} isNew=${res.isNewUser} userId=${res.userId}');
 
       if (!res.success) {
-        // não navega; só deixa o botão visível pra login “normal”
+        // nÃ£o navega; sÃ³ deixa o botÃ£o visÃ­vel pra login â€œnormalâ€
         return;
       }
 
@@ -100,6 +104,35 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Future<void> _verificarAtualizacao() async {
+    debugPrint('[Login][AppUpdate] consulta_iniciada');
+    final resultado = await AppUpdateService.checkForUpdate();
+    if (!mounted) {
+      debugPrint('[Login][AppUpdate] tela_descartada_antes_do_resultado');
+      return;
+    }
+    setState(() => _appUpdateInfo = resultado);
+    debugPrint('[Login][AppUpdate] consulta_concluida');
+    debugPrint('[Login][AppUpdate] status=' + resultado.status.name);
+    debugPrint('[Login][AppUpdate] current_version=' + (resultado.currentVersion ?? '(indisponivel)'));
+    debugPrint('[Login][AppUpdate] latest_version=' + (resultado.latestVersion ?? '(indisponivel)'));
+    debugPrint('[Login][AppUpdate] update_available=' + (resultado.status == AppUpdateStatus.updateAvailable).toString());
+    if (resultado.status == AppUpdateStatus.updateAvailable) {
+      debugPrint('[Login][AppUpdate] botao_exibido');
+    }
+  }
+
+  Future<void> _abrirDownloadAtualizacao() async {
+    final info = _appUpdateInfo;
+    if (info == null) return;
+    debugPrint('[Login][AppUpdate] download_acionado');
+    final opened = await AppUpdateService.openDownload(info);
+    debugPrint('[Login][AppUpdate] download_aberto=' + opened.toString());
+    if (!mounted || opened) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Não foi possível abrir o download da atualização.')),
+    );
+  }
   @override
   void dispose() {
     _isMounted = false;
@@ -125,17 +158,17 @@ class _LoginPageState extends State<LoginPage> {
   //       return;
   //     }
 
-  //     // 2) Se o backend já devolveu user_id/tokens, navegamos imediatamente
+  //     // 2) Se o backend jÃ¡ devolveu user_id/tokens, navegamos imediatamente
   //     if (init.userId != null) {
   //       if (init.isNewUser == true) {
-  //         print('[UI] login finalizado (novo usuário) → RegisterPage');
+  //         print('[UI] login finalizado (novo usuÃ¡rio) â†’ RegisterPage');
   //         if (!mounted) return;
   //         Navigator.pushReplacement(
   //           context,
   //           MaterialPageRoute(builder: (_) => const RegisterPage()),
   //         );
   //       } else {
-  //         print('[UI] login finalizado (usuário existente) → HomePage');
+  //         print('[UI] login finalizado (usuÃ¡rio existente) â†’ HomePage');
   //         if (!mounted) return;
   //         Navigator.pushReplacement(
   //           context,
@@ -145,7 +178,7 @@ class _LoginPageState extends State<LoginPage> {
   //       return;
   //     }
 
-  //     // 3) Caso contrário, seguimos com o POLLING usando o MESMO queryId
+  //     // 3) Caso contrÃ¡rio, seguimos com o POLLING usando o MESMO queryId
   //     final qid = init.queryId ?? auth.lastQueryId;
   //     if (qid == null) {
   //       print('[UI] ERRO: queryId ausente para polling');
@@ -163,16 +196,16 @@ class _LoginPageState extends State<LoginPage> {
   //       return;
   //     }
 
-  //     // 4) Navegação após polling concluído
+  //     // 4) NavegaÃ§Ã£o apÃ³s polling concluÃ­do
   //     if (cred.isNewUser == true) {
-  //       print('[UI] novo usuário (via polling) → RegisterPage');
+  //       print('[UI] novo usuÃ¡rio (via polling) â†’ RegisterPage');
   //       if (!mounted) return;
   //       Navigator.pushReplacement(
   //         context,
   //         MaterialPageRoute(builder: (_) => const RegisterPage()),
   //       );
   //     } else {
-  //       print('[UI] usuário existente (via polling) → HomePage');
+  //       print('[UI] usuÃ¡rio existente (via polling) â†’ HomePage');
   //       if (!mounted) return;
   //       Navigator.pushReplacement(
   //         context,
@@ -215,6 +248,7 @@ class _LoginPageState extends State<LoginPage> {
                 decoration: InputDecoration(
                   labelText: 'Password',
                   suffixIcon: IconButton(
+                    tooltip: _obscurePassword ? 'Mostrar senha' : 'Ocultar senha',
                     icon: Icon(
                       _obscurePassword
                           ? Icons.visibility_off
@@ -238,41 +272,30 @@ class _LoginPageState extends State<LoginPage> {
                   });
                 },
               ),
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ForgotPasswordPage(),
-                    ),
-                  );
-                },
-                child: const Text("Esqueci minha senha"),
-              ),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () async {
                   if (!_isMounted) return;
-                  print("🔹 [Login] Botão pressionado");
+                  print("ðŸ”¹ [Login] BotÃ£o pressionado");
                   try {
                     final user = _userController.text.trim();
                     final password = _passwordController.text.trim();
                     print(
-                        "🔹 [Login] user='$user' password='${password.isNotEmpty ? '***' : '(vazio)'}'");
+                        "ðŸ”¹ [Login] user='$user' password='${password.isNotEmpty ? '***' : '(vazio)'}'");
                     if (user.isEmpty || password.isEmpty) {
-                      print("⚠️ [Login] Campos vazios");
-                      showErrorDialog("Preencha usuário e senha.");
+                      print("âš ï¸ [Login] Campos vazios");
+                      showErrorDialog("Preencha usuÃ¡rio e senha.");
                       return;
                     }
                     double lat = 0.0;
                     double lon = 0.0;
                     print(
-                        "📡 [Login] Chamando API.veLogin('$user', senhaOculta, lat=$lat, lon=$lon)");
+                        "ðŸ“¡ [Login] Chamando API.veLogin('$user', senhaOculta, lat=$lat, lon=$lon)");
                     String result = await API.veLogin(user, password, lat, lon);
-                    print("📥 [Login] Retorno do servidor: '$result'");
+                    print("ðŸ“¥ [Login] Retorno do servidor: '$result'");
                     if (result == "") {
                       print(
-                          "✅ [Login] Login bem-sucedido, gravando credenciais...");
+                          "âœ… [Login] Login bem-sucedido, gravando credenciais...");
                       await API.logApp(
                         "Login",
                         "Login bem-sucedido",
@@ -284,14 +307,14 @@ class _LoginPageState extends State<LoginPage> {
                       if (_rememberPassword) {
                         await _storage.write(key: 'user', value: user);
                         await _storage.write(key: 'password', value: password);
-                        print("💾 [Login] Credenciais salvas");
+                        print("ðŸ’¾ [Login] Credenciais salvas");
                       } else {
                         await _storage.delete(key: 'user');
                         await _storage.delete(key: 'password');
                         print(
-                            "🧹 [Login] Credenciais removidas (não lembrar senha)");
+                            "ðŸ§¹ [Login] Credenciais removidas (nÃ£o lembrar senha)");
                       }
-                      print("➡️ [Login] Redirecionando para HomePage...");
+                      print("âž¡ï¸ [Login] Redirecionando para HomePage...");
                       if (_isMounted) {
                         Navigator.of(context).pushReplacement(
                           MaterialPageRoute(
@@ -299,9 +322,9 @@ class _LoginPageState extends State<LoginPage> {
                         );
                       }
                     } else {
-                      print("❌ [Login] Erro retornado: $result");
+                      print("âŒ [Login] Erro retornado: $result");
 
-                      // Detecta erro de versão antiga
+                      // Detecta erro de versÃ£o antiga
                       if (result.startsWith("VERSAO_ANTIGA|")) {
                         final mensagem =
                             result.substring("VERSAO_ANTIGA|".length);
@@ -311,8 +334,8 @@ class _LoginPageState extends State<LoginPage> {
                       }
                     }
                   } catch (e, st) {
-                    print("💥 [Login] EXCEPTION: $e");
-                    print("📜 [StackTrace] $st");
+                    print("ðŸ’¥ [Login] EXCEPTION: $e");
+                    print("ðŸ“œ [StackTrace] $st");
                     if (_isMounted) {
                       showErrorDialog("Erro durante o login: $e");
                     }
@@ -320,6 +343,29 @@ class _LoginPageState extends State<LoginPage> {
                 },
                 child: const Text("Login"),
               ),
+              const SizedBox(height: 12),
+              if (_appUpdateInfo?.status == AppUpdateStatus.updateAvailable &&
+                  (_appUpdateInfo?.latestVersion?.trim().isNotEmpty ?? false))
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.system_update),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Nova versão ' + _appUpdateInfo!.latestVersion! + ' disponível',
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _abrirDownloadAtualizacao,
+                          child: Text('Atualizar para ' + _appUpdateInfo!.latestVersion!),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),              if (kIsWeb) const WebDebugLogPanel(),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () {
@@ -332,7 +378,18 @@ class _LoginPageState extends State<LoginPage> {
                     );
                   }
                 },
-                child: const Text("Cadastrar Novo Usuário"),
+                child: const Text("Cadastrar Novo UsuÃ¡rio"),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ForgotPasswordPage(),
+                    ),
+                  );
+                },
+                child: const Text("Esqueci minha senha"),
               ),
               const SizedBox(height: 16),
             ],
@@ -370,7 +427,7 @@ class _LoginPageState extends State<LoginPage> {
       builder: (_) {
         return AlertDialog(
           title: const Text(
-            "Atualização Necessária",
+            "AtualizaÃ§Ã£o NecessÃ¡ria",
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           content: Text(mensagem),
@@ -401,3 +458,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
+
+
+

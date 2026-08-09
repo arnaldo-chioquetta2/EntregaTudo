@@ -196,34 +196,57 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
   }
 
   Future<void> _enviarConviteWhatsApp() async {
+    debugPrint('[ConviteWhatsApp] acionado');
+    debugPrint('[ConviteWhatsApp] tipo_perfil=entregador');
     final prefs = await SharedPreferences.getInstance();
     final nomeUsuario = prefs.getString('nomeUser') ?? 'Um amigo';
     final codigoConvite = _inviteController.text.trim();
 
     if (codigoConvite.isEmpty) {
       setState(() {
-        _statusMessage = "Gere ou salve um código antes de enviar o convite.";
+        _statusMessage = "Gere ou salve um c\u00f3digo antes de enviar o convite.";
         _statusColor = Colors.red;
       });
       return;
     }
 
+    final conviteUri = Uri.https('teletudo.com', '/convite', {
+      'id': codigoConvite,
+    });
     final mensagem = Uri.encodeComponent(
-      "$nomeUsuario está lhe convidando para o TeleTudo, onde todos ganham!\n"
-      "https://teletudo.com/convite?id=$codigoConvite",
+      "$nomeUsuario est\u00e1 lhe convidando para o TeleTudo, onde todos ganham!\n"
+      "$conviteUri",
     );
 
     final whatsappUrl = Uri.parse("https://wa.me/?text=$mensagem");
-    print('[CAPTADOR] Enviando convite via WhatsApp: $whatsappUrl');
+    final maskedCode = codigoConvite.length > 3
+        ? '${codigoConvite.substring(0, 3)}...'
+        : '***';
+    debugPrint(
+      '[ConviteWhatsApp] url_destino=https://teletudo.com/convite?id=$maskedCode',
+    );
+    debugPrint('[ConviteWhatsApp] launch_iniciado');
 
-    if (await canLaunchUrl(whatsappUrl)) {
-      await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
-    } else {
-      setState(() {
-        _statusMessage = "Não foi possível abrir o WhatsApp.";
-        _statusColor = Colors.red;
-      });
+    try {
+      final canLaunch = await canLaunchUrl(whatsappUrl);
+      if (canLaunch) {
+        final launched = await launchUrl(
+          whatsappUrl,
+          mode: LaunchMode.externalApplication,
+        );
+        debugPrint('[ConviteWhatsApp] launch_resultado=$launched');
+        if (launched) return;
+      } else {
+        debugPrint('[ConviteWhatsApp] launch_resultado=false');
+      }
+    } catch (e) {
+      debugPrint('[ConviteWhatsApp] excecao=${e.runtimeType}');
     }
+
+    setState(() {
+      _statusMessage = "N\u00e3o foi poss\u00edvel abrir o WhatsApp.";
+      _statusColor = Colors.red;
+    });
   }
 
   @override
