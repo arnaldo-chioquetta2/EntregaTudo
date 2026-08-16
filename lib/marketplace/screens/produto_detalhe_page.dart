@@ -1,0 +1,150 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import '../api_v1_error.dart';
+import '../models/marketplace_models.dart';
+import '../services/marketplace_service.dart';
+
+class ProdutoDetalhePage extends StatefulWidget {
+  final int productId;
+  final MarketplaceService service;
+
+  const ProdutoDetalhePage({
+    super.key,
+    required this.productId,
+    required this.service,
+  });
+
+  @override
+  State<ProdutoDetalhePage> createState() => _ProdutoDetalhePageState();
+}
+
+class _ProdutoDetalhePageState extends State<ProdutoDetalhePage> {
+  late final Future<MarketplaceProduct> _future =
+      widget.service.loadProduct(widget.productId);
+  final NumberFormat _currency =
+      NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$ ');
+  final TextEditingController _observation = TextEditingController();
+  final Set<int> _selected = <int>{};
+  bool _adding = false;
+
+  @override
+  void dispose() {
+    _observation.dispose();
+    super.dispose();
+  }
+
+  Future<void> _add(MarketplaceProduct product) async {
+    setState(() => _adding = true);
+    try {
+      final cart = await widget.service.addItem(
+        productId: product.idProduto,
+        additionalIds: _selected.toList(growable: false),
+        observation: _observation.text,
+      );
+      if (mounted) Navigator.pop(context, cart);
+    } on ApiV1Exception catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _adding = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Produto')),
+      body: FutureBuilder<MarketplaceProduct>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError || !snapshot.hasData) {
+            return const Center(child: Text('Produto indisponivel.'));
+          }
+          final product = snapshot.data!;
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            children: [
+              if (product.imageUrl != null)
+                Image.network(
+                  product.imageUrl!,
+                  height: 220,
+                  fit: BoxFit.cover,
+                  webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+                  errorBuilder: (_, error, __) {
+                    final statusCode = error is NetworkImageLoadException
+                        ? error.statusCode
+                        : null;
+                    debugPrint(
+                        '[Marketplace.Image.Web] tipo=detalhe id=${product.idProduto} url=${product.imageUrl} exception=${error.runtimeType} statusCode=${statusCode ?? 'n/a'} message=$error');
+                    return const SizedBox(
+                      height: 220,
+                      child: Icon(Icons.image_not_supported_outlined, size: 60),
+                    );
+                  },
+                ),
+              const SizedBox(height: 20),
+              Text(product.name,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      )),
+              const SizedBox(height: 8),
+              Text(_currency.format(product.price),
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      )),
+              const SizedBox(height: 12),
+              Text(product.description.isEmpty
+                  ? 'Sem descricao.'
+                  : product.description),
+              if (product.additionals.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                Text('Adicionais',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        )),
+                ...product.additionals.map(
+                  (additional) => CheckboxListTile(
+                    value: _selected.contains(additional.id),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(additional.name),
+                    subtitle: Text('+ ${_currency.format(additional.value)}'),
+                    onChanged: (value) => setState(() {
+                      if (value == true) {
+                        _selected.add(additional.id);
+                      } else {
+                        _selected.remove(additional.id);
+                      }
+                    }),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              TextField(
+                controller: _observation,
+                maxLines: 3,
+                maxLength: 500,
+                decoration: const InputDecoration(
+                  labelText: 'Observacao',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: _adding ? null : () => _add(product),
+                icon: const Icon(Icons.add_shopping_cart),
+                label:
+                    Text(_adding ? 'Adicionando...' : 'Adicionar ao carrinho'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}

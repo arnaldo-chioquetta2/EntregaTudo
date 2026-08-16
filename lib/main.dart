@@ -3,8 +3,12 @@ import 'login_page.dart';
 import 'register_page.dart';
 import 'HomePage.dart';
 import 'captador_panel.dart';
+import 'marketplace/api_v1_session.dart';
+import 'push_service.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await PushService.initialize();
   runApp(const MyApp());
 }
 
@@ -14,6 +18,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: ApiV1Session.navigatorKey,
       title: 'TeleTudo App MotoBoys',
       home: const LoginPage(),
       routes: {

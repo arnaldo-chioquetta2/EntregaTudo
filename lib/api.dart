@@ -37,6 +37,7 @@ class API {
       String user, String password, double lat, double lon) {
     final sistema = PlataformaInfo.sistema;
     final versaoSO = PlataformaInfo.versao;
+    debugPrint('[Version] package=' + AppConfig.versaoApp + ' build=152 apiVersion=' + AppConfig.versaoAppInt.toString());
 
     return http.post(
       Uri.parse("https://teletudo.com/api/login"),

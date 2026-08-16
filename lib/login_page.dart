@@ -1,9 +1,8 @@
-﻿import 'package:entregatudo/api.dart';
+import 'package:entregatudo/api.dart';
 import 'package:entregatudo/app_update_info.dart';
 import 'package:entregatudo/app_update_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:entregatudo/HomePage.dart';
 import 'package:entregatudo/constants.dart';
 import 'package:entregatudo/auth_service.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -11,6 +10,8 @@ import 'package:entregatudo/register_page.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'forgot_password_page.dart';
 import 'widgets/web_debug_log_panel.dart';
+import 'app/authenticated_shell.dart';
+import 'push_service.dart';
 
 // 1.4.4 MotoBoy e Fornecedor ao mesmo tempo
 // 1.4.1 Recusa por versÃ£o antiga
@@ -90,12 +91,14 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       // sucesso: roteia como de costume
+      await PushService.registerCurrentToken();
+
       if (res.isNewUser == true) {
         Navigator.pushReplacement(
             context, MaterialPageRoute(builder: (_) => const RegisterPage()));
       } else {
-        Navigator.pushReplacement(
-            context, MaterialPageRoute(builder: (_) => const HomePage()));
+        Navigator.pushReplacement(context,
+            MaterialPageRoute(builder: (_) => const AuthenticatedShell()));
       }
     } catch (e) {
       print('[UI] silent EXCEPTION: $e');
@@ -114,9 +117,12 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _appUpdateInfo = resultado);
     debugPrint('[Login][AppUpdate] consulta_concluida');
     debugPrint('[Login][AppUpdate] status=' + resultado.status.name);
-    debugPrint('[Login][AppUpdate] current_version=' + (resultado.currentVersion ?? '(indisponivel)'));
-    debugPrint('[Login][AppUpdate] latest_version=' + (resultado.latestVersion ?? '(indisponivel)'));
-    debugPrint('[Login][AppUpdate] update_available=' + (resultado.status == AppUpdateStatus.updateAvailable).toString());
+    debugPrint('[Login][AppUpdate] current_version=' +
+        (resultado.currentVersion ?? '(indisponivel)'));
+    debugPrint('[Login][AppUpdate] latest_version=' +
+        (resultado.latestVersion ?? '(indisponivel)'));
+    debugPrint('[Login][AppUpdate] update_available=' +
+        (resultado.status == AppUpdateStatus.updateAvailable).toString());
     if (resultado.status == AppUpdateStatus.updateAvailable) {
       debugPrint('[Login][AppUpdate] botao_exibido');
     }
@@ -130,9 +136,11 @@ class _LoginPageState extends State<LoginPage> {
     debugPrint('[Login][AppUpdate] download_aberto=' + opened.toString());
     if (!mounted || opened) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Não foi possível abrir o download da atualização.')),
+      const SnackBar(
+          content: Text('Não foi possível abrir o download da atualização.')),
     );
   }
+
   @override
   void dispose() {
     _isMounted = false;
@@ -248,7 +256,8 @@ class _LoginPageState extends State<LoginPage> {
                 decoration: InputDecoration(
                   labelText: 'Password',
                   suffixIcon: IconButton(
-                    tooltip: _obscurePassword ? 'Mostrar senha' : 'Ocultar senha',
+                    tooltip:
+                        _obscurePassword ? 'Mostrar senha' : 'Ocultar senha',
                     icon: Icon(
                       _obscurePassword
                           ? Icons.visibility_off
@@ -294,6 +303,7 @@ class _LoginPageState extends State<LoginPage> {
                     String result = await API.veLogin(user, password, lat, lon);
                     print("ðŸ“¥ [Login] Retorno do servidor: '$result'");
                     if (result == "") {
+                      await PushService.registerCurrentToken();
                       print(
                           "âœ… [Login] Login bem-sucedido, gravando credenciais...");
                       await API.logApp(
@@ -318,7 +328,7 @@ class _LoginPageState extends State<LoginPage> {
                       if (_isMounted) {
                         Navigator.of(context).pushReplacement(
                           MaterialPageRoute(
-                              builder: (context) => const HomePage()),
+                              builder: (context) => const AuthenticatedShell()),
                         );
                       }
                     } else {
@@ -355,17 +365,21 @@ class _LoginPageState extends State<LoginPage> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'Nova versão ' + _appUpdateInfo!.latestVersion! + ' disponível',
+                            'Nova versão ' +
+                                _appUpdateInfo!.latestVersion! +
+                                ' disponível',
                           ),
                         ),
                         TextButton(
                           onPressed: _abrirDownloadAtualizacao,
-                          child: Text('Atualizar para ' + _appUpdateInfo!.latestVersion!),
+                          child: Text('Atualizar para ' +
+                              _appUpdateInfo!.latestVersion!),
                         ),
                       ],
                     ),
                   ),
-                ),              if (kIsWeb) const WebDebugLogPanel(),
+                ),
+              if (kIsWeb) const WebDebugLogPanel(),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () {
@@ -458,6 +472,3 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
-
-
-

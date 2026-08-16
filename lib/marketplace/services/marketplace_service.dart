@@ -1,0 +1,302 @@
+import 'package:flutter/foundation.dart';
+import '../api_v1_client.dart';
+import '../api_v1_error.dart';
+import '../models/marketplace_models.dart';
+import '../models/checkout_models.dart';
+import '../models/delivery_tracking_models.dart';
+import '../models/payment_models.dart';
+
+class MarketplaceService {
+  final ApiV1Client _api;
+
+  MarketplaceService({ApiV1Client? api}) : _api = api ?? ApiV1Client();
+
+  Future<MarketplaceHome> loadMarketplace() async {
+    final envelope = await _api.get('/marketplace');
+    return MarketplaceHome.fromJson(_data(envelope));
+  }
+
+  Future<MarketplaceProductPage> loadProducts({
+    String query = '',
+    int? supplierId,
+    int? categoryId,
+    int page = 1,
+    int perPage = 20,
+  }) async {
+    final queryParameters = <String, String>{
+      'page': page.toString(),
+      'per_page': perPage.toString(),
+    };
+    if (query.trim().isNotEmpty) {
+      queryParameters['q'] = query.trim();
+    }
+    if (supplierId != null) {
+      queryParameters['idLoja'] = supplierId.toString();
+    }
+    if (categoryId != null) {
+      queryParameters['categoria'] = categoryId.toString();
+    }
+
+    final envelope = await _api.get(
+      '/produtos',
+      queryParameters: queryParameters,
+    );
+    return MarketplaceProductPage.fromJson(_data(envelope));
+  }
+
+  Future<MarketplaceProduct> loadProduct(int productId) async {
+    final envelope = await _api.get('/produtos/$productId');
+    return MarketplaceProduct.fromJson(_data(envelope));
+  }
+
+  Future<ShoppingCart> loadCart() async {
+    final envelope = await _api.get('/carrinho');
+    return ShoppingCart.fromJson(_data(envelope));
+  }
+
+  Future<ShoppingCart> addItem({
+    required int productId,
+    List<int> additionalIds = const <int>[],
+    String observation = '',
+  }) async {
+    final envelope = await _api.post(
+      '/carrinho/itens',
+      body: <String, dynamic>{
+        'idProduto': productId,
+        'quantidade': 1,
+        'adicionais': additionalIds,
+        'observacao': observation,
+      },
+    );
+    return ShoppingCart.fromJson(_data(envelope));
+  }
+
+  Future<ShoppingCart> clearCart() async {
+    final envelope = await _api.delete('/carrinho');
+    return ShoppingCart.fromJson(_data(envelope));
+  }
+
+  Future<ShoppingCart> updateItem({
+    required int itemId,
+    required int quantity,
+    List<int> additionalIds = const <int>[],
+    String observation = '',
+  }) async {
+    if (quantity < 1) {
+      throw const ApiV1Exception(ApiV1Error(
+        statusCode: 422,
+        code: 'validation_error',
+        message: 'A quantidade minima e 1.',
+      ));
+    }
+    final envelope = await _api.patch(
+      '/carrinho/itens/$itemId',
+      body: <String, dynamic>{
+        'quantidade': quantity,
+        'adicionais': additionalIds,
+        'observacao': observation,
+      },
+    );
+    return ShoppingCart.fromJson(_data(envelope));
+  }
+
+  Future<ShoppingCart> removeItem(int itemId) async {
+    final envelope = await _api.delete('/carrinho/itens/$itemId');
+    return ShoppingCart.fromJson(_data(envelope));
+  }
+
+  Future<DeliveryAddress?> loadDefaultAddress() async {
+    final envelope = await _api.get('/enderecos/me');
+    final data = _data(envelope);
+    final raw = data['endereco'];
+    if (raw is! Map<String, dynamic>) return null;
+    return DeliveryAddress.fromJson(raw);
+  }
+
+  Future<DeliveryAddress> validateTemporaryAddress({
+    required String cep,
+    String numero = '',
+    String complemento = '',
+  }) async {
+    final envelope = await _api.post(
+      '/enderecos/validar',
+      body: <String, dynamic>{
+        'cep': cep,
+        'numero': numero,
+        'complemento': complemento,
+      },
+    );
+    final raw = _data(envelope)['endereco'];
+    if (raw is! Map<String, dynamic>) {
+      throw const ApiV1Exception(ApiV1Error(
+        statusCode: 502,
+        code: 'invalid_address_response',
+        message: 'O servidor nao retornou um endereco valido.',
+      ));
+    }
+    return DeliveryAddress.fromJson(raw);
+  }
+
+  Future<CheckoutQuote> requestQuote({
+    DeliveryAddress? temporaryAddress,
+    required String idempotencyKey,
+  }) async {
+    final body = <String, dynamic>{};
+    if (temporaryAddress != null) {
+      body['endereco'] = temporaryAddress.toTemporaryPayload();
+    }
+    final envelope = await _api.post(
+      '/checkout/orcamento',
+      body: body,
+      idempotencyKey: idempotencyKey,
+    );
+    final data = _data(envelope);
+    debugPrint('[Checkout.Quote.Raw] pedidoId=' +
+        (data['pedidoId']?.toString() ?? 'null') +
+        ' produtos=' +
+        (data['produtos']?.toString() ?? 'null') +
+        ' entrega=' +
+        (data['entrega']?.toString() ?? 'null') +
+        ' total=' +
+        (data['total']?.toString() ?? 'null'));
+    try {
+      final quote = CheckoutQuote.fromJson(data);
+      debugPrint('[Checkout.Quote.Parsed] pedidoId=' +
+          (quote.orderId?.toString() ?? 'null') +
+          ' totalItens=' +
+          quote.itemsTotal.toString() +
+          ' valorEntrega=' +
+          quote.deliveryValue.toString() +
+          ' total=' +
+          quote.total.toString());
+      return quote;
+    } on FormatException catch (error) {
+      debugPrint('[Checkout.Quote.ParseError] tipo=' + error.message);
+      throw const ApiV1Exception(ApiV1Error(
+        statusCode: 502,
+        code: 'invalid_quote',
+        message: 'O servidor retornou um orcamento invalido.',
+      ));
+    }
+  }
+
+  Future<Map<String, dynamic>> loadDeliveryPreferences() async {
+    final envelope = await _api.get('/cliente/entregadores/preferencias');
+    return _data(envelope);
+  }
+
+  Future<List<Map<String, dynamic>>> searchDeliveryPeople(String query) async {
+    final envelope = await _api.get(
+      '/cliente/entregadores/buscar',
+      queryParameters: <String, String>{'q': query},
+    );
+    final raw = _data(envelope)['items'];
+    return raw is List
+        ? raw.whereType<Map<String, dynamic>>().toList(growable: false)
+        : const <Map<String, dynamic>>[];
+  }
+
+  Future<void> setDeliveryPreference(int id, String preference) async {
+    await _api.post('/cliente/entregadores/$id/$preference');
+  }
+
+  Future<void> removeDeliveryPreference(int id) async {
+    await _api.delete('/cliente/entregadores/$id/preferencia');
+  }
+
+  Future<PaymentConfirmation> confirmCheckout({
+    required int orderId,
+    required String idempotencyKey,
+  }) async {
+    debugPrint('[Payment.Service.ConfirmStart] pedidoId=${orderId}');
+    debugPrint(
+        '[Payment.Service.HttpCall] path=/checkout/confirmar pedidoId=${orderId}');
+    final envelope = await _api.post(
+      '/checkout/confirmar',
+      body: <String, dynamic>{'pedidoId': orderId},
+      idempotencyKey: idempotencyKey,
+    );
+    final data = _data(envelope);
+    final pix = data['pix'] is Map<String, dynamic>
+        ? data['pix'] as Map<String, dynamic>
+        : null;
+    final rawPayment = data['pagamento'] is Map<String, dynamic>
+        ? data['pagamento'] as Map<String, dynamic>
+        : data['payment'] is Map<String, dynamic>
+            ? data['payment'] as Map<String, dynamic>
+            : data;
+    debugPrint(
+        '[Payment.Confirm.Raw] keys=${data.keys.join(',')} pedidoId=${data['pedidoId'] ?? rawPayment['pedidoId'] ?? 'null'} paymentId=${rawPayment['paymentId'] ?? rawPayment['pagamentoId'] ?? rawPayment['idPagamento'] ?? 'null'} status=${rawPayment['status'] ?? data['status'] ?? 'null'} valor=${rawPayment['valor'] ?? rawPayment['amount'] ?? data['valor'] ?? 'null'} hasPixKey=${pix != null && (pix['chavePix'] != null || pix['chave'] != null || rawPayment['chavePix'] != null)} hasQr=${pix != null && (pix['qr'] != null || pix['qrCode'] != null || pix['qrUrl'] != null)} valueEmbedded=${pix?['valorEmbutido'] ?? pix?['pix_value_embedded'] ?? rawPayment['valorEmbutido'] ?? 'null'}');
+    try {
+      final payment = PaymentConfirmation.fromJson(data);
+      if (payment.pixKey == null && payment.qr == null) {
+        throw const ApiV1Exception(ApiV1Error(
+          statusCode: 502,
+          code: 'invalid_payment_configuration',
+          message: 'O servidor nao retornou chave PIX ou QR utilizavel.',
+        ));
+      }
+      debugPrint(
+          '[Payment.Confirm.Parsed] pedidoId=${payment.orderId} pagamentoId=${payment.paymentId} status=${payment.status} valor=${payment.amount} hasPixKey=${payment.pixKey != null} hasQr=${payment.qr != null} valueEmbedded=${payment.valueEmbedded ?? 'null'}');
+      debugPrint(
+          '[Payment.Confirm] status=200 pedidoId=${payment.orderId} pagamentoId=${payment.paymentId}');
+      return payment;
+    } on FormatException {
+      throw const ApiV1Exception(ApiV1Error(
+        statusCode: 502,
+        code: 'invalid_payment_response',
+        message: 'O servidor nao retornou os dados do pagamento.',
+      ));
+    }
+  }
+
+  Future<DeliveryTracking> loadDeliveryStatus(int orderId) async {
+    debugPrint('[DeliveryTracking.Status] pedidoId=$orderId');
+    final envelope = await _api.get('/pedidos/$orderId/status');
+    final data = _data(envelope);
+    debugPrint('[DeliveryTracking.Status.Raw] keys=${data.keys.join(',')}');
+    final parsed = DeliveryTracking.fromJson(data);
+    debugPrint(
+        '[DeliveryTracking.Status.Parsed] pedidoId=${parsed.orderId} paymentStatus=${parsed.paymentStatus ?? 'null'} deliveryStatus=${parsed.deliveryStatus ?? 'null'} canCancel=${parsed.canCancel} updatedAt=${parsed.updatedAt ?? 'null'}');
+    return parsed;
+  }
+
+  Future<DeliveryTracking> loadDeliveryDetails(int orderId) async {
+    debugPrint('[DeliveryTracking.Delivery] pedidoId=$orderId');
+    final envelope = await _api.get('/pedidos/$orderId/entrega');
+    final data = _data(envelope);
+    debugPrint('[DeliveryTracking.Delivery.Raw] keys=${data.keys.join(',')}');
+    final parsed = DeliveryTracking.fromJson(data);
+    debugPrint(
+        '[DeliveryTracking.Delivery.Parsed] pedidoId=${parsed.orderId} entregaId=${parsed.deliveryId ?? 'null'} deliveryStatus=${parsed.deliveryStatus ?? 'null'} hasDriver=${parsed.driver != null} hasLocation=${parsed.location != null} canCancel=${parsed.canCancel}');
+    return parsed;
+  }
+
+  Future<void> cancelOrder(int orderId) async {
+    debugPrint('[DeliveryTracking.Cancel] pedidoId=$orderId');
+    await _api.post('/pedidos/$orderId/cancelar');
+  }
+
+  Future<PaymentStatus> reportPayment(int paymentId) async {
+    final envelope =
+        await _api.post('/pagamentos/$paymentId/informar-pagamento');
+    final status = PaymentStatus.fromJson(_data(envelope));
+    debugPrint('[Payment.Report] status=${status.status}');
+    return status;
+  }
+
+  Future<PaymentStatus> loadPaymentStatus(int paymentId) async {
+    final envelope = await _api.get('/pagamentos/$paymentId/status');
+    final status = PaymentStatus.fromJson(_data(envelope));
+    debugPrint(
+        '[Payment.Status] pagamentoId=${status.paymentId} status=${status.status}');
+    return status;
+  }
+
+  void close() => _api.close();
+
+  Map<String, dynamic> _data(Map<String, dynamic> envelope) {
+    final data = envelope['data'];
+    return data is Map<String, dynamic> ? data : const <String, dynamic>{};
+  }
+}

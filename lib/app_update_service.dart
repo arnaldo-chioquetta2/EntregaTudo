@@ -50,6 +50,8 @@ class AppUpdateService {
       debugPrint('[AppUpdate] package_info_carregado');
       debugPrint('[AppUpdate] current_version=${packageInfo.version}');
       debugPrint('[AppUpdate] current_build=${packageInfo.buildNumber}');
+      debugPrint(
+          '[Version] package=${packageInfo.version} build=${packageInfo.buildNumber}');
       final response = await _getAppVersion();
       final decoded = jsonDecode(response.body);
       debugPrint('[API.AppVersion] raiz=' +
