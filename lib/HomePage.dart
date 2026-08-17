@@ -1180,9 +1180,9 @@ class _HomePageState extends State<HomePage> {
     // 1. Mostrar tela de cÃƒÂ³digo
     final codigoCliente = _codigoClienteController.text.trim();
 
-    if (codigoCliente.length != 4 || int.tryParse(codigoCliente) == null) {
+    if (codigoCliente.length != 3 || int.tryParse(codigoCliente) == null) {
       setState(() {
-        erroCodigoCliente = "Digite um codigo valido de 4 digitos";
+        erroCodigoCliente = "Digite um codigo valido de 3 digitos";
       });
       return;
     }
@@ -1657,7 +1657,7 @@ class _HomePageState extends State<HomePage> {
                       controller: _codigoClienteController,
                       enabled: !enviandoCodigoCliente,
                       keyboardType: TextInputType.number,
-                      maxLength: 4,
+                      maxLength: 3,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 28,
@@ -1737,7 +1737,7 @@ class _HomePageState extends State<HomePage> {
             controller: _codigoClienteController,
             enabled: !enviandoCodigoCliente,
             keyboardType: TextInputType.number,
-            maxLength: 4,
+            maxLength: 3,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 28,

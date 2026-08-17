@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../api_v1_error.dart';
 import '../models/payment_models.dart';
 import '../services/marketplace_service.dart';
+import '../services/recovery_state_service.dart';
 import 'delivery_tracking_page.dart';
 
 class PixPaymentPage extends StatefulWidget {
@@ -31,6 +32,7 @@ class _PixPaymentPageState extends State<PixPaymentPage> {
   Timer? _pollTimer;
   late String _status = widget.payment.status;
   bool _reporting = false;
+  bool _pollInProgress = false;
   String? _error;
 
   @override
@@ -42,24 +44,30 @@ class _PixPaymentPageState extends State<PixPaymentPage> {
   }
 
   Future<void> _poll() async {
-    if (!mounted || _reporting || _status == 'paid') return;
+    if (!mounted || _reporting || _pollInProgress || _status == 'paid') return;
+    _pollInProgress = true;
     try {
       final status =
           await widget.service.loadPaymentStatus(widget.payment.paymentId);
       if (!mounted) return;
+      await RecoveryStateService.updatePaymentStatus(status.status);
       setState(() {
         _status = status.status;
         _error = null;
       });
       if (_status == 'paid') {
         _pollTimer?.cancel();
-        _openPaid();
+        await _openPaid();
       }
     } on ApiV1Exception catch (error) {
+      debugPrint('[Network.Waiting] source=payment_status code=${error.code}');
       if (mounted)
-        setState(() => _error = error.code == 'timeout'
-            ? 'Aguardando conexao.'
-            : 'Nao foi possivel atualizar o status agora.');
+        setState(() => _error =
+            (error.code == 'timeout' || error.code == 'network_error')
+                ? 'Aguardando conexao.'
+                : 'Nao foi possivel atualizar o status agora.');
+    } finally {
+      _pollInProgress = false;
     }
   }
 
@@ -73,6 +81,7 @@ class _PixPaymentPageState extends State<PixPaymentPage> {
     try {
       final status =
           await widget.service.reportPayment(widget.payment.paymentId);
+      await RecoveryStateService.updatePaymentStatus(status.status);
       if (!mounted) return;
       setState(() {
         _status = status.status;
@@ -89,8 +98,11 @@ class _PixPaymentPageState extends State<PixPaymentPage> {
 
   Future<void> _openPaid() async {
     if (!mounted) return;
+    await RecoveryStateService.clearPayment();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('currentMarketplaceOrderId', widget.payment.orderId);
+    final userId = prefs.getInt('idUser');
+    await RecoveryStateService.saveOrder(widget.payment.orderId,
+        userId: userId);
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
@@ -163,12 +175,18 @@ class _PixPaymentPageState extends State<PixPaymentPage> {
               padding: const EdgeInsets.only(top: 12),
               child: Text(widget.payment.instructions!),
             ),
-          if (_error != null)
+          if (_error != null) ...[
             Padding(
               padding: const EdgeInsets.only(top: 12),
               child: Text(_error!,
                   style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ),
+            TextButton(
+              onPressed: _pollInProgress || _reporting ? null : _poll,
+              child: const Text('Tentar novamente'),
+            ),
+          ] else
+            const SizedBox.shrink(),
           const SizedBox(height: 20),
           if (awaiting)
             FilledButton(

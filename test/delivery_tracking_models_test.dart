@@ -43,6 +43,28 @@ void main() {
     }
   });
 
+  test('separa codigo de confirmacao do id do pedido', () {
+    final value = DeliveryTracking.fromJson({
+      'pedidoId': 581,
+      'codigo_confirmacao_cliente': '8123',
+      'deliveryStatus': 'collected',
+    });
+    expect(value.orderId, 581);
+    expect(value.confirmationCode, '8123');
+  });
+
+  test('preserva zero a esquerda e nao usa pedidoId como codigo', () {
+    final value = DeliveryTracking.fromJson({
+      'pedidoId': 581,
+      'codigo_confirmacao_cliente': '0812',
+    });
+    expect(value.orderId, 581);
+    expect(value.confirmationCode, '0812');
+
+    final absent = DeliveryTracking.fromJson({'pedidoId': 581});
+    expect(absent.confirmationCode, isNull);
+  });
+
   test('rejeita coordenadas invalidas e zero zero', () {
     final invalid = DeliveryTracking.fromJson({
       'pedidoId': 1,

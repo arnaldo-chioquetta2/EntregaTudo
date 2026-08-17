@@ -151,14 +151,7 @@ class MarketplaceService {
       idempotencyKey: idempotencyKey,
     );
     final data = _data(envelope);
-    debugPrint('[Checkout.Quote.Raw] pedidoId=' +
-        (data['pedidoId']?.toString() ?? 'null') +
-        ' produtos=' +
-        (data['produtos']?.toString() ?? 'null') +
-        ' entrega=' +
-        (data['entrega']?.toString() ?? 'null') +
-        ' total=' +
-        (data['total']?.toString() ?? 'null'));
+    debugPrint('[Checkout.Quote.Raw] resposta_recebida=true');
     try {
       final quote = CheckoutQuote.fromJson(data);
       debugPrint('[Checkout.Quote.Parsed] pedidoId=' +

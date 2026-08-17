@@ -1,13 +1,17 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api_v1_error.dart';
 import '../models/delivery_tracking_models.dart';
 import '../services/marketplace_service.dart';
+import '../services/recovery_state_service.dart';
 import '../widgets/delivery_map.dart';
+
+bool isTerminalDeliveryStatus(String? status) =>
+    status == 'delivered' || status == 'cancelled';
 
 class DeliveryTrackingPage extends StatefulWidget {
   final MarketplaceService service;
@@ -59,29 +63,27 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
         collectedAt: details.collectedAt ?? status.collectedAt,
         deliveredAt: details.deliveredAt ?? status.deliveredAt,
         updatedAt: details.updatedAt ?? status.updatedAt,
+        confirmationCode: details.confirmationCode ?? status.confirmationCode,
       );
       setState(() {
         _tracking = merged;
         _error = null;
       });
-      if (merged.deliveryStatus == 'delivered' ||
-          merged.deliveryStatus == 'cancelled') {
+      if (isTerminalDeliveryStatus(merged.deliveryStatus)) {
         _timer?.cancel();
-        if (merged.deliveryStatus == 'delivered' ||
-            merged.deliveryStatus == 'cancelled') {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.remove('currentMarketplaceOrderId');
-        }
+        await RecoveryStateService.clearOrder();
+      } else {
+        await RecoveryStateService.saveOrder(widget.orderId);
       }
     } on ApiV1Exception catch (error) {
       if (!mounted) return;
       if (error.statusCode == 404) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.remove('currentMarketplaceOrderId');
+        await RecoveryStateService.clearOrder();
       }
-      setState(() => _error = error.code == 'timeout'
-          ? 'Aguardando conexao.'
-          : 'Nao foi possivel atualizar a entrega agora.');
+      setState(() => _error =
+          (error.code == 'timeout' || error.code == 'network_error')
+              ? 'Aguardando conexao.'
+              : 'Nao foi possivel atualizar a entrega agora.');
     } finally {
       _requestInProgress = false;
     }
@@ -176,6 +178,14 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
           style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
       const SizedBox(height: 8),
       Text('Pedido: #${tracking.orderId}'),
+      if (tracking.confirmationCode != null) ...[
+        const SizedBox(height: 12),
+        const Text('Código para confirmar a entrega:'),
+        Text(
+          tracking.confirmationCode.toString(),
+          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+        ),
+      ],
       if (tracking.paymentStatus != null && tracking.paymentStatus != 'paid')
         const Padding(
             padding: EdgeInsets.only(top: 12),
@@ -214,8 +224,52 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
           padding: EdgeInsets.only(top: 16),
           child: Text('Localizacao do entregador ainda nao disponivel.'),
         ),
-      if (status == 'delivered' && tracking.deliveredAt != null)
-        Text('Entregue em: ${tracking.deliveredAt}'),
+      if (status == 'delivered') ...[
+        Card(
+          color: Theme.of(context).colorScheme.primaryContainer,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('Entrega concluida',
+                    style:
+                        TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                const Text('Seu pedido foi entregue com sucesso.'),
+                if (tracking.deliveredAt != null)
+                  Text('Entregue em: ${tracking.deliveredAt}'),
+                const SizedBox(height: 12),
+                FilledButton(
+                  onPressed: _returnToBuying,
+                  child: const Text('Voltar para Comprar'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+      if (status == 'cancelled') ...[
+        Card(
+          color: Theme.of(context).colorScheme.errorContainer,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('Pedido cancelado',
+                    style:
+                        TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 12),
+                FilledButton(
+                  onPressed: _returnToBuying,
+                  child: const Text('Voltar para Comprar'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
       if (tracking.canCancel) ...[
         const SizedBox(height: 24),
         OutlinedButton(
@@ -223,6 +277,15 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
             child: Text(_cancelling ? 'Cancelando...' : 'Cancelar pedido')),
       ],
     ];
+  }
+
+  Future<void> _returnToBuying() async {
+    await RecoveryStateService.clearPayment();
+    await RecoveryStateService.clearOrder();
+    if (!mounted) return;
+    debugPrint(
+        '[Recovery.Clear] reason=delivery_terminal navigation=marketplace');
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   String? _vehicleText(DeliveryVehicle? vehicle) {

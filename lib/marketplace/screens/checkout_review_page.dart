@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api_v1_error.dart';
 import '../models/checkout_models.dart';
 import '../services/marketplace_service.dart';
+import '../services/recovery_state_service.dart';
 import 'cart_page.dart';
 import 'delivery_preferences_page.dart';
 import 'pix_payment_page.dart';
@@ -33,12 +35,11 @@ class _CheckoutReviewPageState extends State<CheckoutReviewPage> {
   late CheckoutQuote _quote = widget.quote;
   bool _loading = false;
   String _idempotencyKey = '';
-  late final String _confirmationKey = const Uuid().v4();
+  String _confirmationKey = const Uuid().v4();
 
   @override
   void initState() {
     super.initState();
-    debugPrint('[Payment.Build] F3.3 active');
     _idempotencyKey = widget.idempotencyKey;
     debugPrint('[Checkout.Review] pedidoId=' +
         (widget.quote.orderId?.toString() ?? 'null') +
@@ -66,6 +67,7 @@ class _CheckoutReviewPageState extends State<CheckoutReviewPage> {
     setState(() => _loading = true);
     final previousTotal = _quote.total;
     _idempotencyKey = const Uuid().v4();
+    _confirmationKey = const Uuid().v4();
     try {
       final quote = await widget.service.requestQuote(
         temporaryAddress: widget.temporaryAddress,
@@ -122,6 +124,17 @@ class _CheckoutReviewPageState extends State<CheckoutReviewPage> {
       );
       debugPrint(
           '[Payment.UI.ConfirmResult] success=true pagamentoId=${payment.paymentId}');
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('idUser');
+      if (userId != null && userId > 0) {
+        await RecoveryStateService.savePayment(
+          payment,
+          idempotencyKey: _confirmationKey,
+          userId: userId,
+        );
+      } else {
+        RecoveryStateService.debugRecovery('payment_owner_missing');
+      }
       if (!mounted) return;
       setState(() => _loading = false);
       await Navigator.push(
@@ -172,10 +185,11 @@ class _CheckoutReviewPageState extends State<CheckoutReviewPage> {
     setState(() => _loading = true);
     try {
       await widget.service.clearCart();
+      await RecoveryStateService.clearAll();
       debugPrint(
           '[Checkout.NewPurchase] action=confirm cartCleared=true navigation=marketplace');
       if (mounted) {
-        Navigator.pop(context, true);
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } on ApiV1Exception catch (error) {
       debugPrint('[Checkout.NewPurchase] status=error code=' +

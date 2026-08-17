@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../HomePage.dart';
 import '../marketplace/screens/comprar_page.dart';
 import 'profile_navigation.dart';
+import '../marketplace/services/recovery_state_service.dart';
 
 class AuthenticatedShell extends StatefulWidget {
   const AuthenticatedShell({super.key});
@@ -18,6 +19,10 @@ class _AuthenticatedShellState extends State<AuthenticatedShell> {
 
   Future<List<AppArea>> _loadAreas() async {
     final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getInt('idUser');
+    if (userId != null && userId > 0) {
+      await RecoveryStateService.prepareForUser(userId);
+    }
     return ProfileNavigation.areas(
       isFornecedor: prefs.getBool('isFornecedor') ?? false,
       isMotoboy: prefs.getBool('isMotoboy') ?? false,

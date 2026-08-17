@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'pix_payment_page.dart';
 
 import '../api_v1_error.dart';
 import '../models/marketplace_models.dart';
@@ -11,6 +12,7 @@ import '../services/marketplace_service.dart';
 import 'cart_page.dart';
 import 'produto_detalhe_page.dart';
 import 'delivery_tracking_page.dart';
+import '../services/recovery_state_service.dart';
 
 class ComprarMarketplacePage extends StatefulWidget {
   const ComprarMarketplacePage({super.key});
@@ -43,6 +45,9 @@ class _ComprarMarketplacePageState extends State<ComprarMarketplacePage> {
   bool _loadingNext = false;
   String? _resultsError;
   int? _activeOrderId;
+  int? _pendingPaymentOrderId;
+  String? _pendingPaymentStatus;
+  String? _pendingPaymentKey;
 
   @override
   void initState() {
@@ -53,9 +58,91 @@ class _ComprarMarketplacePageState extends State<ComprarMarketplacePage> {
   }
 
   Future<void> _loadActiveOrder() async {
-    final prefs = await SharedPreferences.getInstance();
-    final orderId = prefs.getInt('currentMarketplaceOrderId');
-    if (mounted && orderId != null) setState(() => _activeOrderId = orderId);
+    final snapshot = await RecoveryStateService.read();
+    if (!mounted) return;
+    if (snapshot.orderId != null) {
+      try {
+        final status = await _service.loadDeliveryStatus(snapshot.orderId!);
+        if (status.deliveryStatus == 'delivered' ||
+            status.deliveryStatus == 'cancelled') {
+          await RecoveryStateService.clearOrder();
+        } else if (mounted) {
+          setState(() => _activeOrderId = snapshot.orderId);
+        }
+      } on ApiV1Exception catch (error) {
+        if (error.statusCode == 404) {
+          await RecoveryStateService.clearOrder();
+        } else if (mounted) {
+          setState(() => _activeOrderId = snapshot.orderId);
+          debugPrint(
+              '[Network.Waiting] source=active_order code=${error.code}');
+        }
+      }
+    }
+    if (snapshot.paymentId == null || snapshot.paymentOrderId == null) return;
+    try {
+      final status = await _service.loadPaymentStatus(snapshot.paymentId!);
+      await RecoveryStateService.updatePaymentStatus(status.status);
+      if (!mounted) return;
+      if (status.status == 'paid') {
+        await RecoveryStateService.clearPayment();
+        await RecoveryStateService.saveOrder(snapshot.paymentOrderId!);
+        setState(() => _activeOrderId = snapshot.paymentOrderId);
+      } else {
+        setState(() {
+          _pendingPaymentOrderId = snapshot.paymentOrderId;
+          _pendingPaymentStatus = status.status;
+          _pendingPaymentKey = snapshot.paymentIdempotencyKey;
+        });
+      }
+    } on ApiV1Exception catch (error) {
+      if (error.statusCode == 404) {
+        await RecoveryStateService.clearPayment();
+      } else if (mounted) {
+        setState(() {
+          _pendingPaymentOrderId = snapshot.paymentOrderId;
+          _pendingPaymentStatus = snapshot.paymentStatus;
+          _pendingPaymentKey = snapshot.paymentIdempotencyKey;
+        });
+        debugPrint(
+            '[Network.Waiting] source=pending_payment code=${error.code}');
+      }
+    }
+  }
+
+  Future<void> _resumePayment() async {
+    final orderId = _pendingPaymentOrderId;
+    final key = _pendingPaymentKey;
+    if (orderId == null || key == null) return;
+    setState(() => _pendingPaymentStatus = 'loading');
+    try {
+      final payment = await _service.confirmCheckout(
+        orderId: orderId,
+        idempotencyKey: key,
+      );
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('idUser');
+      if (userId != null && userId > 0) {
+        await RecoveryStateService.savePayment(
+          payment,
+          idempotencyKey: key,
+          userId: userId,
+        );
+      }
+      if (!mounted) return;
+      setState(() => _pendingPaymentStatus = payment.status);
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PixPaymentPage(service: _service, payment: payment),
+        ),
+      );
+    } on ApiV1Exception catch (error) {
+      if (mounted) {
+        setState(() => _pendingPaymentStatus =
+            error.code == 'timeout' ? 'offline' : 'error');
+      }
+    }
   }
 
   Future<void> _openActiveOrder() async {
@@ -375,6 +462,7 @@ class _ComprarMarketplacePageState extends State<ComprarMarketplacePage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 112),
       children: [
+        if (_pendingPaymentOrderId != null) _pendingPaymentBanner(),
         if (_activeOrderId != null) _activeOrderBanner(),
         _buildSearchField(),
         if (_cart.activeSupplierId != null) ...[
@@ -439,6 +527,19 @@ class _ComprarMarketplacePageState extends State<ComprarMarketplacePage> {
 
   bool _inCart(MarketplaceProduct product) =>
       _cart.items.any((item) => item.idProduto == product.idProduto);
+
+  Widget _pendingPaymentBanner() => Card(
+        color: Theme.of(context).colorScheme.secondaryContainer,
+        child: ListTile(
+          leading: const Icon(Icons.payment_outlined),
+          title: Text(_pendingPaymentStatus == 'payment_reported'
+              ? 'Pagamento informado. Aguardando confirmacao.'
+              : 'Pagamento pendente'),
+          subtitle: const Text('Retomar pagamento PIX'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: _pendingPaymentStatus == 'loading' ? null : _resumePayment,
+        ),
+      );
 
   Widget _activeOrderBanner() => Card(
         child: ListTile(

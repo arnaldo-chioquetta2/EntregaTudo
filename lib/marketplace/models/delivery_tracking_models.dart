@@ -11,6 +11,7 @@ class DeliveryTracking {
   final String? collectedAt;
   final String? deliveredAt;
   final String? updatedAt;
+  final String? confirmationCode;
 
   const DeliveryTracking({
     required this.orderId,
@@ -25,6 +26,7 @@ class DeliveryTracking {
     this.collectedAt,
     this.deliveredAt,
     this.updatedAt,
+    this.confirmationCode,
   });
 
   factory DeliveryTracking.fromJson(Map<String, dynamic> json) {
@@ -49,6 +51,16 @@ class DeliveryTracking {
       collectedAt: _string(delivery['coletadoEm'] ?? delivery['collectedAt']),
       deliveredAt: _string(delivery['entregueEm'] ?? delivery['deliveredAt']),
       updatedAt: _string(json['updatedAt'] ?? delivery['updatedAt']),
+      confirmationCode: _string(
+        json['codigo_confirmacao_cliente'] ??
+            json['codigoConfirmacaoCliente'] ??
+            json['codigo_confirmacao'] ??
+            json['codigoConfirmacao'] ??
+            delivery['codigo_confirmacao_cliente'] ??
+            delivery['codigoConfirmacaoCliente'] ??
+            delivery['codigo_confirmacao'] ??
+            delivery['codigoConfirmacao'],
+      ),
     );
   }
 }

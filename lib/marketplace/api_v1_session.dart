@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../login_page.dart';
+import 'services/recovery_state_service.dart';
 
 class ApiV1Session {
   ApiV1Session._();
@@ -21,6 +22,8 @@ class ApiV1Session {
       await prefs.remove('isFornecedor');
       await prefs.remove('isMotoboy');
       await prefs.remove('idLoja');
+      await RecoveryStateService.clearAll();
+      RecoveryStateService.debugRecovery('cleared_after_401');
 
       final navigator = navigatorKey.currentState;
       if (navigator != null) {

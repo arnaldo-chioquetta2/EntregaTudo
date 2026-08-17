@@ -412,13 +412,22 @@ class API {
 
     bool codigoSalvo = false;
 
+    int? parseCodigoConfirmacao(dynamic value) {
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      return int.tryParse(value?.toString() ?? '');
+    }
+
     // 1) novaVenda -> codigoConfirmacao
     if (data['novaVenda'] != null) {
       var nova = data['novaVenda'];
 
-      if (nova['codigoConfirmacao'] != null) {
-        int codigo = nova['codigoConfirmacao'];
+      final rawCodigo = nova['codigoConfirmacao'] ??
+          nova['codigo_confirmacao'] ??
+          nova['codigo_confirmacao_cliente'];
+      final codigo = parseCodigoConfirmacao(rawCodigo);
 
+      if (codigo != null) {
         if (codigo > 0) {
           await prefs.setInt('codigoConfirmacao', codigo);
           print("🔥 Código via novaVenda: $codigo");
@@ -428,13 +437,11 @@ class API {
     }
 
     // 2) codigoConfirmacao na raiz
-    if (!codigoSalvo && data['codigoConfirmacao'] != null) {
-      int? codigo;
-      if (data['codigoConfirmacao'] is int) {
-        codigo = data['codigoConfirmacao'] as int;
-      } else if (data['codigoConfirmacao'] is String) {
-        codigo = int.tryParse(data['codigoConfirmacao'] as String);
-      }
+    if (!codigoSalvo) {
+      final rawCodigo = data['codigoConfirmacao'] ??
+          data['codigo_confirmacao'] ??
+          data['codigo_confirmacao_cliente'];
+      final codigo = parseCodigoConfirmacao(rawCodigo);
 
       if (codigo != null && codigo > 0) {
         await prefs.setInt('codigoConfirmacao', codigo);
