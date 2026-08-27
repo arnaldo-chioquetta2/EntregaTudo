@@ -197,6 +197,13 @@ class MarketplaceService {
     await _api.delete('/cliente/entregadores/$id/preferencia');
   }
 
+  Future<PaymentConfig> loadPaymentConfig() async {
+    final envelope = await _api.get('/config');
+    final config = PaymentConfig.fromJson(_data(envelope));
+    debugPrint('[Payment.Config] provider=' + config.provider);
+    return config;
+  }
+
   Future<PaymentConfirmation> confirmCheckout({
     required int orderId,
     required String idempotencyKey,
@@ -218,17 +225,27 @@ class MarketplaceService {
         : data['payment'] is Map<String, dynamic>
             ? data['payment'] as Map<String, dynamic>
             : data;
+    debugPrint('[Payment.Confirm.Raw.Provider] provider=' +
+        (rawPayment['provider'] ??
+            rawPayment['provedor'] ??
+            data['provider'] ??
+            data['provedor'] ??
+            'null'));
     debugPrint(
         '[Payment.Confirm.Raw] keys=${data.keys.join(',')} pedidoId=${data['pedidoId'] ?? rawPayment['pedidoId'] ?? 'null'} paymentId=${rawPayment['paymentId'] ?? rawPayment['pagamentoId'] ?? rawPayment['idPagamento'] ?? 'null'} status=${rawPayment['status'] ?? data['status'] ?? 'null'} valor=${rawPayment['valor'] ?? rawPayment['amount'] ?? data['valor'] ?? 'null'} hasPixKey=${pix != null && (pix['chavePix'] != null || pix['chave'] != null || rawPayment['chavePix'] != null)} hasQr=${pix != null && (pix['qr'] != null || pix['qrCode'] != null || pix['qrUrl'] != null)} valueEmbedded=${pix?['valorEmbutido'] ?? pix?['pix_value_embedded'] ?? rawPayment['valorEmbutido'] ?? 'null'}');
     try {
       final payment = PaymentConfirmation.fromJson(data);
-      if (payment.pixKey == null && payment.qr == null) {
+      if (payment.provider == PaymentProviders.gambiarraPay &&
+          payment.pixKey == null &&
+          payment.qr == null) {
         throw const ApiV1Exception(ApiV1Error(
           statusCode: 502,
           code: 'invalid_payment_configuration',
           message: 'O servidor nao retornou chave PIX ou QR utilizavel.',
         ));
       }
+      debugPrint('[Payment.Confirm.Parsed.Provider] provider=' +
+          (payment.provider ?? 'null'));
       debugPrint(
           '[Payment.Confirm.Parsed] pedidoId=${payment.orderId} pagamentoId=${payment.paymentId} status=${payment.status} valor=${payment.amount} hasPixKey=${payment.pixKey != null} hasQr=${payment.qr != null} valueEmbedded=${payment.valueEmbedded ?? 'null'}');
       debugPrint(

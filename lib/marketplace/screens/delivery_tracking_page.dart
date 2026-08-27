@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../HomePage.dart';
 import '../api_v1_error.dart';
 import '../models/delivery_tracking_models.dart';
 import '../services/marketplace_service.dart';
@@ -241,8 +242,13 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
                   Text('Entregue em: ${tracking.deliveredAt}'),
                 const SizedBox(height: 12),
                 FilledButton(
+<<<<<<< HEAD
                   onPressed: _returnToBuying,
                   child: const Text('Voltar para Comprar'),
+=======
+                  onPressed: _returnToHome,
+                  child: const Text('Voltar para Home'),
+>>>>>>> 94e7b05 (notreve)
                 ),
               ],
             ),
@@ -262,8 +268,13 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
                         TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 12),
                 FilledButton(
+<<<<<<< HEAD
                   onPressed: _returnToBuying,
                   child: const Text('Voltar para Comprar'),
+=======
+                  onPressed: _returnToHome,
+                  child: const Text('Voltar para Home'),
+>>>>>>> 94e7b05 (notreve)
                 ),
               ],
             ),
@@ -279,6 +290,7 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
     ];
   }
 
+<<<<<<< HEAD
   Future<void> _returnToBuying() async {
     await RecoveryStateService.clearPayment();
     await RecoveryStateService.clearOrder();
@@ -286,6 +298,17 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
     debugPrint(
         '[Recovery.Clear] reason=delivery_terminal navigation=marketplace');
     Navigator.of(context).popUntil((route) => route.isFirst);
+=======
+  Future<void> _returnToHome() async {
+    await RecoveryStateService.clearPayment();
+    await RecoveryStateService.clearOrder();
+    if (!mounted) return;
+    debugPrint('[Recovery.Clear] reason=delivery_terminal navigation=/home');
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const HomePage()),
+      (_) => false,
+    );
+>>>>>>> 94e7b05 (notreve)
   }
 
   String? _vehicleText(DeliveryVehicle? vehicle) {

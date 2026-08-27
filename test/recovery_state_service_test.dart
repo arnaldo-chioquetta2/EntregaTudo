@@ -11,6 +11,10 @@ void main() {
     status: 'awaiting_payment',
     type: 'pix',
     amount: 24,
+<<<<<<< HEAD
+=======
+    provider: PaymentProviders.notreve,
+>>>>>>> 94e7b05 (notreve)
     pixKey: 'pix@example.com',
   );
 
@@ -29,6 +33,10 @@ void main() {
     expect(state.paymentId, 4);
     expect(state.paymentOrderId, 553);
     expect(state.paymentStatus, 'awaiting_payment');
+<<<<<<< HEAD
+=======
+    expect(state.paymentProvider, PaymentProviders.notreve);
+>>>>>>> 94e7b05 (notreve)
     expect(state.paymentIdempotencyKey, 'same-intention');
     expect(state.ownerId, 10);
 

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../api_v1_error.dart';
 import '../models/marketplace_models.dart';
 import '../services/marketplace_service.dart';
+import '../widgets/resilient_network_image.dart';
 
 class ProdutoDetalhePage extends StatefulWidget {
   final int productId;
@@ -27,6 +28,12 @@ class _ProdutoDetalhePageState extends State<ProdutoDetalhePage> {
   final TextEditingController _observation = TextEditingController();
   final Set<int> _selected = <int>{};
   bool _adding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    ImageRecoveryCoordinator.instance.beginScreen();
+  }
 
   @override
   void dispose() {
@@ -70,24 +77,14 @@ class _ProdutoDetalhePageState extends State<ProdutoDetalhePage> {
           return ListView(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
             children: [
-              if (product.imageUrl != null)
-                Image.network(
-                  product.imageUrl!,
-                  height: 220,
-                  fit: BoxFit.cover,
-                  webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
-                  errorBuilder: (_, error, __) {
-                    final statusCode = error is NetworkImageLoadException
-                        ? error.statusCode
-                        : null;
-                    debugPrint(
-                        '[Marketplace.Image.Web] tipo=detalhe id=${product.idProduto} url=${product.imageUrl} exception=${error.runtimeType} statusCode=${statusCode ?? 'n/a'} message=$error');
-                    return const SizedBox(
-                      height: 220,
-                      child: Icon(Icons.image_not_supported_outlined, size: 60),
-                    );
-                  },
-                ),
+              ResilientNetworkImage(
+                url: product.imageUrl,
+                type: 'detalhe',
+                itemId: product.idProduto,
+                size: 220,
+                width: double.infinity,
+                icon: Icons.image_not_supported_outlined,
+              ),
               const SizedBox(height: 20),
               Text(product.name,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(

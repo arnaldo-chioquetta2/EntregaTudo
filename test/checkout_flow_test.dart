@@ -81,6 +81,25 @@ void main() {
     expect(quote.total, 17.25);
   });
 
+  test('embute taxa do sistema na exibicao da entrega sem alterar o total', () {
+    final cases = [
+      {'entrega': 0, 'taxaSistema': 1, 'total': 2, 'expected': 1},
+      {'entrega': 5, 'taxaSistema': 1, 'total': 16, 'expected': 6},
+      {'entrega': 0, 'taxaSistema': 0, 'total': 10, 'expected': 0},
+    ];
+
+    for (final item in cases) {
+      final quote = CheckoutQuote.fromJson({
+        'produtos': 1,
+        'entrega': item['entrega'],
+        'taxaSistema': item['taxaSistema'],
+        'total': item['total'],
+      });
+
+      expect(quote.deliveryValue + quote.taxaSistema, item['expected']);
+      expect(quote.total, item['total']);
+    }
+  });
   test('rejeita financeiro obrigatorio ausente ou invalido', () {
     expect(
       () => CheckoutQuote.fromJson({

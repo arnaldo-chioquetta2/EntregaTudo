@@ -112,6 +112,10 @@ class ApiV1Client {
           '[Payment.Confirm.Request] pedidoId=${body?['pedidoId'] ?? 'null'} idempotency=${idempotencyKey != null && idempotencyKey.trim().isNotEmpty} authenticated=true path=$path');
     }
 
+    if (path.startsWith('/pedidos/') && path.endsWith('/cancelar')) {
+      debugPrint('[Notreve:20.Cancel.Request] path=$path');
+    }
+
     final stopwatch = Stopwatch()..start();
     try {
       final response = await _send(
@@ -125,6 +129,13 @@ class ApiV1Client {
         '[API.v1] resposta method=$method path=$path status=${response.statusCode} duration_ms=${stopwatch.elapsedMilliseconds}',
       );
 
+      if (path.startsWith('/pedidos/') && path.endsWith('/cancelar')) {
+        final contentType = response.headers['content-type'] ?? 'ausente';
+        debugPrint(
+            '[Notreve:20.Cancel.Http] status=${response.statusCode} contentType=$contentType bodyLength=${response.body.length}');
+        debugPrint(
+            '[Notreve:20.Cancel.Body] ${_sanitizeCancelBody(response.body, contentType)}');
+      }
       if (path == '/checkout/confirmar') {
         final contentType = response.headers['content-type'] ?? 'ausente';
         final bodyPresent = response.body.trim().isNotEmpty;
@@ -204,6 +215,24 @@ class ApiV1Client {
     }
     if (value is List) return value.map(_sanitizeValue).toList();
     return value;
+  }
+
+  String _sanitizeCancelBody(String body, String contentType) {
+    if (body.trim().isEmpty) {
+      return 'success=null message=null code=null body=empty';
+    }
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map) {
+        final success = decoded['success'];
+        final message = decoded['message'];
+        final code = decoded['code'];
+        return 'success=$success message=${message ?? 'null'} code=${code ?? 'null'}';
+      }
+    } on FormatException {
+      return 'contentType=$contentType bodyLength=${body.length} nonJson=true';
+    }
+    return 'contentType=$contentType bodyLength=${body.length} unsupportedJson=true';
   }
 
   Map<String, dynamic> _decodeEnvelope(http.Response response) {

@@ -99,4 +99,20 @@ void main() {
     await expectLater(api.get('/me'), throwsA(isA<ApiV1Exception>()));
     expect(unauthorizedCalls, 1);
   });
+  test('envia cancelamento para o pedido correto', () async {
+    final client = _FakeClient((request) {
+      expect(request.method, 'POST');
+      expect(request.url.path, '/api/v1/pedidos/586/cancelar');
+      return http.Response(
+        jsonEncode(<String, dynamic>{
+          'success': true,
+          'data': <String, dynamic>{},
+        }),
+        200,
+      );
+    });
+    final api = ApiV1Client(client: client, onUnauthorized: () async {});
+
+    await api.post('/pedidos/586/cancelar');
+  });
 }

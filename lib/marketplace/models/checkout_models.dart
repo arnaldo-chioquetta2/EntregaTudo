@@ -73,6 +73,7 @@ class CheckoutQuote {
   final int? orderId;
   final List<Map<String, dynamic>> products;
   final double deliveryValue;
+  final double taxaSistema;
   final double itemsTotal;
   final double total;
   final DeliveryAddress? deliveryAddress;
@@ -83,6 +84,7 @@ class CheckoutQuote {
     required this.orderId,
     required this.products,
     required this.deliveryValue,
+    required this.taxaSistema,
     required this.itemsTotal,
     required this.total,
     required this.deliveryAddress,
@@ -99,6 +101,7 @@ class CheckoutQuote {
     return CheckoutQuote(
       orderId: _int(json['pedidoId']),
       products: products,
+      taxaSistema: _moneyOrZero(json['taxaSistema'] ?? json['taxa_sistema']),
       itemsTotal: _requiredMoney(
         rawProducts is num || rawProducts is String
             ? rawProducts
@@ -148,6 +151,12 @@ double _requiredMoney(Object? value, String field) {
     throw FormatException('Campo financeiro invalido: ');
   }
   return parsed;
+}
+
+double _moneyOrZero(Object? value) {
+  if (value == null) return 0;
+  if (value is num) return value.toDouble();
+  return double.tryParse(_string(value).replaceAll(',', '.')) ?? 0;
 }
 
 double? _doubleOrNull(Object? value) {

@@ -45,6 +45,52 @@ void main() {
     );
   });
 
+  test('normaliza provedor do pagamento e config global', () {
+    final notreve = PaymentConfirmation.fromJson({
+      'paymentId': 27,
+      'pedidoId': 588,
+      'status': 'awaiting_payment',
+      'valor': 2.0,
+      'provider': 'NOTREVE',
+    });
+    final gambiarra = PaymentConfirmation.fromJson({
+      'paymentId': 28,
+      'pedidoId': 589,
+      'status': 'awaiting_payment',
+      'valor': 2.0,
+      'provider': 'GAMBIARRAPAY',
+      'pix': {'chave': 'pix@example.com'},
+    });
+
+    expect(
+        notreve.resolveProvider(const PaymentConfig(provider: 'GAMBIARRAPAY')),
+        PaymentProviders.notreve);
+    expect(gambiarra.resolveProvider(const PaymentConfig(provider: 'NOTREVE')),
+        PaymentProviders.gambiarraPay);
+    expect(
+        PaymentProviders.normalize('desconhecido'), PaymentProviders.notreve);
+    expect(PaymentConfig.fromJson({'provider': 'NOTREVE'}).provider,
+        PaymentProviders.notreve);
+  });
+
+  test('usa config quando pagamento nao informa provider', () {
+    final payment = PaymentConfirmation.fromJson({
+      'paymentId': 29,
+      'pedidoId': 590,
+      'status': 'awaiting_payment',
+      'valor': 2.0,
+    });
+
+    expect(
+      payment.resolveProvider(const PaymentConfig(provider: 'NOTREVE')),
+      PaymentProviders.notreve,
+    );
+    expect(
+      payment.resolveProvider(const PaymentConfig(provider: 'GAMBIARRAPAY')),
+      PaymentProviders.gambiarraPay,
+    );
+  });
+
   test('rejeita confirmacao sem dados obrigatorios', () {
     expect(
       () => PaymentConfirmation.fromJson({'pedidoId': 553}),

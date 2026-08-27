@@ -5,14 +5,23 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'pix_payment_page.dart';
+<<<<<<< HEAD
+=======
+import 'notreve_payment_page.dart';
+>>>>>>> 94e7b05 (notreve)
 
 import '../api_v1_error.dart';
 import '../models/marketplace_models.dart';
+import '../models/payment_models.dart';
 import '../services/marketplace_service.dart';
 import 'cart_page.dart';
 import 'produto_detalhe_page.dart';
 import 'delivery_tracking_page.dart';
 import '../services/recovery_state_service.dart';
+<<<<<<< HEAD
+=======
+import '../widgets/resilient_network_image.dart';
+>>>>>>> 94e7b05 (notreve)
 
 class ComprarMarketplacePage extends StatefulWidget {
   const ComprarMarketplacePage({super.key});
@@ -48,10 +57,16 @@ class _ComprarMarketplacePageState extends State<ComprarMarketplacePage> {
   int? _pendingPaymentOrderId;
   String? _pendingPaymentStatus;
   String? _pendingPaymentKey;
+<<<<<<< HEAD
+=======
+  String? _pendingPaymentProvider;
+  bool _cancellingPendingPayment = false;
+>>>>>>> 94e7b05 (notreve)
 
   @override
   void initState() {
     super.initState();
+    ImageRecoveryCoordinator.instance.beginScreen();
     _search.addListener(_onQueryChanged);
     _resultsScroll.addListener(_onScroll);
     _loadActiveOrder();
@@ -93,6 +108,10 @@ class _ComprarMarketplacePageState extends State<ComprarMarketplacePage> {
           _pendingPaymentOrderId = snapshot.paymentOrderId;
           _pendingPaymentStatus = status.status;
           _pendingPaymentKey = snapshot.paymentIdempotencyKey;
+<<<<<<< HEAD
+=======
+          _pendingPaymentProvider = snapshot.paymentProvider;
+>>>>>>> 94e7b05 (notreve)
         });
       }
     } on ApiV1Exception catch (error) {
@@ -103,6 +122,10 @@ class _ComprarMarketplacePageState extends State<ComprarMarketplacePage> {
           _pendingPaymentOrderId = snapshot.paymentOrderId;
           _pendingPaymentStatus = snapshot.paymentStatus;
           _pendingPaymentKey = snapshot.paymentIdempotencyKey;
+<<<<<<< HEAD
+=======
+          _pendingPaymentProvider = snapshot.paymentProvider;
+>>>>>>> 94e7b05 (notreve)
         });
         debugPrint(
             '[Network.Waiting] source=pending_payment code=${error.code}');
@@ -130,11 +153,56 @@ class _ComprarMarketplacePageState extends State<ComprarMarketplacePage> {
         );
       }
       if (!mounted) return;
+<<<<<<< HEAD
       setState(() => _pendingPaymentStatus = payment.status);
       await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => PixPaymentPage(service: _service, payment: payment),
+=======
+      var config = const PaymentConfig(provider: PaymentProviders.notreve);
+      try {
+        config = await _service.loadPaymentConfig();
+      } on ApiV1Exception catch (error) {
+        debugPrint('[Payment.Config] recovery fallback code=' +
+            (error.code ?? 'unknown'));
+      }
+      debugPrint('[Notreve:6.Config] provider=' + config.provider);
+      final selectedProvider = PaymentProviders.normalize(
+        payment.provider ?? _pendingPaymentProvider ?? config.provider,
+      );
+      final resolvedPayment = payment.withProvider(selectedProvider);
+      debugPrint('[Notreve:6.Payment.Raw] pedidoId=' +
+          payment.orderId.toString() +
+          ' paymentId=' +
+          payment.paymentId.toString() +
+          ' provider=' +
+          (payment.provider ?? 'null') +
+          ' valor=' +
+          payment.amount.toString() +
+          ' status=' +
+          payment.status);
+      setState(() => _pendingPaymentStatus = payment.status);
+      final destination = selectedProvider == PaymentProviders.gambiarraPay
+          ? 'PixPaymentPage'
+          : 'NotrevePaymentPage';
+      debugPrint('[Notreve:6.Route] paymentProvider=' +
+          (payment.provider ?? 'null') +
+          ' configProvider=' +
+          config.provider +
+          ' recoveryProvider=' +
+          (_pendingPaymentProvider ?? 'null') +
+          ' selectedProvider=' +
+          selectedProvider +
+          ' destination=' +
+          destination);
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => selectedProvider == PaymentProviders.gambiarraPay
+              ? PixPaymentPage(service: _service, payment: resolvedPayment)
+              : NotrevePaymentPage(service: _service, payment: resolvedPayment),
+>>>>>>> 94e7b05 (notreve)
         ),
       );
     } on ApiV1Exception catch (error) {
@@ -528,6 +596,66 @@ class _ComprarMarketplacePageState extends State<ComprarMarketplacePage> {
   bool _inCart(MarketplaceProduct product) =>
       _cart.items.any((item) => item.idProduto == product.idProduto);
 
+<<<<<<< HEAD
+=======
+  Future<void> _cancelPendingPayment() async {
+    final orderId = _pendingPaymentOrderId;
+    if (orderId == null || _cancellingPendingPayment) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancelar compra'),
+        content: const Text(
+            'Deseja cancelar esta compra pendente? O pagamento nao sera iniciado.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Manter'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Cancelar compra'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final previousStatus = _pendingPaymentStatus;
+    setState(() {
+      _cancellingPendingPayment = true;
+      _pendingPaymentStatus = 'loading';
+    });
+    debugPrint('[Notreve:20.Cancel.Start] pedidoId=$orderId');
+    try {
+      await _service.cancelOrder(orderId);
+      debugPrint('[Notreve:20.Cancel.Http] pedidoId=$orderId status=200');
+      await RecoveryStateService.clearPayment();
+      if (!mounted) return;
+      setState(() {
+        _pendingPaymentOrderId = null;
+        _pendingPaymentStatus = null;
+        _pendingPaymentKey = null;
+        _pendingPaymentProvider = null;
+        _cancellingPendingPayment = false;
+      });
+      debugPrint('[Notreve:6.Cancel.Success] pedidoId=$orderId');
+    } on ApiV1Exception catch (error) {
+      debugPrint(
+          '[Notreve:20.Cancel.Error] pedidoId=$orderId status=${error.statusCode} code=${error.code ?? 'null'} message=${error.message}');
+      if (!mounted) return;
+      setState(() {
+        _cancellingPendingPayment = false;
+        _pendingPaymentStatus = previousStatus ?? 'error';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nao foi possivel cancelar a compra.')),
+      );
+    }
+  }
+
+>>>>>>> 94e7b05 (notreve)
   Widget _pendingPaymentBanner() => Card(
         color: Theme.of(context).colorScheme.secondaryContainer,
         child: ListTile(
@@ -536,7 +664,17 @@ class _ComprarMarketplacePageState extends State<ComprarMarketplacePage> {
               ? 'Pagamento informado. Aguardando confirmacao.'
               : 'Pagamento pendente'),
           subtitle: const Text('Retomar pagamento PIX'),
+<<<<<<< HEAD
           trailing: const Icon(Icons.chevron_right),
+=======
+          trailing: TextButton(
+            onPressed: _pendingPaymentStatus == 'loading'
+                ? null
+                : _cancelPendingPayment,
+            child:
+                Text(_cancellingPendingPayment ? 'Cancelando...' : 'Cancelar'),
+          ),
+>>>>>>> 94e7b05 (notreve)
           onTap: _pendingPaymentStatus == 'loading' ? null : _resumePayment,
         ),
       );
@@ -589,7 +727,7 @@ class _ComprarMarketplacePageState extends State<ComprarMarketplacePage> {
               width: 90,
               child: Column(
                 children: [
-                  _NetworkImage(
+                  ResilientNetworkImage(
                     url: category.imageUrl,
                     type: 'categoria',
                     itemId: category.id,
@@ -652,7 +790,7 @@ class _ComprarMarketplacePageState extends State<ComprarMarketplacePage> {
               width: 132,
               child: Column(
                 children: [
-                  _NetworkImage(
+                  ResilientNetworkImage(
                     url: supplier.imageUrl,
                     type: 'fornecedor',
                     itemId: supplier.id,
@@ -795,7 +933,7 @@ class _ProductCard extends StatelessWidget {
           children: [
             Stack(
               children: [
-                _NetworkImage(
+                ResilientNetworkImage(
                   url: product.imageUrl,
                   type: 'produto',
                   itemId: product.idProduto,
@@ -863,69 +1001,6 @@ class _ProductCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _NetworkImage extends StatelessWidget {
-  static final Set<String> _loggedItems = <String>{};
-  final String? url;
-  final String type;
-  final int itemId;
-  final double size;
-  final double? width;
-  final IconData icon;
-
-  const _NetworkImage({
-    required this.url,
-    required this.type,
-    required this.itemId,
-    required this.size,
-    required this.icon,
-    this.width,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final fallback = Container(
-      width: width ?? size,
-      height: size,
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Icon(icon, size: size * 0.42),
-    );
-    final logKey = '$type:$itemId';
-    if (_loggedItems.add(logKey)) {
-      debugPrint('[Marketplace.Image] $type id=$itemId url=${url ?? '(nula)'}');
-    }
-    if (url == null) {
-      debugPrint('[Marketplace.Image] sem_imagem tipo=$type id=$itemId');
-      return fallback;
-    }
-    final uri = Uri.tryParse(url!);
-    if (uri == null || !uri.isAbsolute || uri.host.isEmpty) {
-      debugPrint(
-          '[Marketplace.Image.Web] tipo=$type id=$itemId url=$url exception=UriInvalida statusCode=n/a message=uri_invalida');
-      return fallback;
-    }
-    if (_loggedItems.add('uri:$logKey')) {
-      debugPrint(
-          '[Marketplace.Image.Uri] scheme=${uri.scheme} host=${uri.host} path=${uri.path} absolute=${uri.isAbsolute}');
-    }
-    return Image.network(
-      url!,
-      width: width ?? size,
-      height: size,
-      fit: BoxFit.cover,
-      webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
-      errorBuilder: (_, error, __) {
-        final statusCode =
-            error is NetworkImageLoadException ? error.statusCode : null;
-        debugPrint(
-            '[Marketplace.Image.Web] tipo=$type id=$itemId url=$url exception=${error.runtimeType} statusCode=${statusCode ?? 'n/a'} message=$error');
-        return fallback;
-      },
-      loadingBuilder: (context, child, progress) =>
-          progress == null ? child : fallback,
     );
   }
 }

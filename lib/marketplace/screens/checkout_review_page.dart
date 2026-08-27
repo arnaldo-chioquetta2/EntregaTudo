@@ -5,10 +5,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api_v1_error.dart';
 import '../models/checkout_models.dart';
+import '../models/payment_models.dart';
 import '../services/marketplace_service.dart';
 import '../services/recovery_state_service.dart';
 import 'cart_page.dart';
 import 'delivery_preferences_page.dart';
+import 'notreve_payment_page.dart';
 import 'pix_payment_page.dart';
 
 class CheckoutReviewPage extends StatefulWidget {
@@ -47,6 +49,16 @@ class _CheckoutReviewPageState extends State<CheckoutReviewPage> {
         widget.quote.itemsTotal.toString() +
         ' valorEntrega=' +
         widget.quote.deliveryValue.toString() +
+        ' total=' +
+        widget.quote.total.toString());
+    debugPrint('[Notreve:6.Quote] pedidoId=' +
+        (widget.quote.orderId?.toString() ?? 'null') +
+        ' produtos=' +
+        widget.quote.itemsTotal.toString() +
+        ' entrega=' +
+        widget.quote.deliveryValue.toString() +
+        ' taxaSistema=' +
+        widget.quote.taxaSistema.toString() +
         ' total=' +
         widget.quote.total.toString());
   }
@@ -118,10 +130,30 @@ class _CheckoutReviewPageState extends State<CheckoutReviewPage> {
     debugPrint('[Payment.UI.ConfirmCall] pedidoId=${_quote.orderId}');
     setState(() => _loading = true);
     try {
-      final payment = await widget.service.confirmCheckout(
+      var config = const PaymentConfig(provider: PaymentProviders.notreve);
+      try {
+        config = await widget.service.loadPaymentConfig();
+      } on ApiV1Exception catch (error) {
+        debugPrint('[Payment.Config] fallback provider=NOTREVE code=' +
+            (error.code ?? 'unknown'));
+      }
+      debugPrint('[Notreve:6.Config] provider=' + config.provider);
+      var payment = await widget.service.confirmCheckout(
         orderId: _quote.orderId!,
         idempotencyKey: _confirmationKey,
       );
+      final paymentProvider = payment.provider;
+      payment = payment.withProvider(payment.resolveProvider(config));
+      debugPrint('[Notreve:6.Payment.Raw] pedidoId=' +
+          payment.orderId.toString() +
+          ' paymentId=' +
+          payment.paymentId.toString() +
+          ' provider=' +
+          (paymentProvider ?? 'null') +
+          ' valor=' +
+          payment.amount.toString() +
+          ' status=' +
+          payment.status);
       debugPrint(
           '[Payment.UI.ConfirmResult] success=true pagamentoId=${payment.paymentId}');
       final prefs = await SharedPreferences.getInstance();
@@ -137,12 +169,22 @@ class _CheckoutReviewPageState extends State<CheckoutReviewPage> {
       }
       if (!mounted) return;
       setState(() => _loading = false);
+      final paymentPage = payment.provider == PaymentProviders.gambiarraPay
+          ? PixPaymentPage(service: widget.service, payment: payment)
+          : NotrevePaymentPage(service: widget.service, payment: payment);
+      debugPrint('[Notreve:6.Route] paymentProvider=' +
+          (paymentProvider ?? 'null') +
+          ' configProvider=' +
+          config.provider +
+          ' recoveryProvider=null selectedProvider=' +
+          (payment.provider ?? 'null') +
+          ' destination=' +
+          (payment.provider == PaymentProviders.gambiarraPay
+              ? 'PixPaymentPage'
+              : 'NotrevePaymentPage'));
       await Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) =>
-              PixPaymentPage(service: widget.service, payment: payment),
-        ),
+        MaterialPageRoute(builder: (_) => paymentPage),
       );
     } catch (error, stackTrace) {
       debugPrint(
@@ -222,7 +264,7 @@ class _CheckoutReviewPageState extends State<CheckoutReviewPage> {
                         : 'Endereco cadastrado'),
                     subtitle: Text(address.displayText))),
           _valueRow('Total dos itens', _quote.itemsTotal),
-          _valueRow('Teleentrega', _quote.deliveryValue),
+          _valueRow('Teleentrega', _quote.deliveryValue + _quote.taxaSistema),
           const Divider(),
           _valueRow('Total geral', _quote.total, emphasized: true),
           if (_quote.orderId != null)

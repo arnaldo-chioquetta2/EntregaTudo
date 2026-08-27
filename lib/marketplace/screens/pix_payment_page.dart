@@ -149,6 +149,14 @@ class _PixPaymentPageState extends State<PixPaymentPage> {
           Text('Valor a pagar: ${_currency.format(widget.payment.amount)}',
               style:
                   const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          const Text(
+            'Erro no valor - correção pendente',
+            style: TextStyle(
+              color: Colors.red,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 20),
           if (widget.payment.qr != null) _QrView(value: widget.payment.qr!),
           if (widget.payment.valueEmbedded == false)
