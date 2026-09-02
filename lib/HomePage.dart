@@ -57,6 +57,7 @@ class _HomePageState extends State<HomePage> {
   bool isMotoboy = false;
   bool isFornecedor = false;
   bool isMotoBoyOnline = false;
+  bool _motoboyTrackingActive = false;
   bool isFornecedorOnline = false;
   int _quantidadeFavoritosRecebidos = 0;
   String? _nomeEmpresaFavorita;
@@ -75,8 +76,41 @@ class _HomePageState extends State<HomePage> {
   Map<String, dynamic>? deliveryDataMotoboy;
   Map<String, dynamic>? deliveryDataFornecedor;
 
-  void _toggleMotoBoyOnline() {
-    setState(() => isMotoBoyOnline = !isMotoBoyOnline);
+  Future<void> _toggleMotoBoyOnline() async {
+    await _setMotoboyOnline(!isMotoBoyOnline);
+  }
+
+  Future<void> _setMotoboyOnline(bool online) async {
+    if (!isMotoboy) return;
+    try {
+      if (online) {
+        await _locationService.requestPermissions();
+        _motoboyTrackingActive = true;
+        _locationService.startTracking((position) async {
+          if (!isMotoBoyOnline || !_motoboyTrackingActive) return;
+          final prefs = await SharedPreferences.getInstance();
+          await _processaMotoboy(prefs, position.latitude, position.longitude);
+        });
+        await OnlineStatusService.setMotoStatus(true);
+      } else {
+        _motoboyTrackingActive = false;
+        _locationService.stopTracking();
+        await OnlineStatusService.setMotoStatus(false);
+        if (userId != null) await API.motoOff(userId!);
+      }
+      if (!mounted) return;
+      setState(() => isMotoBoyOnline = online);
+      if (online) agendarProximoHeartbeat();
+    } catch (e) {
+      _motoboyTrackingActive = false;
+      _locationService.stopTracking();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Nao foi possivel alterar a disponibilidade: $e')),
+        );
+      }
+    }
   }
 
   void _toggleFornecedorOnline() {
@@ -97,7 +131,7 @@ class _HomePageState extends State<HomePage> {
       }
       print('[LOG ${_ts()}] Arquivo de log inicializado em: ${_logFile!.path}');
     } catch (e) {
-      print('[LOG ${_ts()}] ERRO ao criar arquivo de log: $e');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
     }
   }
 
@@ -109,7 +143,7 @@ class _HomePageState extends State<HomePage> {
     try {
       await _logFile!.writeAsString('$line\n', mode: FileMode.append);
     } catch (e) {
-      print('[LOG ${_ts()}] ERRO ao gravar no arquivo: $e');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
     }
   }
 
@@ -158,18 +192,20 @@ class _HomePageState extends State<HomePage> {
     if (!mounted || opened) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-          content:
-              Text('NÃ£o foi possÃ­vel abrir o download da atualizaÃ§Ã£o.')),
+          content: Text(
+              'NÃ£o foi possÃ­vel abrir o download da atualizaÃ§Ã£o.')),
     );
   }
 
   Future<void> _verificarLoginOuCadastro() async {
     if (isCheckingLogin) {
-      _log('Ignorado: verificaÃƒÂ§ÃƒÂ£o jÃƒÂ¡ em andamento.');
+      _log(
+          'Ignorado: verificaÃƒÂ§ÃƒÂ£o jÃƒÂ¡ em andamento.');
       return;
     }
     isCheckingLogin = true;
-    _log("Iniciando verificaÃƒÂ§ÃƒÂ£o de login ou cadastro");
+    _log(
+        "Iniciando verificaÃƒÂ§ÃƒÂ£o de login ou cadastro");
 
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -212,7 +248,10 @@ class _HomePageState extends State<HomePage> {
       // ============================================================
       // CARREGAR ESTADO ONLINE/OFFLINE
       // ============================================================
-      isMotoBoyOnline = await OnlineStatusService.getMotoStatus();
+      final persistedMotoOnline = await OnlineStatusService.getMotoStatus();
+      isMotoBoyOnline = false;
+      _log(
+          "Status online persistido=$persistedMotoOnline; aguardando confirmacao explicita");
       isFornecedorOnline = isFornecedor
           ? await OnlineStatusService.getFornecedorStatus()
           : false;
@@ -223,9 +262,6 @@ class _HomePageState extends State<HomePage> {
       // ============================================================
       // PERMISSÃƒâ€¢ES DE LOCALIZAÃƒâ€¡ÃƒÆ’O
       // ============================================================
-      _log("Solicitando permissÃƒÂµes de localizaÃƒÂ§ÃƒÂ£oÃ¢â‚¬Â¦");
-      _locationService.requestPermissions();
-
       // ============================================================
       // ATUALIZAR SALDO
       // ============================================================
@@ -240,7 +276,8 @@ class _HomePageState extends State<HomePage> {
       // _scheduleNextHeartbeat(intervalo);
       agendarProximoHeartbeat();
 
-      _log("VerificaÃƒÂ§ÃƒÂ£o concluÃƒÂ­da com sucesso.");
+      _log(
+          "VerificaÃƒÂ§ÃƒÂ£o concluÃƒÂ­da com sucesso.");
     } catch (e, st) {
       _log('ERRO em _verificarLoginOuCadastro: $e\n$st');
     } finally {
@@ -428,13 +465,7 @@ class _HomePageState extends State<HomePage> {
                     ElevatedButton(
                       onPressed: () async {
                         final novoStatus = !isMotoBoyOnline;
-                        await OnlineStatusService.setMotoStatus(novoStatus);
-
-                        if (!novoStatus && userId != null) {
-                          await API.motoOff(userId!);
-                        }
-
-                        setState(() => isMotoBoyOnline = novoStatus);
+                        await _setMotoboyOnline(novoStatus);
                       },
                       style: ElevatedButton.styleFrom(
                         minimumSize: const Size(200, 45),
@@ -672,7 +703,8 @@ class _HomePageState extends State<HomePage> {
         // 5) SE Ãƒâ€° AMBOS OS PERFIS
         // ------------------------------------------------------
         if (isMotoboy && isFornecedor) {
-          _log("Modo AMBOS ATIVOS Ã¢â€ â€™ Decision by chamaHeartbeat()");
+          _log(
+              "Modo AMBOS ATIVOS Ã¢â€ â€™ Decision by chamaHeartbeat()");
           await chamaHeartbeat();
           _scheduleNextHeartbeat(seconds);
           return;
@@ -685,12 +717,14 @@ class _HomePageState extends State<HomePage> {
 
   void pausarHeartbeatFornecedor() {
     hbPausadoPorEntrega = true;
-    _log("Ã¢ÂÂ¸ HeartbeatF PAUSADO (Motoboy aceitou entrega)");
+    _log(
+        "Ã¢ÂÂ¸ HeartbeatF PAUSADO (Motoboy aceitou entrega)");
   }
 
   void pausarHeartbeatMotoBoy() {
     hbPausadoPorVenda = true;
-    _log("Ã¢ÂÂ¸ HeartbeatM PAUSADO (Fornecedor aceitou venda)");
+    _log(
+        "Ã¢ÂÂ¸ HeartbeatM PAUSADO (Fornecedor aceitou venda)");
   }
 
   void despausarHeartbeatFornecedor() {
@@ -723,7 +757,7 @@ class _HomePageState extends State<HomePage> {
       // ============================================================
       if (usuarioEhMotoboy && !usuarioEhFornecedor) {
         _log("Modo: SOMENTE MOTOBOY");
-        if (!hbPausadoPorVenda) {
+        if (!hbPausadoPorVenda && !_motoboyTrackingActive) {
           await _processaMotoboy(prefs, latitude, longitude);
         } else {
           _log("Heartbeat MotoBoy PAUSADO (hbPausadoPorVenda=true)");
@@ -754,7 +788,8 @@ class _HomePageState extends State<HomePage> {
 
         // alternÃƒÂ¢ncia
         if (proximoEhFornecedor) {
-          _log("Ã¢â€ â€™ Tick atual: Fornecedor");
+          _log(
+              "Ã¢â€ â€™ Tick atual: Fornecedor");
 
           if (!hbPausadoPorEntrega) {
             await _processaFornecedor(prefs, latitude, longitude);
@@ -766,7 +801,7 @@ class _HomePageState extends State<HomePage> {
         } else {
           _log("Ã¢â€ â€™ Tick atual: Motoboy");
 
-          if (!hbPausadoPorVenda) {
+          if (!hbPausadoPorVenda && !_motoboyTrackingActive) {
             await _processaMotoboy(prefs, latitude, longitude);
           } else {
             _log("Motoboy PAUSADO (hbPausadoPorVenda=true)");
@@ -780,7 +815,8 @@ class _HomePageState extends State<HomePage> {
     } catch (e, st) {
       _log('ERRO em chamaHeartbeat: $e\n$st');
     } finally {
-      _log('Reagendando heartbeat (intervalo=$intervalo s)Ã¢â‚¬Â¦');
+      _log(
+          'Reagendando heartbeat (intervalo=$intervalo s)Ã¢â‚¬Â¦');
       _scheduleNextHeartbeat(intervalo);
       _log('--- chamaHeartbeat END ---');
     }
@@ -788,7 +824,8 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _processaFornecedor(
       SharedPreferences prefs, double latitude, double longitude) async {
-    _log('Fornecedor detectado. Chamando API.sendHeartbeatFÃ¢â‚¬Â¦');
+    _log(
+        'Fornecedor detectado. Chamando API.sendHeartbeatFÃ¢â‚¬Â¦');
 
     final fornecedorDetails = await API.sendHeartbeatF(latitude, longitude);
 
@@ -858,7 +895,8 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _processaMotoboy(
       SharedPreferences prefs, double latitude, double longitude) async {
-    _log('Motoboy detectado. Chamando API.sendHeartbeatÃ¢â‚¬Â¦');
+    _log(
+        'Motoboy detectado. Chamando API.sendHeartbeatÃ¢â‚¬Â¦');
 
     final deliveryDetails = await API.sendHeartbeat(latitude, longitude);
 
@@ -867,6 +905,8 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
+    if (!mounted) return;
+
     _log('HeartbeatM OK: lojasNoRaio=${deliveryDetails.lojasNoRaio}, '
         'valor=${deliveryDetails.valor}, chamado=${deliveryDetails.chamado}');
 
@@ -874,7 +914,8 @@ class _HomePageState extends State<HomePage> {
     // 1) Nenhum chamado vÃƒÂ¡lido Ã¢â€ â€™ limpar UI motoboy
     // --------------------------------------------------------------
     if (deliveryDetails.chamado == null || deliveryDetails.chamado == 0) {
-      _log("Nenhum chamado vÃƒÂ¡lido (chamado=0). Limpando dados do motoboy.");
+      _log(
+          "Nenhum chamado vÃƒÂ¡lido (chamado=0). Limpando dados do motoboy.");
 
       setState(() {
         lojasNoRaio = deliveryDetails.lojasNoRaio;
@@ -926,17 +967,20 @@ class _HomePageState extends State<HomePage> {
     final currentChamado = prefs.getInt('currentChamado');
 
     if (currentChamado != deliveryDetails.chamado) {
-      _log("Novo chamado detectado Ã¢â‚¬â€ atualizando currentChamado");
+      _log(
+          "Novo chamado detectado Ã¢â‚¬â€ atualizando currentChamado");
 
       await prefs.setInt('currentChamado', deliveryDetails.chamado ?? 0);
 
       final userId = prefs.getInt('idUser');
       if (userId != null) {
-        _log("Reportando visualizaÃƒÂ§ÃƒÂ£o ao servidorÃ¢â‚¬Â¦ userId=$userId");
+        _log(
+            "Reportando visualizaÃƒÂ§ÃƒÂ£o ao servidorÃ¢â‚¬Â¦ userId=$userId");
         await API.reportViewToServer(userId, deliveryDetails.chamado);
       }
     } else {
-      _log("Chamado jÃƒÂ¡ processado anteriormente. Ignorando report.");
+      _log(
+          "Chamado jÃƒÂ¡ processado anteriormente. Ignorando report.");
     }
 
     // --------------------------------------------------------------
@@ -1019,7 +1063,8 @@ class _HomePageState extends State<HomePage> {
 
     _log("Fornecedor ACEITOU nova venda.");
     hbPausadoPorVenda = true;
-    _log("Ã¢ÂÂ¸ Heartbeat do Motoboy pausado (hbPausadoPorVenda=true)");
+    _log(
+        "Ã¢ÂÂ¸ Heartbeat do Motoboy pausado (hbPausadoPorVenda=true)");
 
     if (idAviso != null && idPed != null) {
       _log(
@@ -1104,7 +1149,8 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    _log("Ã°Å¸â€œÂ¦ Respondendo entrega $deliveryId | accept=$accept");
+    _log(
+        "Ã°Å¸â€œÂ¦ Respondendo entrega $deliveryId | accept=$accept");
 
     final sucesso = await API.respondToDelivery(userId, deliveryId, accept);
 
@@ -1126,19 +1172,22 @@ class _HomePageState extends State<HomePage> {
       });
 
       hbPausadoPorEntrega = false;
-      _log("Ã¢Å“â€ Entrega recusada Ã¢â€ â€™ heartbeat liberado.");
+      _log(
+          "Ã¢Å“â€ Entrega recusada Ã¢â€ â€™ heartbeat liberado.");
       return;
     }
 
     // -----------------------------
     // Ã°Å¸Å¸Â¢ CASO ACEITE
     // -----------------------------
-    _log("Ã¢Å“â€¦ Entrega aceita. Buscando entrega ativa...");
+    _log(
+        "Ã¢Å“â€¦ Entrega aceita. Buscando entrega ativa...");
 
     var entrega = await EntregaService.carregarEntregaAtiva();
 
     if (entrega == null) {
-      _log("Entrega ativa ainda indisponÃ­vel. Usando dados da oferta aceita.");
+      _log(
+          "Entrega ativa ainda indisponÃ­vel. Usando dados da oferta aceita.");
 
       entrega = EntregaAtiva(
         idPedido: deliveryId,
@@ -1171,7 +1220,8 @@ class _HomePageState extends State<HomePage> {
 
     hbPausadoPorEntrega = true;
 
-    _log("Ã°Å¸â€Â CÃ³digo de retirada carregado: ${entrega.codigoRetirada}");
+    _log(
+        "Ã°Å¸â€Â CÃ³digo de retirada carregado: ${entrega.codigoRetirada}");
   }
 
   Future<void> handleDeliveryCompleted() async {
@@ -1297,9 +1347,9 @@ class _HomePageState extends State<HomePage> {
     if (userId == null) return;
 
     try {
-      print("Buscando saldo para o usuÃƒÂ¡rio: $userId");
+      print("[Saldo] request_started");
       final raw = await API.saldo(userId); // ex.: "123" ou "R$ 123,45"
-      print("Saldo bruto da API: '$raw'");
+      print("[Saldo] response_processed=true");
 
       final limpo =
           raw.replaceAll(RegExp(r'[^0-9,\.]'), '').replaceAll(',', '.').trim();
@@ -1315,14 +1365,15 @@ class _HomePageState extends State<HomePage> {
         isSaldoAtualizado = true;
       });
     } catch (e) {
-      print("Erro ao atualizar saldo: $e");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       if (!mounted) return;
       setState(() {
         saldoNum = 0.0;
         saldo = 'R\$ 0,00';
       });
     } finally {
-      print("AtualizaÃƒÂ§ÃƒÂ£o do saldo concluÃƒÂ­da");
+      print(
+          "AtualizaÃƒÂ§ÃƒÂ£o do saldo concluÃƒÂ­da");
     }
   }
 
@@ -1344,7 +1395,11 @@ class _HomePageState extends State<HomePage> {
 
     if (!mounted) return;
     setState(() {
-      isMotoBoyOnline = moto;
+      isMotoBoyOnline = false;
+      if (moto) {
+        print(
+            "[HomePage] Status online persistido; tracking aguardando confirmacao");
+      }
       isFornecedorOnline = fornecedor;
     });
 
@@ -1356,11 +1411,10 @@ class _HomePageState extends State<HomePage> {
     print('[PerfilEntregador] carregamento_iniciado');
     final id = userId;
     if (id == null || id <= 0) {
-      print('[PerfilEntregador] carregamento_ignorado motivo=userid_ausente');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       return;
     }
-
-    print('[PerfilEntregador] userid=$id');
+    print('[PerfilEntregador] carregamento_iniciado');
     print('[PerfilEntregador] chamando_api');
     try {
       final data = await API.favoritosRecebidos(id);
@@ -1374,8 +1428,7 @@ class _HomePageState extends State<HomePage> {
 
       print('[PerfilEntregador] status=200');
       print('[PerfilEntregador] quantidade=$quantidade');
-      print('[PerfilEntregador] nome_empresa_presente='
-          '${nome != null && nome.isNotEmpty ? 'sim' : 'nao'}');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       if (!mounted) return;
       setState(() {
         _quantidadeFavoritosRecebidos = quantidade;
@@ -1383,12 +1436,13 @@ class _HomePageState extends State<HomePage> {
       });
       print('[PerfilEntregador] estado_atualizado');
     } catch (error) {
-      print('[PerfilEntregador] erro=${error.runtimeType}: $error');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
     }
   }
 
   Future<void> executarHeartbeat() async {
-    _log("Ã°Å¸â€Â¥ executarHeartbeat() chamado.");
+    _log(
+        "Ã°Å¸â€Â¥ executarHeartbeat() chamado.");
 
     // =========================================================
     // Ã¢â€ºâ€ 1) PAUSA GLOBAL DO MOTOBOY ENQUANTO ELE ESTÃƒÂ ANALISANDO ENTREGA
@@ -1406,7 +1460,8 @@ class _HomePageState extends State<HomePage> {
     if (isMotoboy && isFornecedor) {
       // Ã°Å¸â€˜â€° Se Motoboy estÃƒÂ¡ em entrega Ã¢â€ â€™ PAUSAR Fornecedor
       if (hbPausadoPorEntrega) {
-        _log("Ã¢â€ºâ€ Heartbeat Fornecedor PAUSADO por entrega do Motoboy.");
+        _log(
+            "Ã¢â€ºâ€ Heartbeat Fornecedor PAUSADO por entrega do Motoboy.");
         await chamaHeartbeatMotoboy();
         agendarProximoHeartbeat();
         return;
@@ -1414,7 +1469,8 @@ class _HomePageState extends State<HomePage> {
 
       // Ã°Å¸â€˜â€° Se Fornecedor estÃƒÂ¡ em venda Ã¢â€ â€™ PAUSAR Motoboy
       if (hbPausadoPorVenda) {
-        _log("Ã¢â€ºâ€ Heartbeat Motoboy PAUSADO por venda do Fornecedor.");
+        _log(
+            "Ã¢â€ºâ€ Heartbeat Motoboy PAUSADO por venda do Fornecedor.");
         await chamaHeartbeatFornecedor();
         agendarProximoHeartbeat();
         return;
@@ -1422,11 +1478,13 @@ class _HomePageState extends State<HomePage> {
 
       // Ã°Å¸â€˜â€° AlternÃƒÂ¢ncia normal
       if (proximoEhFornecedor) {
-        _log("Heartbeat Ã¢â€ â€™ Fornecedor (alternÃƒÂ¢ncia)");
+        _log(
+            "Heartbeat Ã¢â€ â€™ Fornecedor (alternÃƒÂ¢ncia)");
         await chamaHeartbeatFornecedor();
         proximoEhFornecedor = false;
       } else {
-        _log("Heartbeat Ã¢â€ â€™ Motoboy (alternÃƒÂ¢ncia)");
+        _log(
+            "Heartbeat Ã¢â€ â€™ Motoboy (alternÃƒÂ¢ncia)");
         await chamaHeartbeatMotoboy();
         proximoEhFornecedor = true;
       }
@@ -1457,7 +1515,12 @@ class _HomePageState extends State<HomePage> {
   void agendarProximoHeartbeat() {
     _timer?.cancel();
 
-    _log("Ã¢ÂÂ³ Agendando prÃƒÂ³ximo heartbeat em $intervalo segundos...");
+    if (isMotoboy && !isFornecedor) {
+      _timer = null;
+      return;
+    }
+    _log(
+        "Ã¢ÂÂ³ Agendando prÃƒÂ³ximo heartbeat em $intervalo segundos...");
 
     _timer = Timer(Duration(seconds: intervalo), () {
       executarHeartbeat();
@@ -1503,7 +1566,8 @@ class _HomePageState extends State<HomePage> {
 // ImplementaÃƒÂ§ÃƒÂ£o do Card de Entrega Ativa com CÃƒÂ³digo de Retirada
 // ===========================================================
   Widget buildEntregaAtivaCard() {
-    _log("Ã°Å¸â€œÅ’ [v1.5.0] buildEntregaAtivaCard() renderizando");
+    _log(
+        "Ã°Å¸â€œÅ’ [v1.5.0] buildEntregaAtivaCard() renderizando");
 
     if (entregaAtiva == null) {
       return SizedBox.shrink();
@@ -1894,8 +1958,7 @@ class _HomePageState extends State<HomePage> {
     return ElevatedButton(
       onPressed: () async {
         final novoStatus = !isMotoBoyOnline;
-        await OnlineStatusService.setMotoStatus(novoStatus);
-        setState(() => isMotoBoyOnline = novoStatus);
+        await _setMotoboyOnline(novoStatus);
       },
       child: Text(
         isMotoBoyOnline

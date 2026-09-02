@@ -4,7 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-// 1.4.6 Correção do convite que estava aparecendo um errado no painel do captador
+// 1.4.6 CorreÃ§Ã£o do convite que estava aparecendo um errado no painel do captador
 
 class CaptadorPanelPage extends StatefulWidget {
   const CaptadorPanelPage({super.key});
@@ -25,7 +25,8 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
     super.initState();
     print('[CAPTADOR] initState chamado');
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      print('[CAPTADOR] PostFrameCallback → chamando _carregarCodigoInicial');
+      print(
+          '[CAPTADOR] PostFrameCallback â†’ chamando _carregarCodigoInicial');
       _carregarCodigoInicial();
     });
   }
@@ -39,7 +40,7 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
   Future<void> _generateCode() async {
     setState(() {
       _isLoading = true;
-      _statusMessage = "Gerando código...";
+      _statusMessage = "Gerando cÃ³digo...";
       _statusColor = Colors.black;
     });
 
@@ -49,12 +50,12 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
       _inviteController.text = code;
 
       setState(() {
-        _statusMessage = "Código gerado com sucesso: $code";
+        _statusMessage = "CÃ³digo gerado com sucesso: $code";
         _statusColor = Colors.green;
       });
     } catch (e) {
       setState(() {
-        _statusMessage = "Erro ao gerar código.";
+        _statusMessage = "Erro ao gerar cÃ³digo.";
         _statusColor = Colors.red;
       });
     } finally {
@@ -66,7 +67,8 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
     final code = _inviteController.text.trim();
     if (code.isEmpty || _userId == null) {
       setState(() {
-        _statusMessage = "Informe um código e verifique se está disponível.";
+        _statusMessage =
+            "Informe um cÃ³digo e verifique se estÃ¡ disponÃ­vel.";
         _statusColor = Colors.red;
       });
       return;
@@ -84,13 +86,13 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
 
       setState(() {
         _statusMessage = available
-            ? "Código disponível para uso!"
-            : "Código já está em uso.";
+            ? "CÃ³digo disponÃ­vel para uso!"
+            : "CÃ³digo jÃ¡ estÃ¡ em uso.";
         _statusColor = available ? Colors.green : Colors.red;
       });
     } catch (e) {
       setState(() {
-        _statusMessage = "Erro ao verificar código.";
+        _statusMessage = "Erro ao verificar cÃ³digo.";
         _statusColor = Colors.red;
       });
     } finally {
@@ -102,7 +104,7 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
     final code = _inviteController.text.trim();
     if (code.isEmpty || _userId == null) {
       setState(() {
-        _statusMessage = "Preencha um código antes de salvar.";
+        _statusMessage = "Preencha um cÃ³digo antes de salvar.";
         _statusColor = Colors.red;
       });
       return;
@@ -110,7 +112,7 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
 
     setState(() {
       _isLoading = true;
-      _statusMessage = "Salvando código...";
+      _statusMessage = "Salvando cÃ³digo...";
       _statusColor = Colors.black;
     });
 
@@ -120,19 +122,19 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
 
       setState(() {
         _statusMessage = success
-            ? "Código salvo com sucesso!"
-            : result['message'] ?? "Erro ao salvar código.";
+            ? "CÃ³digo salvo com sucesso!"
+            : result['message'] ?? "Erro ao salvar cÃ³digo.";
         _statusColor = success ? Colors.green : Colors.red;
       });
 
       if (success) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('inviteCode', code);
-        print('[CAPTADOR] inviteCode persistido nas prefs="$code"');
+        print('[CAPTADOR] inviteCode_persistido=true');
       }
     } catch (e) {
       setState(() {
-        _statusMessage = "Erro ao salvar código.";
+        _statusMessage = "Erro ao salvar cÃ³digo.";
         _statusColor = Colors.red;
       });
     } finally {
@@ -147,51 +149,52 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
 
     _userId = prefs.getInt('idUser');
     final nomeUsuario = prefs.getString('nomeUser');
+    print('[CAPTADOR] prefs_carregadas=true');
 
-    print('[CAPTADOR] prefs: idUser=$_userId, nomeUser="$nomeUsuario"');
-
-    // 🔹 1) Convite vindo do backend (login)
+    // ðŸ”¹ 1) Convite vindo do backend (login)
     final backendConvite = prefs.getString('convite');
-    print('[CAPTADOR] Convite do backend (prefs.convite): "$backendConvite"');
+    print(
+        '[CAPTADOR] convite_backend_presente=${backendConvite != null && backendConvite.trim().isNotEmpty}');
 
-    // 🔹 2) Código salvo manualmente no painel
+    // ðŸ”¹ 2) CÃ³digo salvo manualmente no painel
     final localCode = prefs.getString('inviteCode');
-    print('[CAPTADOR] Código salvo localmente (prefs.inviteCode): "$localCode"');
+    print(
+        '[CAPTADOR] convite_local_presente=${localCode != null && localCode.trim().isNotEmpty}');
 
     String codigoFinal = '';
 
     if (backendConvite != null && backendConvite.trim().isNotEmpty) {
-      // 👉 PRIORIDADE MÁXIMA
+      // ðŸ‘‰ PRIORIDADE MÃXIMA
       codigoFinal = backendConvite.trim().toUpperCase();
-      print('[CAPTADOR] Usando convite do backend: $codigoFinal');
+      print('[CAPTADOR] origem_convite=backend');
     } else if (localCode != null && localCode.trim().isNotEmpty) {
       codigoFinal = localCode.trim().toUpperCase();
-      print('[CAPTADOR] Usando código salvo localmente: $codigoFinal');
+      print(
+          '[CAPTADOR] convite_local_presente=${localCode != null && localCode.trim().isNotEmpty}');
     } else if (nomeUsuario != null && nomeUsuario.trim().isNotEmpty) {
       codigoFinal = _gerarCodigoDeNome(nomeUsuario);
-      print('[CAPTADOR] Gerado a partir do nome: $codigoFinal');
+      print('[CAPTADOR] origem_convite=gerado');
     } else {
-      print('[CAPTADOR] Nenhum dado disponível para gerar código.');
+      print('[CAPTADOR] Nenhum dado disponÃ­vel para gerar cÃ³digo.');
       codigoFinal = '';
     }
 
     if (!mounted) {
-      print('[CAPTADOR] Widget desmontado, abortando atualização.');
+      print('[CAPTADOR] Widget desmontado, abortando atualizaÃ§Ã£o.');
       return;
     }
 
     setState(() {
       _inviteController.text = codigoFinal;
     });
-
-    print('[CAPTADOR] Campo atualizado: "${_inviteController.text}"');
+    print('[CAPTADOR] campo_atualizado=true');
   }
 
   String _gerarCodigoDeNome(String nome) {
     final limpo = nome.toUpperCase().replaceAll(RegExp(r'[^A-Z]'), '');
     final gerado =
         limpo.length >= 8 ? limpo.substring(0, 8) : limpo.padRight(8, 'X');
-    print('[CAPTADOR] _gerarCodigoDeNome("$nome") => "$gerado"');
+    print('[CAPTADOR] codigo_gerado=true');
     return gerado;
   }
 
@@ -204,7 +207,8 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
 
     if (codigoConvite.isEmpty) {
       setState(() {
-        _statusMessage = "Gere ou salve um c\u00f3digo antes de enviar o convite.";
+        _statusMessage =
+            "Gere ou salve um c\u00f3digo antes de enviar o convite.";
         _statusColor = Colors.red;
       });
       return;
@@ -262,14 +266,14 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              "Gerar ou configurar código de convite",
+              "Gerar ou configurar cÃ³digo de convite",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
             TextField(
               controller: _inviteController,
               decoration: const InputDecoration(
-                labelText: "Código do convite (8 letras maiúsculas)",
+                labelText: "CÃ³digo do convite (8 letras maiÃºsculas)",
                 border: OutlineInputBorder(),
               ),
               textCapitalization: TextCapitalization.characters,
@@ -284,7 +288,7 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
                   ElevatedButton.icon(
                     onPressed: _generateCode,
                     icon: const Icon(Icons.refresh),
-                    label: const Text("Gerar código aleatório"),
+                    label: const Text("Gerar cÃ³digo aleatÃ³rio"),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,
                       minimumSize: const Size(double.infinity, 45),
@@ -304,7 +308,7 @@ class _CaptadorPanelPageState extends State<CaptadorPanelPage> {
                   ElevatedButton.icon(
                     onPressed: _saveCode,
                     icon: const Icon(Icons.save),
-                    label: const Text("Salvar código"),
+                    label: const Text("Salvar cÃ³digo"),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       minimumSize: const Size(double.infinity, 45),

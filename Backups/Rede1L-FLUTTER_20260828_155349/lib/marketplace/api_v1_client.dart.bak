@@ -1,0 +1,488 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'api_v1_error.dart';
+import 'api_v1_session.dart';
+import 'browser_resource_timing.dart';
+
+class ApiV1Client {
+  static const String baseUrl = 'https://teletudo.com/api/v1';
+  static const Duration requestTimeout = Duration(seconds: 15);
+  static int _nextRequestId = 0;
+  int? _lastRequestId;
+
+  int? get lastRequestId => _lastRequestId;
+
+  void _trace(int id, String path, String stage, int elapsedMs,
+      {String? extra}) {
+    final suffix = extra == null ? '' : ' $extra';
+    final now = DateTime.now();
+    debugPrint(
+      '[Net.Trace] id=$id path=$path stage=$stage '
+      'timestamp=${now.toIso8601String()} epoch_ms=${now.millisecondsSinceEpoch} '
+      'elapsed_ms=$elapsedMs$suffix',
+    );
+  }
+
+  void _summary(int id, String path,
+      {int? status,
+      int? preHttpMs,
+      int? httpMs,
+      int? jsonMs,
+      required int totalMs}) {
+    String value(int? value) => value?.toString() ?? 'NA';
+    debugPrint(
+      '[Net.Summary] id=$id path=$path platform=${kIsWeb ? 'web' : 'native'} '
+      'status=${value(status)} pre_http_ms=${value(preHttpMs)} http_ms=${value(httpMs)} '
+      'dns_ms=NA connect_ms=NA tls_ms=NA ttfb_ms=NA download_ms=NA '
+      'json_ms=${value(jsonMs)} model_ms=NA total_ms=$totalMs',
+    );
+  }
+
+  bool _browserTimingPath(String path) {
+    return path == '/marketplace' || path == '/carrinho';
+  }
+
+  String _timingValue(num? value, {int decimals = 2}) {
+    if (value == null) return 'NA';
+    return value is int ? value.toString() : value.toStringAsFixed(decimals);
+  }
+
+  String _header(http.Response response, String name) {
+    return response.headers[name.toLowerCase()] ?? 'NA';
+  }
+
+  double? _headerDouble(http.Response response, String name) {
+    return double.tryParse(_header(response, name));
+  }
+
+  int? _headerInt(http.Response response, String name) {
+    return int.tryParse(_header(response, name));
+  }
+
+  void _browserSummary({
+    required int requestId,
+    required String path,
+    required http.Response response,
+    required BrowserResourceTiming? timing,
+    required int flutterHttpMs,
+  }) {
+    final backendRequestId = _header(response, 'x-diagnostic-request-id');
+    final backendStart = _headerInt(response, 'x-diagnostic-laravel-start');
+    final backendMs = _headerDouble(response, 'x-diagnostic-laravel-ms');
+    final backendEnd = _headerInt(response, 'x-diagnostic-laravel-end');
+    final serverTiming = _header(response, 'server-timing');
+    final responseEpoch = DateTime.now().millisecondsSinceEpoch;
+    final backendFinishToFlutter =
+        backendEnd == null ? null : responseEpoch - backendEnd;
+    final detailedFieldsAvailable = timing != null &&
+        timing.domainLookupStart != null &&
+        timing.connectStart != null &&
+        timing.requestStart != null &&
+        timing.responseStart != null;
+    final restrictedFields =
+        detailedFieldsAvailable ? 'none' : 'dns,tcp,tls,ttfb,sizes';
+    final fetchStart = timing?.fetchStart;
+    final startTime = timing?.startTime;
+    final domainLookupStart = timing?.domainLookupStart;
+    final domainLookupEnd = timing?.domainLookupEnd;
+    final connectStart = timing?.connectStart;
+    final connectEnd = timing?.connectEnd;
+    final secureConnectionStart = timing?.secureConnectionStart;
+    final requestStart = timing?.requestStart;
+    final responseStart = timing?.responseStart;
+    final responseEnd = timing?.responseEnd;
+    final queueMs =
+        fetchStart == null || startTime == null ? null : fetchStart - startTime;
+    final dnsMs = domainLookupStart == null || domainLookupEnd == null
+        ? null
+        : domainLookupEnd - domainLookupStart;
+    final tcpMs = connectStart == null || connectEnd == null
+        ? null
+        : connectEnd - connectStart;
+    final tlsMs = secureConnectionStart == null || connectEnd == null
+        ? null
+        : connectEnd - secureConnectionStart;
+    final ttfbMs = requestStart == null || responseStart == null
+        ? null
+        : responseStart - requestStart;
+    final downloadMs = responseStart == null || responseEnd == null
+        ? null
+        : responseEnd - responseStart;
+    final reusedConnection = timing == null ||
+            timing.connectStart == null ||
+            timing.connectEnd == null
+        ? 'NA'
+        : (connectStart == fetchStart && connectEnd == fetchStart).toString();
+
+    debugPrint(
+      '[Browser.Net] id=$requestId path=$path '
+      'backend_request_id=$backendRequestId '
+      'protocol=${timing?.nextHopProtocol ?? 'NA'} '
+      'queue_ms=${_timingValue(queueMs)} dns_ms=${_timingValue(dnsMs)} '
+      'tcp_ms=${_timingValue(tcpMs)} tls_ms=${_timingValue(tlsMs)} '
+      'ttfb_ms=${_timingValue(ttfbMs)} '
+      'download_ms=${_timingValue(downloadMs)} '
+      'resource_total_ms=${_timingValue(timing?.duration)} '
+      'transfer_size=${timing?.transferSize ?? 'NA'} '
+      'encoded_body_size=${timing?.encodedBodySize ?? 'NA'} '
+      'decoded_body_size=${timing?.decodedBodySize ?? 'NA'} '
+      'backend_start_epoch_ms=${backendStart ?? 'NA'} '
+      'backend_end_epoch_ms=${backendEnd ?? 'NA'} '
+      'backend_ms=${_timingValue(backendMs)} '
+      'backend_finish_to_flutter_ms=${backendFinishToFlutter ?? 'NA'} '
+      'resource_timing_found=${timing != null} '
+      'resource_timing_restricted=${!detailedFieldsAvailable} '
+      'restricted_fields=$restrictedFields reused_connection=$reusedConnection '
+      'preflight_visible=false server_timing_present=${serverTiming != 'NA'}',
+    );
+    debugPrint(
+      '[Browser.Summary] id=$requestId path=$path '
+      'protocol=${timing?.nextHopProtocol ?? 'NA'} '
+      'queue_ms=${_timingValue(queueMs)} dns_ms=${_timingValue(dnsMs)} '
+      'tcp_ms=${_timingValue(tcpMs)} tls_ms=${_timingValue(tlsMs)} '
+      'ttfb_ms=${_timingValue(ttfbMs)} '
+      'download_ms=${_timingValue(downloadMs)} '
+      'resource_total_ms=${_timingValue(timing?.duration)} '
+      'backend_start_epoch_ms=${backendStart ?? 'NA'} '
+      'backend_end_epoch_ms=${backendEnd ?? 'NA'} '
+      'backend_ms=${_timingValue(backendMs)} '
+      'backend_finish_to_flutter_ms=${backendFinishToFlutter ?? 'NA'} '
+      'flutter_http_ms=$flutterHttpMs '
+      'preflight_visible=false server_timing_present=${serverTiming != 'NA'}',
+    );
+  }
+
+  final http.Client _client;
+  final Future<void> Function() _onUnauthorized;
+
+  ApiV1Client({
+    http.Client? client,
+    Future<void> Function()? onUnauthorized,
+  })  : _client = client ?? http.Client(),
+        _onUnauthorized = onUnauthorized ?? ApiV1Session.handleUnauthorized;
+
+  Future<Map<String, dynamic>> me() => get('/me');
+
+  Future<Map<String, dynamic>> get(
+    String path, {
+    Map<String, String>? queryParameters,
+  }) {
+    return _request(
+      method: 'GET',
+      path: path,
+      queryParameters: queryParameters,
+    );
+  }
+
+  Future<Map<String, dynamic>> post(
+    String path, {
+    Map<String, dynamic>? body,
+    Map<String, String>? queryParameters,
+    String? idempotencyKey,
+  }) {
+    return _request(
+      method: 'POST',
+      path: path,
+      body: body,
+      queryParameters: queryParameters,
+      idempotencyKey: idempotencyKey,
+    );
+  }
+
+  Future<Map<String, dynamic>> patch(
+    String path, {
+    Map<String, dynamic>? body,
+    Map<String, String>? queryParameters,
+  }) {
+    return _request(
+      method: 'PATCH',
+      path: path,
+      body: body,
+      queryParameters: queryParameters,
+    );
+  }
+
+  Future<Map<String, dynamic>> delete(
+    String path, {
+    Map<String, dynamic>? body,
+    Map<String, String>? queryParameters,
+  }) {
+    return _request(
+      method: 'DELETE',
+      path: path,
+      body: body,
+      queryParameters: queryParameters,
+    );
+  }
+
+  Future<Map<String, dynamic>> _request({
+    required String method,
+    required String path,
+    Map<String, dynamic>? body,
+    Map<String, String>? queryParameters,
+    String? idempotencyKey,
+  }) async {
+    final requestId = ++_nextRequestId;
+    _lastRequestId = requestId;
+    final requestStopwatch = Stopwatch()..start();
+    _trace(requestId, path, 'request_start', 0, extra: 'attempt=1');
+    _trace(requestId, path, 'before_token_read', 0);
+    final prefs = await SharedPreferences.getInstance();
+    _trace(requestId, path, 'after_token_read',
+        requestStopwatch.elapsedMilliseconds,
+        extra:
+            'token_present=${prefs.getString('authToken')?.trim().isNotEmpty == true}');
+    final token = prefs.getString('authToken');
+    if (token == null || token.trim().isEmpty) {
+      await _onUnauthorized();
+      throw const ApiV1Exception(ApiV1Error(
+        statusCode: 401,
+        code: 'unauthenticated',
+        message: 'Sessao expirada. Entre novamente.',
+      ));
+    }
+
+    _trace(requestId, path, 'before_headers_build',
+        requestStopwatch.elapsedMilliseconds);
+    final uri = Uri.parse('$baseUrl$path').replace(
+      queryParameters:
+          queryParameters?.isEmpty == true ? null : queryParameters,
+    );
+    final headers = <String, String>{
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+    if (idempotencyKey != null && idempotencyKey.trim().isNotEmpty) {
+      headers['Idempotency-Key'] = idempotencyKey;
+    }
+
+    _trace(requestId, path, 'after_headers_build',
+        requestStopwatch.elapsedMilliseconds,
+        extra: 'header_count=${headers.length}');
+    _trace(requestId, path, 'before_http_call',
+        requestStopwatch.elapsedMilliseconds,
+        extra: 'attempt=1');
+    final browserMark = kIsWeb && _browserTimingPath(path)
+        ? browserRequestStart(uri.toString())
+        : null;
+    debugPrint('[API.v1] requisicao_iniciada method=$method path=$path');
+    if (path == '/checkout/confirmar') {
+      debugPrint(
+          '[Payment.Confirm.Request] pedidoId=${body?['pedidoId'] ?? 'null'} idempotency=${idempotencyKey != null && idempotencyKey.trim().isNotEmpty} authenticated=true path=$path');
+    }
+
+    if (path.startsWith('/pedidos/') && path.endsWith('/cancelar')) {
+      debugPrint('[Notreve:20.Cancel.Request] path=$path');
+    }
+
+    final stopwatch = Stopwatch()..start();
+    try {
+      final response = await _send(
+        method,
+        uri,
+        headers,
+        body == null ? null : jsonEncode(body),
+      ).timeout(requestTimeout);
+
+      final httpElapsedMs = stopwatch.elapsedMilliseconds;
+      _trace(requestId, path, 'after_http_response_headers',
+          requestStopwatch.elapsedMilliseconds,
+          extra: 'status=${response.statusCode}');
+      _trace(requestId, path, 'after_http_response',
+          requestStopwatch.elapsedMilliseconds,
+          extra: 'status=${response.statusCode} http_ms=$httpElapsedMs');
+
+      debugPrint(
+        '[API.v1] resposta method=$method path=$path status=${response.statusCode} duration_ms=${stopwatch.elapsedMilliseconds}',
+      );
+
+      if (kIsWeb && _browserTimingPath(path)) {
+        _browserSummary(
+          requestId: requestId,
+          path: path,
+          response: response,
+          timing: browserResourceTimingAfter(browserMark),
+          flutterHttpMs: httpElapsedMs,
+        );
+      }
+
+      if (path.startsWith('/pedidos/') && path.endsWith('/cancelar')) {
+        final contentType = response.headers['content-type'] ?? 'ausente';
+        debugPrint(
+            '[Notreve:20.Cancel.Http] status=${response.statusCode} contentType=$contentType bodyLength=${response.body.length}');
+        debugPrint(
+            '[Notreve:20.Cancel.Body] ${_sanitizeCancelBody(response.body, contentType)}');
+      }
+      if (path == '/checkout/confirmar') {
+        final contentType = response.headers['content-type'] ?? 'ausente';
+        final bodyPresent = response.body.trim().isNotEmpty;
+        debugPrint(
+            '[Payment.Confirm.Http] status=${response.statusCode} contentType=$contentType bytes=${response.body.length} duration_ms=${stopwatch.elapsedMilliseconds} body_presente=${bodyPresent ? 'sim' : 'nao'}');
+        debugPrint(
+            '[Payment.Confirm.Raw] ${_sanitizePaymentBody(response.body)}');
+      }
+
+      if (response.statusCode == 401) {
+        await _onUnauthorized();
+      }
+
+      _trace(requestId, path, 'before_json_decode',
+          requestStopwatch.elapsedMilliseconds);
+
+      var jsonDecodeMs = 0;
+      try {
+        final decoded = _decodeEnvelope(
+          response,
+          onJsonDecoded: (elapsedMs) {
+            jsonDecodeMs = elapsedMs;
+            _trace(requestId, path, 'after_json_decode',
+                requestStopwatch.elapsedMilliseconds,
+                extra: 'json_decode_ms=$jsonDecodeMs');
+          },
+        );
+        return decoded;
+      } finally {
+        _trace(requestId, path, 'request_finish',
+            requestStopwatch.elapsedMilliseconds,
+            extra:
+                'http_ms=$httpElapsedMs json_decode_ms=$jsonDecodeMs attempt=1');
+        _summary(requestId, path,
+            status: response.statusCode,
+            preHttpMs: requestStopwatch.elapsedMilliseconds - httpElapsedMs,
+            httpMs: httpElapsedMs,
+            jsonMs: jsonDecodeMs,
+            totalMs: requestStopwatch.elapsedMilliseconds);
+      }
+    } on TimeoutException {
+      debugPrint(
+          '[API.v1] request_timeout method=$method path=$path duration_ms=${stopwatch.elapsedMilliseconds}');
+      throw const ApiV1Exception(ApiV1Error(
+        statusCode: 0,
+        code: 'timeout',
+        message: 'A requisicao demorou demais. Tente novamente.',
+      ));
+    } on ApiV1Exception {
+      rethrow;
+    } catch (error) {
+      debugPrint('[API.v1] erro_rede method=$method tipo=${error.runtimeType}');
+      throw const ApiV1Exception(ApiV1Error(
+        statusCode: 0,
+        code: 'network_error',
+        message: 'Nao foi possivel conectar ao servidor.',
+      ));
+    }
+  }
+
+  Future<http.Response> _send(
+    String method,
+    Uri uri,
+    Map<String, String> headers,
+    String? body,
+  ) {
+    switch (method) {
+      case 'GET':
+        return _client.get(uri, headers: headers);
+      case 'POST':
+        return _client.post(uri, headers: headers, body: body);
+      case 'PATCH':
+        return _client.patch(uri, headers: headers, body: body);
+      case 'DELETE':
+        return _client.delete(uri, headers: headers, body: body);
+      default:
+        throw ArgumentError('Metodo HTTP nao suportado: $method');
+    }
+  }
+
+  String _sanitizePaymentBody(String body) {
+    if (body.trim().isEmpty) return '(vazio)';
+    try {
+      final decoded = jsonDecode(body);
+      return jsonEncode(_sanitizeValue(decoded));
+    } on FormatException {
+      return '(nao_json bytes=${body.length})';
+    }
+  }
+
+  Object? _sanitizeValue(Object? value) {
+    if (value is Map) {
+      return value.map((key, item) {
+        final name = key.toString().toLowerCase();
+        if (name.contains('token') ||
+            name.contains('authorization') ||
+            name.contains('chavepix') ||
+            name == 'chave') {
+          return MapEntry(key, '[REDACTED]');
+        }
+        return MapEntry(key, _sanitizeValue(item));
+      });
+    }
+    if (value is List) return value.map(_sanitizeValue).toList();
+    return value;
+  }
+
+  String _sanitizeCancelBody(String body, String contentType) {
+    if (body.trim().isEmpty) {
+      return 'success=null message=null code=null body=empty';
+    }
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map) {
+        final success = decoded['success'];
+        final message = decoded['message'];
+        final code = decoded['code'];
+        return 'success=$success message=${message ?? 'null'} code=${code ?? 'null'}';
+      }
+    } on FormatException {
+      return 'contentType=$contentType bodyLength=${body.length} nonJson=true';
+    }
+    return 'contentType=$contentType bodyLength=${body.length} unsupportedJson=true';
+  }
+
+  Map<String, dynamic> _decodeEnvelope(
+    http.Response response, {
+    void Function(int elapsedMs)? onJsonDecoded,
+  }) {
+    Map<String, dynamic> payload = <String, dynamic>{};
+    if (response.body.trim().isNotEmpty) {
+      final stopwatch = Stopwatch()..start();
+      try {
+        final decoded = jsonDecode(response.body);
+        onJsonDecoded?.call(stopwatch.elapsedMilliseconds);
+        if (decoded is Map<String, dynamic>) {
+          payload = decoded;
+        }
+      } on FormatException {
+        throw ApiV1Exception(ApiV1Error(
+          statusCode: response.statusCode,
+          code: 'invalid_json',
+          message: 'Resposta invalida do servidor.',
+        ));
+      }
+    }
+
+    final success = payload['success'] == true;
+    if (response.statusCode >= 200 && response.statusCode < 300 && success) {
+      return payload;
+    }
+
+    final rawErrors = payload['errors'];
+    final errors = rawErrors is Map<String, dynamic>
+        ? rawErrors
+        : const <String, dynamic>{};
+    throw ApiV1Exception(ApiV1Error(
+      statusCode: response.statusCode,
+      code: payload['code']?.toString(),
+      message: payload['message']?.toString() ??
+          'Nao foi possivel concluir a requisicao.',
+      errors: errors,
+    ));
+  }
+
+  void close() => _client.close();
+}

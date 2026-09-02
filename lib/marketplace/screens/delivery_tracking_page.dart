@@ -46,7 +46,7 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
       return;
     }
     _requestInProgress = true;
-    debugPrint('[DeliveryTracking.Load] pedidoId=${widget.orderId}');
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     try {
       final status = await widget.service.loadDeliveryStatus(widget.orderId);
       final details = await widget.service.loadDeliveryDetails(widget.orderId);
@@ -181,7 +181,7 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
       Text('Pedido: #${tracking.orderId}'),
       if (tracking.confirmationCode != null) ...[
         const SizedBox(height: 12),
-        const Text('Código para confirmar a entrega:'),
+        const Text('CÃ³digo para confirmar a entrega:'),
         Text(
           tracking.confirmationCode.toString(),
           style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
@@ -242,13 +242,8 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
                   Text('Entregue em: ${tracking.deliveredAt}'),
                 const SizedBox(height: 12),
                 FilledButton(
-<<<<<<< HEAD
-                  onPressed: _returnToBuying,
-                  child: const Text('Voltar para Comprar'),
-=======
                   onPressed: _returnToHome,
                   child: const Text('Voltar para Home'),
->>>>>>> 94e7b05 (notreve)
                 ),
               ],
             ),
@@ -268,13 +263,8 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
                         TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 12),
                 FilledButton(
-<<<<<<< HEAD
-                  onPressed: _returnToBuying,
-                  child: const Text('Voltar para Comprar'),
-=======
                   onPressed: _returnToHome,
                   child: const Text('Voltar para Home'),
->>>>>>> 94e7b05 (notreve)
                 ),
               ],
             ),
@@ -290,15 +280,6 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
     ];
   }
 
-<<<<<<< HEAD
-  Future<void> _returnToBuying() async {
-    await RecoveryStateService.clearPayment();
-    await RecoveryStateService.clearOrder();
-    if (!mounted) return;
-    debugPrint(
-        '[Recovery.Clear] reason=delivery_terminal navigation=marketplace');
-    Navigator.of(context).popUntil((route) => route.isFirst);
-=======
   Future<void> _returnToHome() async {
     await RecoveryStateService.clearPayment();
     await RecoveryStateService.clearOrder();
@@ -308,7 +289,6 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
       MaterialPageRoute(builder: (_) => const HomePage()),
       (_) => false,
     );
->>>>>>> 94e7b05 (notreve)
   }
 
   String? _vehicleText(DeliveryVehicle? vehicle) {

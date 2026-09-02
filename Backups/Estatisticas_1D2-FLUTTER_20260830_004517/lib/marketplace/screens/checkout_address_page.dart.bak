@@ -1,0 +1,387 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:uuid/uuid.dart';
+
+import '../../features/location_service.dart';
+import '../api_v1_error.dart';
+import '../models/checkout_models.dart';
+import '../services/marketplace_service.dart';
+import '../utils/geo_distance.dart';
+import 'checkout_review_page.dart';
+import '../../services/analytics_service.dart';
+
+const checkoutQuoteActionLabel = 'Clique para ver o valor da entrega';
+
+class CheckoutAddressPage extends StatefulWidget {
+  final MarketplaceService service;
+
+  const CheckoutAddressPage({super.key, required this.service});
+
+  @override
+  State<CheckoutAddressPage> createState() => _CheckoutAddressPageState();
+}
+
+class _CheckoutAddressPageState extends State<CheckoutAddressPage> {
+  final LocationService _locationService = LocationService();
+  final _cepController = TextEditingController();
+  final _numeroController = TextEditingController();
+  final _complementoController = TextEditingController();
+  DeliveryAddress? _defaultAddress;
+  DeliveryAddress? _temporaryAddress;
+  Position? _currentPosition;
+  String? _statusMessage;
+  String? _errorMessage;
+  bool _loading = true;
+  bool _loadingLocation = false;
+  bool _showChoice = false;
+  bool _usingTemporary = false;
+  bool _validating = false;
+  bool _quoting = false;
+  String _quoteKey = const Uuid().v4();
+  double? _distance;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAddress();
+  }
+
+  @override
+  void dispose() {
+    _cepController.dispose();
+    _numeroController.dispose();
+    _complementoController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadAddress() async {
+    debugPrint('[Checkout.Address] consulta_iniciada');
+    try {
+      final address = await widget.service.loadDefaultAddress();
+      if (!mounted) return;
+      setState(() {
+        _defaultAddress = address;
+        debugPrint('[Checkout.Address] endereco_recebido=' +
+            (address != null).toString());
+        _loading = false;
+        if (address == null) {
+          _errorMessage = 'Nao encontramos um endereco cadastrado.';
+        }
+      });
+      if (address != null) _checkLocation(address);
+    } on ApiV1Exception catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _errorMessage = error.message;
+      });
+    }
+  }
+
+  Future<void> _checkLocation(DeliveryAddress address) async {
+    debugPrint('[Checkout.GPS] consulta_iniciada');
+    if (address.latitude == null || address.longitude == null) {
+      if (mounted)
+        setState(() => _statusMessage = 'Usaremos seu endereco cadastrado.');
+      return;
+    }
+    if (mounted) setState(() => _loadingLocation = true);
+    try {
+      await _locationService.requestPermissions();
+      final position = await _locationService.getCurrentLocation();
+      final distance = distanceInMeters(
+        fromLatitude: position.latitude,
+        fromLongitude: position.longitude,
+        toLatitude: address.latitude!,
+        toLongitude: address.longitude!,
+      );
+      if (!mounted) return;
+      setState(() {
+        _currentPosition = position;
+        _distance = distance;
+        debugPrint(
+            '[Checkout.GPS] distancia_metros=' + distance.round().toString());
+        _loadingLocation = false;
+        _showChoice = distance > checkoutAddressDistanceLimitMeters;
+        _statusMessage = distance <= checkoutAddressDistanceLimitMeters
+            ? 'Voce esta proximo do endereco cadastrado.'
+            : null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadingLocation = false;
+        _statusMessage =
+            'Nao foi possivel obter sua localizacao. Voce pode continuar com o endereco cadastrado.';
+      });
+    }
+  }
+
+  void _chooseDefault() {
+    setState(() {
+      _usingTemporary = false;
+      _showChoice = false;
+      _temporaryAddress = null;
+      _errorMessage = null;
+      _quoteKey = const Uuid().v4();
+    });
+  }
+
+  Future<void> _chooseCurrent() async {
+    setState(() {
+      _usingTemporary = true;
+      _showChoice = false;
+      _errorMessage = null;
+    });
+    if (_currentPosition == null) {
+      setState(() => _statusMessage =
+          'Nao foi possivel obter o local atual. Informe o endereco para continuar.');
+      return;
+    }
+    if (!kIsWeb) {
+      try {
+        final marks = await placemarkFromCoordinates(
+          _currentPosition!.latitude,
+          _currentPosition!.longitude,
+        );
+        if (marks.isNotEmpty && mounted) {
+          final mark = marks.first;
+          _cepController.text = mark.postalCode ?? '';
+          _numeroController.text = mark.subThoroughfare ?? '';
+          setState(() => _statusMessage = _placemarkText(mark));
+        }
+      } catch (_) {
+        if (mounted)
+          setState(
+              () => _statusMessage = 'Confirme o endereco do local atual.');
+      }
+    } else {
+      setState(() => _statusMessage =
+          'Confirme o endereco do local atual informando o CEP.');
+    }
+  }
+
+  String _placemarkText(Placemark mark) {
+    return [
+      mark.street,
+      mark.subThoroughfare,
+      mark.subLocality,
+      mark.locality,
+      mark.administrativeArea,
+    ].whereType<String>().where((value) => value.trim().isNotEmpty).join(', ');
+  }
+
+  Future<void> _validateTemporary() async {
+    debugPrint('[Checkout.Validation] iniciada');
+    if (_cepController.text.trim().isEmpty) {
+      setState(() => _errorMessage = 'Informe o CEP para validar o endereco.');
+      return;
+    }
+    setState(() {
+      _validating = true;
+      _errorMessage = null;
+    });
+    try {
+      final address = await widget.service.validateTemporaryAddress(
+        cep: _cepController.text.trim(),
+        numero: _numeroController.text.trim(),
+        complemento: _complementoController.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _temporaryAddress = address;
+        debugPrint('[Checkout.Validation] status=200 normalizado=true');
+        _validating = false;
+        _statusMessage = address.displayText;
+        _quoteKey = const Uuid().v4();
+      });
+    } on ApiV1Exception catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _validating = false;
+        debugPrint('[Checkout.Validation] status=' +
+            error.statusCode.toString() +
+            ' code=' +
+            (error.code ?? 'unknown'));
+        _errorMessage = error.code == 'endereco_invalido'
+            ? 'Nao foi possivel localizar esse endereco. Confira os dados.'
+            : error.message;
+      });
+    }
+  }
+
+  Future<void> _requestQuote() async {
+    debugPrint('[Checkout.Quote] iniciada modo=' +
+        (_usingTemporary ? 'temporario' : 'padrao'));
+    if (_defaultAddress == null || _quoting) return;
+    if (_usingTemporary && _temporaryAddress == null) {
+      await _validateTemporary();
+      if (_temporaryAddress == null) return;
+    }
+    unawaited(AnalyticsService.instance.track(AnalyticsEvent.checkoutStart));
+    setState(() {
+      _quoting = true;
+      _errorMessage = null;
+    });
+    try {
+      final quote = await widget.service.requestQuote(
+        temporaryAddress: _usingTemporary ? _temporaryAddress : null,
+        idempotencyKey: _quoteKey,
+      );
+      if (!mounted) return;
+      debugPrint(
+          '[Checkout.Quote] status=200 pedidoId=' + quote.orderId.toString());
+      setState(() => _quoting = false);
+      final reset = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CheckoutReviewPage(
+            service: widget.service,
+            quote: quote,
+            idempotencyKey: _quoteKey,
+            temporaryAddress: _usingTemporary ? _temporaryAddress : null,
+          ),
+        ),
+      );
+      if (reset == true && mounted) {
+        Navigator.pop(context, true);
+      }
+    } on ApiV1Exception catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _quoting = false;
+        debugPrint('[Checkout.Quote] status=' +
+            error.statusCode.toString() +
+            ' code=' +
+            (error.code ?? 'unknown'));
+        _errorMessage = error.code == 'sem_candidatos'
+            ? 'Nao ha entregadores disponiveis para esse destino no momento.'
+            : error.code == 'endereco_invalido'
+                ? 'O endereco informado nao pode ser usado nesta compra.'
+                : error.message;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final address = _defaultAddress;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Endereco de entrega')),
+      body: address == null
+          ? _messageBody()
+          : ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                const Text('Onde deseja receber esta compra?',
+                    style:
+                        TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 12),
+                if (_loadingLocation) const LinearProgressIndicator(),
+                if (_distance != null)
+                  Text('Distancia aproximada: ${_distance!.round()} m'),
+                if (_statusMessage != null) ...[
+                  const SizedBox(height: 12),
+                  Text(_statusMessage!,
+                      style: const TextStyle(color: Colors.black54)),
+                ],
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 12),
+                  Text(_errorMessage!,
+                      style: const TextStyle(color: Colors.red)),
+                ],
+                const SizedBox(height: 20),
+                if (_showChoice) ...[
+                  const Text(
+                      'Detectamos que voce esta distante do seu endereco cadastrado. Onde deseja receber esta compra?'),
+                  const SizedBox(height: 12),
+                  _addressCard('Endereco cadastrado', address.displayText,
+                      _chooseDefault),
+                  _addressCard('Local atual', 'Usar e confirmar outro endereco',
+                      _chooseCurrent),
+                ] else if (!_usingTemporary) ...[
+                  _addressCard('Endereco cadastrado', address.displayText,
+                      _chooseDefault),
+                ],
+                if (_usingTemporary) _temporaryForm(),
+                if (!_showChoice || _usingTemporary) ...[
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: _quoting || _validating ? null : _requestQuote,
+                    icon: _quoting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.receipt_long),
+                    label: Text(_quoting
+                        ? 'Gerando orcamento...'
+                        : checkoutQuoteActionLabel),
+                  ),
+                ],
+              ],
+            ),
+    );
+  }
+
+  Widget _messageBody() => Center(
+      child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(_errorMessage ?? 'Endereco indisponivel.')));
+
+  Widget _addressCard(String title, String text, VoidCallback onTap) {
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.location_on_outlined),
+        title: Text(title),
+        subtitle: Text(text.isEmpty ? 'Endereco sem descricao' : text),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  Widget _temporaryForm() {
+    final validated = _temporaryAddress != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Endereco do local atual',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Text(_statusMessage ??
+            'Confirme ou corrija os dados para validar o endereco.'),
+        const SizedBox(height: 12),
+        TextField(
+            controller: _cepController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'CEP')),
+        TextField(
+            controller: _numeroController,
+            decoration: const InputDecoration(labelText: 'Numero')),
+        TextField(
+            controller: _complementoController,
+            decoration: const InputDecoration(labelText: 'Complemento')),
+        const SizedBox(height: 12),
+        OutlinedButton(
+          onPressed: _validating ? null : _validateTemporary,
+          child: Text(_validating
+              ? 'Validando...'
+              : validated
+                  ? 'Validar novamente'
+                  : 'Confirmar este endereco'),
+        ),
+        if (validated)
+          const Text('Endereco validado pelo servidor.',
+              style: TextStyle(color: Colors.green)),
+      ],
+    );
+  }
+}

@@ -5,11 +5,13 @@ import 'HomePage.dart';
 import 'captador_panel.dart';
 import 'marketplace/api_v1_session.dart';
 import 'push_service.dart';
+import 'services/analytics_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await PushService.initialize();
   runApp(const MyApp());
+  AnalyticsService.instance.track(AnalyticsEvent.appOpen);
 }
 
 class MyApp extends StatelessWidget {

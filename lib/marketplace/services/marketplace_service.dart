@@ -105,6 +105,18 @@ class MarketplaceService {
     return ShoppingCart.fromJson(_data(envelope));
   }
 
+  Future<void> requestAccountDeletion() async {
+    final envelope = await _api.post('/account/deletion-request');
+    final status = _data(envelope)['status'];
+    if (status != 'PENDING') {
+      throw const ApiV1Exception(ApiV1Error(
+        statusCode: 502,
+        code: 'invalid_deletion_response',
+        message: 'O servidor retornou uma resposta invalida.',
+      ));
+    }
+  }
+
   Future<DeliveryAddress?> loadDefaultAddress() async {
     final envelope = await _api.get('/enderecos/me');
     final data = _data(envelope);
@@ -154,14 +166,7 @@ class MarketplaceService {
     debugPrint('[Checkout.Quote.Raw] resposta_recebida=true');
     try {
       final quote = CheckoutQuote.fromJson(data);
-      debugPrint('[Checkout.Quote.Parsed] pedidoId=' +
-          (quote.orderId?.toString() ?? 'null') +
-          ' totalItens=' +
-          quote.itemsTotal.toString() +
-          ' valorEntrega=' +
-          quote.deliveryValue.toString() +
-          ' total=' +
-          quote.total.toString());
+      debugPrint('[Checkout.Quote.Parsed] parsed=true');
       return quote;
     } on FormatException catch (error) {
       debugPrint('[Checkout.Quote.ParseError] tipo=' + error.message);
@@ -200,7 +205,7 @@ class MarketplaceService {
   Future<PaymentConfig> loadPaymentConfig() async {
     final envelope = await _api.get('/config');
     final config = PaymentConfig.fromJson(_data(envelope));
-    debugPrint('[Payment.Config] provider=' + config.provider);
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     return config;
   }
 
@@ -208,9 +213,6 @@ class MarketplaceService {
     required int orderId,
     required String idempotencyKey,
   }) async {
-    debugPrint('[Payment.Service.ConfirmStart] pedidoId=${orderId}');
-    debugPrint(
-        '[Payment.Service.HttpCall] path=/checkout/confirmar pedidoId=${orderId}');
     final envelope = await _api.post(
       '/checkout/confirmar',
       body: <String, dynamic>{'pedidoId': orderId},
@@ -225,14 +227,7 @@ class MarketplaceService {
         : data['payment'] is Map<String, dynamic>
             ? data['payment'] as Map<String, dynamic>
             : data;
-    debugPrint('[Payment.Confirm.Raw.Provider] provider=' +
-        (rawPayment['provider'] ??
-            rawPayment['provedor'] ??
-            data['provider'] ??
-            data['provedor'] ??
-            'null'));
-    debugPrint(
-        '[Payment.Confirm.Raw] keys=${data.keys.join(',')} pedidoId=${data['pedidoId'] ?? rawPayment['pedidoId'] ?? 'null'} paymentId=${rawPayment['paymentId'] ?? rawPayment['pagamentoId'] ?? rawPayment['idPagamento'] ?? 'null'} status=${rawPayment['status'] ?? data['status'] ?? 'null'} valor=${rawPayment['valor'] ?? rawPayment['amount'] ?? data['valor'] ?? 'null'} hasPixKey=${pix != null && (pix['chavePix'] != null || pix['chave'] != null || rawPayment['chavePix'] != null)} hasQr=${pix != null && (pix['qr'] != null || pix['qrCode'] != null || pix['qrUrl'] != null)} valueEmbedded=${pix?['valorEmbutido'] ?? pix?['pix_value_embedded'] ?? rawPayment['valorEmbutido'] ?? 'null'}');
+
     try {
       final payment = PaymentConfirmation.fromJson(data);
       if (payment.provider == PaymentProviders.gambiarraPay &&
@@ -244,12 +239,9 @@ class MarketplaceService {
           message: 'O servidor nao retornou chave PIX ou QR utilizavel.',
         ));
       }
-      debugPrint('[Payment.Confirm.Parsed.Provider] provider=' +
-          (payment.provider ?? 'null'));
-      debugPrint(
-          '[Payment.Confirm.Parsed] pedidoId=${payment.orderId} pagamentoId=${payment.paymentId} status=${payment.status} valor=${payment.amount} hasPixKey=${payment.pixKey != null} hasQr=${payment.qr != null} valueEmbedded=${payment.valueEmbedded ?? 'null'}');
-      debugPrint(
-          '[Payment.Confirm] status=200 pedidoId=${payment.orderId} pagamentoId=${payment.paymentId}');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
+
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       return payment;
     } on FormatException {
       throw const ApiV1Exception(ApiV1Error(
@@ -261,29 +253,27 @@ class MarketplaceService {
   }
 
   Future<DeliveryTracking> loadDeliveryStatus(int orderId) async {
-    debugPrint('[DeliveryTracking.Status] pedidoId=$orderId');
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     final envelope = await _api.get('/pedidos/$orderId/status');
     final data = _data(envelope);
     debugPrint('[DeliveryTracking.Status.Raw] keys=${data.keys.join(',')}');
     final parsed = DeliveryTracking.fromJson(data);
-    debugPrint(
-        '[DeliveryTracking.Status.Parsed] pedidoId=${parsed.orderId} paymentStatus=${parsed.paymentStatus ?? 'null'} deliveryStatus=${parsed.deliveryStatus ?? 'null'} canCancel=${parsed.canCancel} updatedAt=${parsed.updatedAt ?? 'null'}');
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     return parsed;
   }
 
   Future<DeliveryTracking> loadDeliveryDetails(int orderId) async {
-    debugPrint('[DeliveryTracking.Delivery] pedidoId=$orderId');
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     final envelope = await _api.get('/pedidos/$orderId/entrega');
     final data = _data(envelope);
     debugPrint('[DeliveryTracking.Delivery.Raw] keys=${data.keys.join(',')}');
     final parsed = DeliveryTracking.fromJson(data);
-    debugPrint(
-        '[DeliveryTracking.Delivery.Parsed] pedidoId=${parsed.orderId} entregaId=${parsed.deliveryId ?? 'null'} deliveryStatus=${parsed.deliveryStatus ?? 'null'} hasDriver=${parsed.driver != null} hasLocation=${parsed.location != null} canCancel=${parsed.canCancel}');
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     return parsed;
   }
 
   Future<void> cancelOrder(int orderId) async {
-    debugPrint('[DeliveryTracking.Cancel] pedidoId=$orderId');
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     await _api.post('/pedidos/$orderId/cancelar');
   }
 
@@ -291,15 +281,14 @@ class MarketplaceService {
     final envelope =
         await _api.post('/pagamentos/$paymentId/informar-pagamento');
     final status = PaymentStatus.fromJson(_data(envelope));
-    debugPrint('[Payment.Report] status=${status.status}');
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     return status;
   }
 
   Future<PaymentStatus> loadPaymentStatus(int paymentId) async {
     final envelope = await _api.get('/pagamentos/$paymentId/status');
     final status = PaymentStatus.fromJson(_data(envelope));
-    debugPrint(
-        '[Payment.Status] pagamentoId=${status.paymentId} status=${status.status}');
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     return status;
   }
 

@@ -43,24 +43,8 @@ class _CheckoutReviewPageState extends State<CheckoutReviewPage> {
   void initState() {
     super.initState();
     _idempotencyKey = widget.idempotencyKey;
-    debugPrint('[Checkout.Review] pedidoId=' +
-        (widget.quote.orderId?.toString() ?? 'null') +
-        ' totalItens=' +
-        widget.quote.itemsTotal.toString() +
-        ' valorEntrega=' +
-        widget.quote.deliveryValue.toString() +
-        ' total=' +
-        widget.quote.total.toString());
-    debugPrint('[Notreve:6.Quote] pedidoId=' +
-        (widget.quote.orderId?.toString() ?? 'null') +
-        ' produtos=' +
-        widget.quote.itemsTotal.toString() +
-        ' entrega=' +
-        widget.quote.deliveryValue.toString() +
-        ' taxaSistema=' +
-        widget.quote.taxaSistema.toString() +
-        ' total=' +
-        widget.quote.total.toString());
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
   }
 
   Future<void> _editCart() async {
@@ -88,12 +72,7 @@ class _CheckoutReviewPageState extends State<CheckoutReviewPage> {
       if (mounted)
         setState(() {
           _quote = quote;
-          debugPrint('[Checkout.Requote] status=200 pedidoId=' +
-              quote.orderId.toString() +
-              ' totalAnterior=' +
-              previousTotal.toString() +
-              ' totalNovo=' +
-              quote.total.toString());
+          debugPrint('[Sanitized] sensitive_details_suppressed=true');
           _loading = false;
         });
     } on ApiV1Exception catch (error) {
@@ -117,25 +96,22 @@ class _CheckoutReviewPageState extends State<CheckoutReviewPage> {
   }
 
   Future<void> _confirmPayment() async {
-    debugPrint(
-        '[Payment.UI.ConfirmTap] pedidoId=${_quote.orderId ?? 'null'} quote=true loading=$_loading mounted=$mounted');
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     if (_loading) return;
     if (_quote.orderId == null || _quote.orderId == 0) {
-      debugPrint(
-          '[Payment.UI.ConfirmError] type=missing_order_id code=missing_order_id message=pedido_id_invalido');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       _showMessage(
-          'Nao foi possivel identificar o pedido. Refaça o orcamento.');
+          'Nao foi possivel identificar o pedido. RefaÃ§a o orcamento.');
       return;
     }
-    debugPrint('[Payment.UI.ConfirmCall] pedidoId=${_quote.orderId}');
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     setState(() => _loading = true);
     try {
       var config = const PaymentConfig(provider: PaymentProviders.notreve);
       try {
         config = await widget.service.loadPaymentConfig();
       } on ApiV1Exception catch (error) {
-        debugPrint('[Payment.Config] fallback provider=NOTREVE code=' +
-            (error.code ?? 'unknown'));
+        debugPrint('[Sanitized] sensitive_details_suppressed=true');
       }
       debugPrint('[Notreve:6.Config] provider=' + config.provider);
       var payment = await widget.service.confirmCheckout(
@@ -144,18 +120,8 @@ class _CheckoutReviewPageState extends State<CheckoutReviewPage> {
       );
       final paymentProvider = payment.provider;
       payment = payment.withProvider(payment.resolveProvider(config));
-      debugPrint('[Notreve:6.Payment.Raw] pedidoId=' +
-          payment.orderId.toString() +
-          ' paymentId=' +
-          payment.paymentId.toString() +
-          ' provider=' +
-          (paymentProvider ?? 'null') +
-          ' valor=' +
-          payment.amount.toString() +
-          ' status=' +
-          payment.status);
-      debugPrint(
-          '[Payment.UI.ConfirmResult] success=true pagamentoId=${payment.paymentId}');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getInt('idUser');
       if (userId != null && userId > 0) {
@@ -172,25 +138,14 @@ class _CheckoutReviewPageState extends State<CheckoutReviewPage> {
       final paymentPage = payment.provider == PaymentProviders.gambiarraPay
           ? PixPaymentPage(service: widget.service, payment: payment)
           : NotrevePaymentPage(service: widget.service, payment: payment);
-      debugPrint('[Notreve:6.Route] paymentProvider=' +
-          (paymentProvider ?? 'null') +
-          ' configProvider=' +
-          config.provider +
-          ' recoveryProvider=null selectedProvider=' +
-          (payment.provider ?? 'null') +
-          ' destination=' +
-          (payment.provider == PaymentProviders.gambiarraPay
-              ? 'PixPaymentPage'
-              : 'NotrevePaymentPage'));
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       await Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => paymentPage),
       );
     } catch (error, stackTrace) {
-      debugPrint(
-          '[Payment.UI.ConfirmError] type=${error.runtimeType} code=${error is ApiV1Exception ? error.code : 'unknown'} message=${error is ApiV1Exception ? error.message : error}');
-      debugPrint(
-          '[Payment.UI.ConfirmStack] ${stackTrace.toString().split('\n').take(4).join(' | ')}');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       if (!mounted) return;
       setState(() => _loading = false);
       final message =

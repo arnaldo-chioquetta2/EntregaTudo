@@ -44,14 +44,14 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
               controller: _userController,
               enabled: !_isLoading && !_isStepTwo,
               decoration: const InputDecoration(
-                labelText: 'Usuário, e-mail ou telefone',
+                labelText: 'UsuÃ¡rio, e-mail ou telefone',
               ),
             ),
             const SizedBox(height: 16),
             if (!_isStepTwo) _buildSendCodeButton(),
             if (_isStepTwo) ...[
               const Text(
-                'Digite o código recebido e escolha uma nova senha.',
+                'Digite o cÃ³digo recebido e escolha uma nova senha.',
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 16),
@@ -64,7 +64,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 controller: _codeController,
                 enabled: !_isLoading,
                 decoration: const InputDecoration(
-                  labelText: 'Código',
+                  labelText: 'CÃ³digo',
                 ),
               ),
               const SizedBox(height: 16),
@@ -106,7 +106,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 color: Colors.white,
               ),
             )
-          : const Text('Enviar código'),
+          : const Text('Enviar cÃ³digo'),
     );
   }
 
@@ -131,7 +131,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     if (user.isEmpty) {
       _showAlert(
         title: 'Erro',
-        message: 'Informe seu usuário, e-mail ou telefone.',
+        message: 'Informe seu usuÃ¡rio, e-mail ou telefone.',
       );
       return;
     }
@@ -142,7 +142,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       final result = await API.forgotPassword(user);
       final bool success = result['Erro'] == 0;
       final String message =
-          'Se os dados estiverem corretos, enviaremos instruções para redefinir sua senha.';
+          'Se os dados estiverem corretos, enviaremos instruÃ§Ãµes para redefinir sua senha.';
 
       if (success && mounted) {
         setState(() => _isStepTwo = true);
@@ -154,7 +154,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
       if (success) {
         await _showAlert(
-          title: 'Recuperação de senha',
+          title: 'RecuperaÃ§Ã£o de senha',
           message: message,
         );
       } else {
@@ -179,7 +179,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     if (code.isEmpty) {
       _showAlert(
         title: 'Erro',
-        message: 'Informe o código recebido.',
+        message: 'Informe o cÃ³digo recebido.',
       );
       return;
     }
@@ -187,7 +187,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     if (newPassword.length < 6) {
       _showAlert(
         title: 'Erro',
-        message: 'A nova senha deve ter no mínimo 6 caracteres.',
+        message: 'A nova senha deve ter no mÃ­nimo 6 caracteres.',
       );
       return;
     }
@@ -195,7 +195,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     if (confirmPassword != newPassword) {
       _showAlert(
         title: 'Erro',
-        message: 'A confirmação da senha deve ser igual à nova senha.',
+        message: 'A confirmaÃ§Ã£o da senha deve ser igual Ã  nova senha.',
       );
       return;
     }
@@ -241,7 +241,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     if (message is String && message.trim().isNotEmpty) {
       return message;
     }
-    return 'Não foi possível processar a solicitação. Tente novamente.';
+    return 'NÃ£o foi possÃ­vel processar a solicitaÃ§Ã£o. Tente novamente.';
   }
 
   Future<void> _showAlert({

@@ -129,7 +129,7 @@ class AppUpdateService {
     );
     _current = result;
     _sessionCompleted = true;
-    debugPrint('[AppUpdate] erro=$errorType');
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     debugPrint('[AppUpdate] status=unavailable');
     return result;
   }
@@ -158,7 +158,7 @@ class AppUpdateService {
         'Accept': 'application/json'
       }).timeout(const Duration(seconds: 10));
       debugPrint('[API.AppVersion] status=' + response.statusCode.toString());
-      debugPrint('[API.AppVersion] bytes=' + response.body.length.toString());
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       return response;
     } on TimeoutException {
       debugPrint('[API.AppVersion] erro_timeout');

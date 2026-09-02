@@ -37,7 +37,12 @@ class API {
       String user, String password, double lat, double lon) {
     final sistema = PlataformaInfo.sistema;
     final versaoSO = PlataformaInfo.versao;
-    debugPrint('[Version] package=' + AppConfig.versaoApp + ' build=152 apiVersion=' + AppConfig.versaoAppInt.toString());
+    debugPrint('[Version] package=' +
+        AppConfig.versaoApp +
+        ' build=' +
+        AppConfig.versaoAppInt.toString() +
+        ' apiVersion=' +
+        AppConfig.versaoAppInt.toString());
 
     return http.post(
       Uri.parse("https://teletudo.com/api/login"),
@@ -73,10 +78,7 @@ class API {
         }),
       );
 
-      await API.logApp(
-        "forgotPassword",
-        "HTTP ${response.statusCode}",
-      );
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
       if (response.statusCode != 200) {
         return {
@@ -95,7 +97,7 @@ class API {
         'msg': 'Não foi possível processar a solicitação. Tente novamente.',
       };
     } catch (_) {
-      await API.logApp("forgotPassword", "Exception");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       return {
         'Erro': 1,
         'msg': 'Não foi possível processar a solicitação. Tente novamente.',
@@ -125,10 +127,7 @@ class API {
         }),
       );
 
-      await API.logApp(
-        "resetPassword",
-        "HTTP ${response.statusCode}",
-      );
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
       if (response.statusCode != 200) {
         return {
@@ -147,7 +146,7 @@ class API {
         'msg': 'Não foi possível processar a solicitação. Tente novamente.',
       };
     } catch (_) {
-      await API.logApp("resetPassword", "Exception");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       return {
         'Erro': 1,
         'msg': 'Não foi possível processar a solicitação. Tente novamente.',
@@ -172,7 +171,7 @@ class API {
       if (userid == null) {
         return {'success': false, 'message': 'Usuário não autenticado'};
       }
-      print("userid = ${userid}");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       final response = await http.post(
         Uri.parse(baseUrl),
         headers: {
@@ -223,20 +222,11 @@ class API {
       // Obter o userid das SharedPreferences
       SharedPreferences prefs = await SharedPreferences.getInstance();
       int? userid = prefs.getInt('idUser');
+      final url = "https://teletudo.com/api/obtemCfgValores";
+      final requestBody =
+          jsonEncode({'userid': userid, 'lat': lat, 'lon': lon});
 
-      print('User ID: $userid'); // Log do userid
-      print('Latitude: $lat, Longitude: $lon'); // Log das coordenadas
-
-      // Preparar a URL e os dados da requisição
-      final url = 'https://teletudo.com/api/obtemCfgValores';
-      print('Acionando Endpoint: $url'); // Log da URL
-
-      final requestBody = jsonEncode({
-        'userid': userid,
-        'lat': lat,
-        'lon': lon,
-      });
-      print('Request Body: $requestBody'); // Log do corpo da requisição
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
       // Fazer a requisição POST
       final response = await http.post(
@@ -247,20 +237,21 @@ class API {
 
       // Log do status code e do corpo da resposta
       print('Response Status Code: ${response.statusCode}');
-      print('Response Body: ${response.body}');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
       // Verificar se a requisição foi bem-sucedida
       if (response.statusCode == 200) {
         final responseBody = jsonDecode(response.body);
-        print(
-            'Response Body Decoded: $responseBody'); // Log do corpo da resposta decodificado
-        return responseBody;
-      } else {
-        throw Exception('Failed to load data: ${response.statusCode}');
+        return responseBody is Map<String, dynamic>
+            ? responseBody
+            : <String, dynamic>{'success': false};
       }
+      return <String, dynamic>{
+        'success': false,
+        'message': 'Falha no servidor'
+      };
     } catch (e) {
-      print('Error: $e'); // Log de qualquer erro que ocorra
-      throw Exception('Failed to load data: $e');
+      return <String, dynamic>{'success': false, 'message': 'Erro de conexao'};
     }
   }
 
@@ -278,19 +269,8 @@ class API {
   ) async {
     print("=== [API.registerUser] INICIO ===");
     print("Enviando dados para /cadboy...");
-    print("Payload:");
-    print({
-      'nome_completo': nome,
-      'usuario': usuario,
-      'email': email,
-      'senha': senha,
-      'telefone': telefone,
-      'cnh': cnh,
-      'placa': placa,
-      'PIX': pix,
-      'erroCodigo': erroCodigo,
-      'distanciaMaxima': distanciaMaxima,
-    });
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
     final url = Uri.parse("https://teletudo.com/api/cadboy");
 
@@ -317,11 +297,11 @@ class API {
 
       print("=== [API.registerUser] RESPOSTA ===");
       print("Status code: ${response.statusCode}");
-      print("Body cru: ${response.body}");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final ret = json.decode(response.body);
-        print("Decodificado: $ret");
+        print("[API.registerUser] response_parsed=true");
 
         return ret;
       }
@@ -329,7 +309,7 @@ class API {
       // Se for erro, retornar com o que vier
       try {
         final err = json.decode(response.body);
-        print("Erro decodificado: $err");
+        debugPrint('[Sanitized] sensitive_details_suppressed=true');
         return err;
       } catch (_) {
         print("Erro não é JSON. Retornando padrão.");
@@ -340,7 +320,7 @@ class API {
         };
       }
     } catch (e) {
-      print("EXCEPTION em registerUser: $e");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       return {
         'success': false,
         'message': 'Erro de conexão',
@@ -361,13 +341,18 @@ class API {
     }
 
     final String baseUrl = "https://teletudo.com/api/heartbeat";
+    final token = prefs.getString('authToken');
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+    if (token != null && token.trim().isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    }
 
     final response = await http.post(
       Uri.parse(baseUrl),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
+      headers: headers,
       body: json.encode({
         'userid': userid,
         'lat': lat,
@@ -376,8 +361,7 @@ class API {
       }),
     );
 
-    print(
-        'Enviando heartbeat: lat: $lat, lon: $lon, userid: $userid, vez: $vez');
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
     if (response.statusCode != 200) {
       print('Erro ao enviar heartbeat: ${response.statusCode}');
@@ -387,10 +371,10 @@ class API {
     /// ------------------------------
     /// PROCESSAR RESPOSTA
     /// ------------------------------
-    print('Response Body: ${response.body}');
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     final data = json.decode(response.body);
 
-    print("JSON COMPLETO DECODIFICADO: $data");
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     print("Contém lojas_no_raio? ${data.containsKey('lojas_no_raio')}");
 
     /// salvar 'modo'
@@ -430,7 +414,7 @@ class API {
       if (codigo != null) {
         if (codigo > 0) {
           await prefs.setInt('codigoConfirmacao', codigo);
-          print("🔥 Código via novaVenda: $codigo");
+          print("[API.veLogin] confirmation_code_saved=true");
           codigoSalvo = true;
         }
       }
@@ -445,7 +429,7 @@ class API {
 
       if (codigo != null && codigo > 0) {
         await prefs.setInt('codigoConfirmacao', codigo);
-        print("🔥 Código via raiz: $codigo");
+        print("[API.veLogin] confirmation_code_saved=true");
         codigoSalvo = true;
       }
     }
@@ -471,8 +455,7 @@ class API {
       const String baseUrl = "https://teletudo.com/api/heartbeatF";
       print('Enviando pedido para o servidor:');
       print('URL: $baseUrl');
-      print(
-          'Dados enviados: { "userid": $userid, "idLoja": $idLoja, "lat": $lat, "lon": $lon }');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
       try {
         final response = await http.post(
@@ -490,11 +473,11 @@ class API {
         );
 
         print('Resposta do servidor: ${response.statusCode}');
-        print('Response Body: ${response.body}');
+        debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
         if (response.statusCode == 200) {
           var data = json.decode(response.body);
-          print('Dados recebidos do servidor: $data');
+          debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
           if (data['success'] == true) {
             // Cria o objeto principal
@@ -502,19 +485,16 @@ class API {
 
             print('Nova venda: ${responseObj.novaVenda != null}');
             print('Itens da venda: ${responseObj.itensVenda.length}');
-            for (var item in responseObj.itensVenda) {
-              print(' - ${item.produto} x${item.quantidade}');
-            }
 
             return responseObj;
           } else {
-            print('Erro no retorno: ${data['DescErro']}');
+            print('Erro no retorno: response_error=true');
           }
         } else {
           print('Erro ao enviar heartbeatF: ${response.statusCode}');
         }
       } catch (e) {
-        print('Exceção ao enviar heartbeatF: $e');
+        debugPrint('[Sanitized] sensitive_details_suppressed=true');
       }
     } else {
       print('User ID não encontrado');
@@ -533,7 +513,7 @@ class API {
     }
     print("==============================================");
     print("[API.veLogin] INICIANDO LOGIN");
-    print("[API.veLogin] user=$user  password=***  lat=$lat lon=$lon");
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
     try {
       _loginDebug('requisicao_iniciada');
@@ -542,7 +522,7 @@ class API {
       _loginDebug(
           'resposta_recebida status=${response.statusCode} bytes=${response.body.length}');
       print("[API.veLogin] HTTP STATUS: ${response.statusCode}");
-      print("[API.veLogin] resposta recebida (${response.body.length} bytes)");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
       // ------------------------------------------------------
       // 🔥 Tentar decodificar JSON SEMPRE — mesmo em erro 403
@@ -564,7 +544,7 @@ class API {
 
       // 🔥 Agora ret nunca mais é nulo → podemos usar !
       final int erro = _asInt(ret!["Erro"]) ?? 1;
-      print("[API.veLogin] campo Erro = $erro");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
       // ------------------------------------------------------
       // 🔥 1) Bloqueio de versão antiga (Erro = 5)
@@ -588,7 +568,7 @@ class API {
       // 🔥 2) Qualquer outro erro HTTP ≠ 200
       // ------------------------------------------------------
       if (response.statusCode != 200) {
-        _loginDebug('resposta_negada status=${response.statusCode} Erro=$erro');
+        _loginDebug('resposta_negada status=${response.statusCode}');
         if (response.statusCode == 401 || erro == 4) {
           return "Usuário ou senha inválidos.";
         }
@@ -603,7 +583,7 @@ class API {
       // 🔥 3) Erros normais
       // ------------------------------------------------------
       if (erro != 0) {
-        _loginDebug('backend_retornou_erro Erro=$erro');
+        _loginDebug('backend_retornou_erro');
         await _registrarErro("ERRO_3 - backend retornou erro", {
           "erro": erro,
           "json": ret,
@@ -622,10 +602,10 @@ class API {
 
       return "";
     } catch (e, st) {
-      _loginDebug('ERRO_4 tipo=${e.runtimeType} mensagem=$e stackTrace=$st');
+      _loginDebug('ERRO_4 tipo=${e.runtimeType}');
       print("[API.veLogin] ERRO_4 tipo=${e.runtimeType}");
-      print("[API.veLogin] ERRO_4 mensagem=$e");
-      print("[API.veLogin] ERRO_4 stackTrace=$st");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
       await _registrarErro("ERRO_4 - Exception geral", {
         "exception": e.toString(),
@@ -652,40 +632,45 @@ class API {
     };
   }
 
-  static Future<Map<String, dynamic>> getFornecedorEntregadorPreferencias() async {
+  static Future<Map<String, dynamic>>
+      getFornecedorEntregadorPreferencias() async {
     final userId = await _preferencesUserId();
-    final response = await http.get(
-      Uri.parse('https://teletudo.com/api/fornecedor/entregadores/preferencias')
-          .replace(queryParameters: {'userid': userId.toString()}),
-      headers: _preferencesJsonHeaders(),
-    ).timeout(const Duration(seconds: 15));
+    final response = await http
+        .get(
+          Uri.parse(
+                  'https://teletudo.com/api/fornecedor/entregadores/preferencias')
+              .replace(queryParameters: {'userid': userId.toString()}),
+          headers: _preferencesJsonHeaders(),
+        )
+        .timeout(const Duration(seconds: 15));
     return _decodeApiMap(response);
   }
 
-  static Future<Map<String, dynamic>> buscarFornecedorEntregadores(String query) async {
+  static Future<Map<String, dynamic>> buscarFornecedorEntregadores(
+      String query) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getInt('idUser');
       final normalizedQuery = query.trim();
-      print('[API.buscarFornecedorEntregadores] userid presente: '
-          '${userId != null && userId > 0 ? 'sim' : 'nao'}');
-      print('[API.buscarFornecedorEntregadores] query="$normalizedQuery"');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
+      print(
+          '[API.buscarFornecedorEntregadores] query_length=${normalizedQuery.length}');
       if (userId == null || userId <= 0) {
         throw const ApiRequestException('Usuario nao identificado.');
       }
 
-      final uri = Uri.parse('https://teletudo.com/api/fornecedor/entregadores/buscar')
-          .replace(queryParameters: {
+      final uri =
+          Uri.parse('https://teletudo.com/api/fornecedor/entregadores/buscar')
+              .replace(queryParameters: {
         'userid': userId.toString(),
         'q': normalizedQuery,
       });
-      print('[API.buscarFornecedorEntregadores] url=$uri');
       print('[API.buscarFornecedorEntregadores] requisicao_iniciada');
       final response = await http
           .get(uri, headers: _preferencesJsonHeaders())
           .timeout(const Duration(seconds: 15));
       print('[API.buscarFornecedorEntregadores] status=${response.statusCode}');
-      print('[API.buscarFornecedorEntregadores] bytes=${response.body.length}');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       if (response.statusCode >= 400) {
         print('[API.buscarFornecedorEntregadores] '
             'erro_http status=${response.statusCode}');
@@ -704,9 +689,10 @@ class API {
                 ? decoded.length
                 : 0;
         print('[API.buscarFornecedorEntregadores] body_tipo=$bodyType');
-        print('[API.buscarFornecedorEntregadores] quantidade_resultados=$quantity');
+        print(
+            '[API.buscarFornecedorEntregadores] quantidade_resultados=$quantity');
       } catch (error) {
-        print('[API.buscarFornecedorEntregadores] erro_parse=$error');
+        debugPrint('[Sanitized] sensitive_details_suppressed=true');
       }
 
       return _decodeApiMap(response);
@@ -720,7 +706,7 @@ class API {
     final uri = Uri.parse(
       'https://teletudo.com/api/entregador/favoritos-recebidos',
     ).replace(queryParameters: {'userid': userId.toString()});
-    print('[API.favoritosRecebidos] userid presente: sim');
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     print('[API.favoritosRecebidos] url=$uri');
     print('[API.favoritosRecebidos] requisicao_iniciada');
     try {
@@ -728,7 +714,7 @@ class API {
           .get(uri, headers: _preferencesJsonHeaders())
           .timeout(const Duration(seconds: 15));
       print('[API.favoritosRecebidos] status=${response.statusCode}');
-      print('[API.favoritosRecebidos] bytes=${response.body.length}');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       return _decodeApiMap(response);
     } catch (error) {
       print('[API.favoritosRecebidos] excecao=${error.runtimeType}');
@@ -736,25 +722,33 @@ class API {
     }
   }
 
-  static Future<bool> marcarFornecedorEntregador(int idEntregador, String tipo) async {
+  static Future<bool> marcarFornecedorEntregador(
+      int idEntregador, String tipo) async {
     final userId = await _preferencesUserId();
-    final response = await http.post(
-      Uri.parse('https://teletudo.com/api/fornecedor/entregadores/$idEntregador/$tipo')
-          .replace(queryParameters: {'userid': userId.toString()}),
-      headers: _preferencesJsonHeaders(),
-      body: jsonEncode({'userid': userId}),
-    ).timeout(const Duration(seconds: 15));
+    final response = await http
+        .post(
+          Uri.parse(
+                  'https://teletudo.com/api/fornecedor/entregadores/$idEntregador/$tipo')
+              .replace(queryParameters: {'userid': userId.toString()}),
+          headers: _preferencesJsonHeaders(),
+          body: jsonEncode({'userid': userId}),
+        )
+        .timeout(const Duration(seconds: 15));
     return _decodeApiMap(response)['success'] == true;
   }
 
-  static Future<bool> removerFornecedorEntregadorPreferencia(int idEntregador) async {
+  static Future<bool> removerFornecedorEntregadorPreferencia(
+      int idEntregador) async {
     final userId = await _preferencesUserId();
-    final response = await http.delete(
-      Uri.parse('https://teletudo.com/api/fornecedor/entregadores/$idEntregador/preferencia')
-          .replace(queryParameters: {'userid': userId.toString()}),
-      headers: _preferencesJsonHeaders(),
-      body: jsonEncode({'userid': userId}),
-    ).timeout(const Duration(seconds: 15));
+    final response = await http
+        .delete(
+          Uri.parse(
+                  'https://teletudo.com/api/fornecedor/entregadores/$idEntregador/preferencia')
+              .replace(queryParameters: {'userid': userId.toString()}),
+          headers: _preferencesJsonHeaders(),
+          body: jsonEncode({'userid': userId}),
+        )
+        .timeout(const Duration(seconds: 15));
     return _decodeApiMap(response)['success'] == true;
   }
 
@@ -763,7 +757,8 @@ class API {
       throw const ApiRequestException('Sua sessao expirou. Entre novamente.');
     }
     if (response.statusCode == 403) {
-      throw const ApiRequestException('Voce nao tem permissao para esta operacao.');
+      throw const ApiRequestException(
+          'Voce nao tem permissao para esta operacao.');
     }
     if (response.statusCode == 404) {
       throw const ApiRequestException('Recurso nao encontrado.');
@@ -772,7 +767,8 @@ class API {
       throw const ApiRequestException('Dados invalidos para esta operacao.');
     }
     if (response.statusCode >= 500) {
-      throw const ApiRequestException('Servidor indisponivel. Tente novamente.');
+      throw const ApiRequestException(
+          'Servidor indisponivel. Tente novamente.');
     }
     final decoded = jsonDecode(response.body);
     if (decoded is Map<String, dynamic>) return decoded;
@@ -796,10 +792,10 @@ class API {
       String responseBody, String user) async {
     try {
       final ret = json.decode(responseBody);
-      print("[API.veLogin] JSON decodificado: $ret");
+      print("[API.veLogin] json_decoded=true");
       return ret;
     } catch (e) {
-      print("[API.veLogin] ❌ ERRO_2: Falha ao decodificar JSON: $e");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
       await _registrarErro(
         "ERRO_2 - Falha ao parsear JSON",
@@ -833,13 +829,13 @@ class API {
     // ------------------------------------------------------
     final bool ehFornecedor = ret["eh_fornecedor"] == true;
     await prefs.setBool('isFornecedor', ehFornecedor);
-    print("eh_fornecedor = $ehFornecedor");
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
     int idLoja = 0;
     if (ehFornecedor) {
       idLoja = _asInt(ret["id_loja"]) ?? 0;
       await prefs.setInt('idLoja', idLoja);
-      print("idLoja = $idLoja");
+      print("[API.veLogin] store_profile_saved=true");
     } else {
       await prefs.remove('idLoja');
     }
@@ -856,7 +852,7 @@ class API {
     }
 
     await prefs.setBool('isMotoboy', ehMotoboy);
-    print("eh_motoboy = $ehMotoboy");
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
     // ------------------------------------------------------
     // 🔥 CONVITE (AQUI ESTAVA O BUG)
@@ -868,22 +864,19 @@ class API {
       final convite = token["convite"]?.toString().trim();
       if (convite != null && convite.isNotEmpty) {
         await prefs.setString('convite', convite);
-        print("[API.veLogin] Convite salvo nas prefs: $convite");
+        print("[API.veLogin] invite_saved=true");
       } else {
-        print("[API.veLogin] Nenhum convite no token");
+        debugPrint('[Sanitized] sensitive_details_suppressed=true');
       }
     } else {
       await prefs.remove('authToken');
-      print("[API.veLogin] Token inexistente ou inválido");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
     }
 
     // ------------------------------------------------------
     // 🔹 Log final
     // ------------------------------------------------------
-    print("[API.veLogin] OK → "
-        "isMotoboy=$ehMotoboy | "
-        "isFornecedor=$ehFornecedor | "
-        "idLoja=$idLoja");
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     _loginDebug('shared_preferences_concluida');
   }
 
@@ -919,12 +912,11 @@ class API {
         print("Envio de respondToDelivery com sucesso");
         return true;
       } else {
-        print(
-            "Falha ao enviar resposta: ${response.statusCode}, ${response.body.length > 300 ? response.body.substring(0, 300) : response.body}");
+        debugPrint('[Sanitized] sensitive_details_suppressed=true');
         return false;
       }
     } catch (e) {
-      print("Erro ao enviar resposta de entrega: $e");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       return false;
     }
     // return true;
@@ -945,7 +937,7 @@ class API {
       );
       print("Visualização reportada ao servidor com sucesso.");
     } catch (e) {
-      print("Erro ao reportar visualização: $e");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
     }
   }
 
@@ -964,8 +956,7 @@ class API {
           userid == null ||
           codigo == null ||
           codigo.isEmpty) {
-        print(
-            "notifyPickedUp: dados ausentes currentChamado=$currentChamado idUser=$userid codigo=$codigo");
+        debugPrint('[Sanitized] sensitive_details_suppressed=true');
         return false;
       }
 
@@ -975,7 +966,7 @@ class API {
         'codigo': codigo,
       };
 
-      print("notifyPickedUp payload: $body");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
       var response = await http.post(
         Uri.parse(baseUrl),
@@ -986,8 +977,7 @@ class API {
         body: json.encode(body),
       );
 
-      print(
-          "notifyPickedUp response: status=${response.statusCode} body=${response.body}");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
       if (response.statusCode != 200) {
         return false;
@@ -1008,7 +998,7 @@ class API {
 
       return true;
     } catch (e) {
-      print("Erro notifyPickedUp(): $e");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       return false;
     }
     // return true;
@@ -1036,7 +1026,7 @@ class API {
         return false;
       }
 
-      print("📦 Enviando encerramento do chamado $currentChamado");
+      print("📦 Encerramento de chamado iniciado");
 
       final response = await http.post(
         Uri.parse(baseUrl),
@@ -1054,7 +1044,7 @@ class API {
       print("Status HTTP = ${response.statusCode}");
 
       if (response.statusCode == 200) {
-        print("✅ Sucesso ao notificar o servidor: ${response.body}");
+        debugPrint('[Sanitized] sensitive_details_suppressed=true');
         if (response.body.trim().isNotEmpty) {
           final data = json.decode(response.body);
           if (data is Map && data['valorEntrega'] != null) {
@@ -1066,17 +1056,17 @@ class API {
         }
         return true;
       } else {
-        print("❌ Falha ao notificar servidor: ${response.body}");
+        debugPrint('[Sanitized] sensitive_details_suppressed=true');
         return false;
       }
     } catch (e) {
-      print("❌ Erro na chamada API.notifyDeliveryCompleted: $e");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       return false;
     }
   }
 
   static Future<String> saldo(int userId) async {
-    print("Ver o saldo do usuário " + userId.toString());
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     var response = await http.post(
       Uri.parse('https://teletudo.com/api/saldo'),
       headers: {
@@ -1087,8 +1077,6 @@ class API {
       body: json.encode({'userid': userId}),
     );
     if (response.statusCode == 200) {
-      // print("response.body =");
-      // print(response.body);
       var data = json.decode(response.body);
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       if (data['Erro'] == 0) {
@@ -1199,9 +1187,9 @@ class API {
   }
 
   static Future<Map<String, dynamic>> verifyInviteCode(String code) async {
-    print('[API.verifyInviteCode] $code');
+    print('[API.verifyInviteCode] request_started');
     String conviteDigitado = code.toUpperCase();
-    await logApp("API", "conviteDigitado = $conviteDigitado");
+    await logApp("API", "convite_verification_started");
     final response = await http.get(
       Uri.parse('https://teletudo.com/api/verify-invite-code')
           .replace(queryParameters: {'code': conviteDigitado}),
@@ -1220,8 +1208,7 @@ class API {
         Uri.parse('https://teletudo.com/api/generate-random-invite-code');
     print('[API.generateInviteCode] GET $url');
     final response = await http.get(url);
-    print(
-        '[API.generateInviteCode] HTTP ${response.statusCode} body=${response.body}');
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     return json.decode(response.body);
   }
 
@@ -1229,20 +1216,19 @@ class API {
       String code, int userId) async {
     final url = Uri.parse(
         'https://teletudo.com/api/check-invite-code?code=$code&user_id=$userId');
-    print('[API.checkInviteAvailability] GET $url');
+    print('[API.checkInviteAvailability] request_started');
     final response = await http.get(url);
-    print(
-        '[API.checkInviteAvailability] HTTP ${response.statusCode} body=${response.body}');
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     return json.decode(response.body);
   }
 
   static Future<Map<String, dynamic>> setInvite(String code, int userId) async {
     final url = Uri.parse('https://teletudo.com/api/set-invite');
     final body = json.encode({'code': code, 'user_id': userId});
-    print('[API.setInvite] POST $url body=$body');
+    print('[API.setInvite] POST request_started');
     final response = await http.post(url,
         headers: {'Content-Type': 'application/json'}, body: body);
-    print('[API.setInvite] HTTP ${response.statusCode} body=${response.body}');
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
     return json.decode(response.body);
   }
 
@@ -1304,7 +1290,7 @@ class API {
         }
       }
     } catch (e) {
-      print('Erro ao buscar código de convite do usuário: $e');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
     }
     return null;
   }
@@ -1328,7 +1314,7 @@ class API {
         }),
       );
     } catch (e) {
-      print("❌ Erro na função logApp: $e");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
     }
   }
 
@@ -1354,7 +1340,7 @@ class API {
         return false;
       }
     } catch (e) {
-      print("❌ Erro fornecedorConfirmou(): $e");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       return false;
     }
   }
@@ -1413,14 +1399,14 @@ class API {
     }
 
     final data = json.decode(response.body);
-    print("Resposta entrega ativa: $data");
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
     if (data['success'] != true) {
       return null;
     }
 
     if (!EntregaAtiva.canParse(data)) {
-      print("Entrega ativa sem dados do pedido: $data");
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       return null;
     }
 

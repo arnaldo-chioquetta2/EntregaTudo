@@ -52,7 +52,7 @@ class WebDebugLogPanel extends StatelessWidget {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text(
-                                  'Logs copiados para a área de transferência.',
+                                  'Logs copiados para a Ã¡rea de transferÃªncia.',
                                 ),
                               ),
                             );

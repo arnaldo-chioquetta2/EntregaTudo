@@ -1,0 +1,13 @@
+import 'browser_resource_timing_types.dart';
+import 'browser_resource_timing_stub.dart'
+    if (dart.library.js_interop) 'browser_resource_timing_web.dart' as impl;
+
+export 'browser_resource_timing_types.dart';
+
+BrowserRequestMark? browserRequestStart(String url) {
+  return impl.browserRequestStart(url);
+}
+
+BrowserResourceTiming? browserResourceTimingAfter(BrowserRequestMark? mark) {
+  return impl.browserResourceTimingAfter(mark);
+}

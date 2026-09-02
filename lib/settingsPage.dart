@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:entregatudo/login_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// 1.4.5 Correção dos valores de configuração do MotoBoy
-// 1.4.1 Prevenção par a erro de autenticação na gravação das configurações
+// 1.4.5 CorreÃ§Ã£o dos valores de configuraÃ§Ã£o do MotoBoy
+// 1.4.1 PrevenÃ§Ã£o par a erro de autenticaÃ§Ã£o na gravaÃ§Ã£o das configuraÃ§Ãµes
 
 class SettingsPage extends StatefulWidget {
   @override
@@ -31,12 +31,12 @@ class _SettingsPageState extends State<SettingsPage> {
 
   String? _validateInput(String? value, {bool isRequired = false}) {
     if (isRequired && (value == null || value.isEmpty)) {
-      return 'Campo obrigatório';
+      return 'Campo obrigatÃ³rio';
     }
     if (value != null && value.isNotEmpty) {
       final regex = RegExp(r'^[0-9.,]+$');
       if (!regex.hasMatch(value)) {
-        return 'Apenas números, pontos ou vírgulas são permitidos';
+        return 'Apenas nÃºmeros, pontos ou vÃ­rgulas sÃ£o permitidos';
       }
     }
     return null;
@@ -81,17 +81,17 @@ class _SettingsPageState extends State<SettingsPage> {
       );
 
       // ---------------------------------------------
-      // 🔥 NOVO: Tratamento para userid ausente e erro 404
+      // ðŸ”¥ NOVO: Tratamento para userid ausente e erro 404
       // ---------------------------------------------
       if (result['message']
               .toString()
               .toLowerCase()
-              .contains('usuário não autenticado') ||
+              .contains('usuÃ¡rio nÃ£o autenticado') ||
           result['message']
               .toString()
               .toLowerCase()
-              .contains('entregador não encontrado')) {
-        // Limpa credenciais inválidas
+              .contains('entregador nÃ£o encontrado')) {
+        // Limpa credenciais invÃ¡lidas
         final prefs = await SharedPreferences.getInstance();
         await prefs.clear();
 
@@ -99,9 +99,9 @@ class _SettingsPageState extends State<SettingsPage> {
           showDialog(
             context: context,
             builder: (ctx) => AlertDialog(
-              title: const Text("Erro de Autenticação"),
+              title: const Text("Erro de AutenticaÃ§Ã£o"),
               content: Text(
-                  "Sua sessão expirou ou seu cadastro não está completo.\n\nFaça login novamente."),
+                  "Sua sessÃ£o expirou ou seu cadastro nÃ£o estÃ¡ completo.\n\nFaÃ§a login novamente."),
               actions: [
                 TextButton(
                   onPressed: () {
@@ -121,7 +121,7 @@ class _SettingsPageState extends State<SettingsPage> {
       }
 
       // ---------------------------------------------
-      // 🔥 Fluxo normal (resultado OK)
+      // ðŸ”¥ Fluxo normal (resultado OK)
       // ---------------------------------------------
       if (result['success']) {
         setState(() => _isSaved = true);
@@ -129,7 +129,7 @@ class _SettingsPageState extends State<SettingsPage> {
             .showSnackBar(SnackBar(content: Text(result['message'])));
       } else {
         // ---------------------------------------------
-        // ❌ Erro genérico
+        // âŒ Erro genÃ©rico
         // ---------------------------------------------
         showDialog(
           context: context,
@@ -147,7 +147,7 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     } else {
       // ---------------------------------------------
-      // ❌ Validação local falhou
+      // âŒ ValidaÃ§Ã£o local falhou
       // ---------------------------------------------
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -200,14 +200,14 @@ class _SettingsPageState extends State<SettingsPage> {
                 : _formatValue(_toDouble(result['customDeliverySurcharge']));
       });
     } catch (e) {
-      print('Erro ao carregar configurações: $e');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Configurações")),
+      appBar: AppBar(title: const Text("ConfiguraÃ§Ãµes")),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -218,18 +218,18 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               if (_vazio == 1)
                 _buildAviso(
-                    "Estes são valores médios utilizados na sua região.",
+                    "Estes sÃ£o valores mÃ©dios utilizados na sua regiÃ£o.",
                     Colors.yellow,
                     Colors.orange,
                     Colors.black)
               else
                 _buildAviso(
-                    "Você pode alterar os preços conforme sua necessidade.",
+                    "VocÃª pode alterar os preÃ§os conforme sua necessidade.",
                     Colors.blue,
                     Colors.blueAccent,
                     Colors.white),
               const SizedBox(height: 16),
-              _buildCampo("Valor Mínimo", _minValueController),
+              _buildCampo("Valor MÃ­nimo", _minValueController),
               const SizedBox(height: 16),
               _buildCampo("Valor por Km Rodado", _kmRateController,
                   obrigatorio: true),
@@ -255,7 +255,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     _saveSettings();
                   }
                 },
-                child: Text(_isSaved ? "OK" : "Salvar Configurações"),
+                child: Text(_isSaved ? "OK" : "Salvar ConfiguraÃ§Ãµes"),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
                   backgroundColor: Colors.blue,

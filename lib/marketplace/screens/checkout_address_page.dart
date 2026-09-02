@@ -10,6 +10,7 @@ import '../models/checkout_models.dart';
 import '../services/marketplace_service.dart';
 import '../utils/geo_distance.dart';
 import 'checkout_review_page.dart';
+import '../../services/analytics_service.dart';
 
 const checkoutQuoteActionLabel = 'Clique para ver o valor da entrega';
 
@@ -56,14 +57,13 @@ class _CheckoutAddressPageState extends State<CheckoutAddressPage> {
   }
 
   Future<void> _loadAddress() async {
-    debugPrint('[Checkout.Address] consulta_iniciada');
+    debugPrint('[Checkout.Address] address_received=true');
     try {
       final address = await widget.service.loadDefaultAddress();
       if (!mounted) return;
       setState(() {
         _defaultAddress = address;
-        debugPrint('[Checkout.Address] endereco_recebido=' +
-            (address != null).toString());
+        debugPrint('[Checkout.Address] address_received=true');
         _loading = false;
         if (address == null) {
           _errorMessage = 'Nao encontramos um endereco cadastrado.';
@@ -219,6 +219,7 @@ class _CheckoutAddressPageState extends State<CheckoutAddressPage> {
       await _validateTemporary();
       if (_temporaryAddress == null) return;
     }
+    AnalyticsService.instance.track(AnalyticsEvent.checkoutStart);
     setState(() {
       _quoting = true;
       _errorMessage = null;
@@ -229,8 +230,7 @@ class _CheckoutAddressPageState extends State<CheckoutAddressPage> {
         idempotencyKey: _quoteKey,
       );
       if (!mounted) return;
-      debugPrint(
-          '[Checkout.Quote] status=200 pedidoId=' + quote.orderId.toString());
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       setState(() => _quoting = false);
       final reset = await Navigator.push<bool>(
         context,

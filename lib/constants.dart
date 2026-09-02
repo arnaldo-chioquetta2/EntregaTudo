@@ -12,7 +12,7 @@ class AppConfig {
 
 // VERSÃO NÃO ENVIADA AO SERVIDOR
 
-// VERSÃO JÁ ENVIADA AO SERVIDOR
+// 1.5.2 Pix Notreve
 // 1.5.2 Mostra se tem atualização do App
 // 1.5.1 Correção da convite whats
 // 1.5.0 Entregadores Favoritos

@@ -9,10 +9,7 @@ class RecoveryStateService {
   static const paymentIdKey = 'currentMarketplacePaymentId';
   static const paymentOrderIdKey = 'currentMarketplacePaymentOrderId';
   static const paymentStatusKey = 'currentMarketplacePaymentStatus';
-<<<<<<< HEAD
-=======
   static const paymentProviderKey = 'currentMarketplacePaymentProvider';
->>>>>>> 94e7b05 (notreve)
   static const paymentIdempotencyKey =
       'currentMarketplacePaymentIdempotencyKey';
   static const orderIdKey = 'currentMarketplaceOrderId';
@@ -38,12 +35,9 @@ class RecoveryStateService {
     await prefs.setInt(paymentIdKey, payment.paymentId);
     await prefs.setInt(paymentOrderIdKey, payment.orderId);
     await prefs.setString(paymentStatusKey, payment.status);
-<<<<<<< HEAD
-=======
     if (payment.provider != null) {
       await prefs.setString(paymentProviderKey, payment.provider!);
     }
->>>>>>> 94e7b05 (notreve)
     await prefs.setString(paymentIdempotencyKey, idempotencyKey);
     await prefs.setInt(ownerIdKey, userId);
     debugRecovery('payment_saved');
@@ -60,10 +54,7 @@ class RecoveryStateService {
     await prefs.remove(paymentIdKey);
     await prefs.remove(paymentOrderIdKey);
     await prefs.remove(paymentStatusKey);
-<<<<<<< HEAD
-=======
     await prefs.remove(paymentProviderKey);
->>>>>>> 94e7b05 (notreve)
     await prefs.remove(paymentIdempotencyKey);
     debugRecovery('payment_cleared');
   }
@@ -86,10 +77,7 @@ class RecoveryStateService {
     await prefs.remove(paymentIdKey);
     await prefs.remove(paymentOrderIdKey);
     await prefs.remove(paymentStatusKey);
-<<<<<<< HEAD
-=======
     await prefs.remove(paymentProviderKey);
->>>>>>> 94e7b05 (notreve)
     await prefs.remove(paymentIdempotencyKey);
     await prefs.remove(orderIdKey);
     await prefs.remove(ownerIdKey);
@@ -101,10 +89,7 @@ class RecoveryStateService {
       paymentId: prefs.getInt(paymentIdKey),
       paymentOrderId: prefs.getInt(paymentOrderIdKey),
       paymentStatus: prefs.getString(paymentStatusKey),
-<<<<<<< HEAD
-=======
       paymentProvider: prefs.getString(paymentProviderKey),
->>>>>>> 94e7b05 (notreve)
       paymentIdempotencyKey: prefs.getString(paymentIdempotencyKey),
       orderId: prefs.getInt(orderIdKey),
       ownerId: prefs.getInt(ownerIdKey),
@@ -120,10 +105,7 @@ class RecoverySnapshot {
   final int? paymentId;
   final int? paymentOrderId;
   final String? paymentStatus;
-<<<<<<< HEAD
-=======
   final String? paymentProvider;
->>>>>>> 94e7b05 (notreve)
   final String? paymentIdempotencyKey;
   final int? orderId;
   final int? ownerId;
@@ -132,10 +114,7 @@ class RecoverySnapshot {
     this.paymentId,
     this.paymentOrderId,
     this.paymentStatus,
-<<<<<<< HEAD
-=======
     this.paymentProvider,
->>>>>>> 94e7b05 (notreve)
     this.paymentIdempotencyKey,
     this.orderId,
     this.ownerId,

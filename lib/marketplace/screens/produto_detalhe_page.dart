@@ -5,6 +5,7 @@ import '../api_v1_error.dart';
 import '../models/marketplace_models.dart';
 import '../services/marketplace_service.dart';
 import '../widgets/resilient_network_image.dart';
+import '../../services/analytics_service.dart';
 
 class ProdutoDetalhePage extends StatefulWidget {
   final int productId;
@@ -49,6 +50,7 @@ class _ProdutoDetalhePageState extends State<ProdutoDetalhePage> {
         additionalIds: _selected.toList(growable: false),
         observation: _observation.text,
       );
+      AnalyticsService.instance.track(AnalyticsEvent.cartAdd);
       if (mounted) Navigator.pop(context, cart);
     } on ApiV1Exception catch (error) {
       if (mounted) {

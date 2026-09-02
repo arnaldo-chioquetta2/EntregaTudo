@@ -1,10 +1,10 @@
 class EntregaAtiva {
   final int idPedido;
 
-  // 🔐 Código mostrado ao fornecedor
+  // ðŸ” CÃ³digo mostrado ao fornecedor
   final String codigoRetirada;
 
-  // 🔑 Código digitado pelo cliente
+  // ðŸ”‘ CÃ³digo digitado pelo cliente
   String? codigoFinalizacaoCliente;
 
   final String fornecedor;

@@ -108,8 +108,7 @@ class ApiV1Client {
 
     debugPrint('[API.v1] requisicao_iniciada method=$method path=$path');
     if (path == '/checkout/confirmar') {
-      debugPrint(
-          '[Payment.Confirm.Request] pedidoId=${body?['pedidoId'] ?? 'null'} idempotency=${idempotencyKey != null && idempotencyKey.trim().isNotEmpty} authenticated=true path=$path');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
     }
 
     if (path.startsWith('/pedidos/') && path.endsWith('/cancelar')) {
@@ -131,18 +130,13 @@ class ApiV1Client {
 
       if (path.startsWith('/pedidos/') && path.endsWith('/cancelar')) {
         final contentType = response.headers['content-type'] ?? 'ausente';
-        debugPrint(
-            '[Notreve:20.Cancel.Http] status=${response.statusCode} contentType=$contentType bodyLength=${response.body.length}');
-        debugPrint(
-            '[Notreve:20.Cancel.Body] ${_sanitizeCancelBody(response.body, contentType)}');
+        debugPrint('[Sanitized] sensitive_details_suppressed=true');
+        debugPrint('[Notreve:20.Cancel.Body] body_present=true');
       }
       if (path == '/checkout/confirmar') {
         final contentType = response.headers['content-type'] ?? 'ausente';
         final bodyPresent = response.body.trim().isNotEmpty;
-        debugPrint(
-            '[Payment.Confirm.Http] status=${response.statusCode} contentType=$contentType bytes=${response.body.length} duration_ms=${stopwatch.elapsedMilliseconds} body_presente=${bodyPresent ? 'sim' : 'nao'}');
-        debugPrint(
-            '[Payment.Confirm.Raw] ${_sanitizePaymentBody(response.body)}');
+        debugPrint('[Sanitized] sensitive_details_suppressed=true');
       }
 
       if (response.statusCode == 401) {

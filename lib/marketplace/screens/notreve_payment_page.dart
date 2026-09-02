@@ -47,11 +47,7 @@ class _NotrevePaymentPageState extends State<NotrevePaymentPage> {
     super.initState();
     _qrBytes = decodeNotreveQr(widget.payment.qr);
     _expiresAt = widget.payment.expiresAt;
-    debugPrint('[Notreve:10.Page] paymentId=${widget.payment.paymentId} '
-        'provider=${widget.payment.provider ?? 'NOTREVE'} '
-        'status=${widget.payment.status} valor=${widget.payment.amount} '
-        'hasQr=${_qrBytes != null} hasCopyPaste=$_hasCopyPaste '
-        'valueEmbedded=${widget.payment.valueEmbedded ?? 'null'}');
+    debugPrint('[Notreve:10.Page] opened=true');
     if (_isPollable(_status)) {
       _pollTimer = Timer.periodic(widget.pollInterval, (_) => _poll());
     }
@@ -69,9 +65,7 @@ class _NotrevePaymentPageState extends State<NotrevePaymentPage> {
     try {
       final status =
           await widget.service.loadPaymentStatus(widget.payment.paymentId);
-      debugPrint('[Notreve:16.Status] paymentId=${status.paymentId} '
-          'status=${status.status} hasExpiration=${status.expiresAt != null} '
-          'expiraEm=${status.expiresAt ?? 'null'}');
+      debugPrint('[Notreve:16.Status] status_received=true');
       await RecoveryStateService.updatePaymentStatus(status.status);
       if (!mounted) return;
       setState(() {

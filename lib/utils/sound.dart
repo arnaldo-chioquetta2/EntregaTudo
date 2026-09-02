@@ -11,6 +11,6 @@ Future<void> tocarSomVenda() async {
       volume: 1.0,
     );
   } catch (e) {
-    print('Erro ao tocar som de venda: $e');
+    print('[Audio] playback_failed=true');
   }
 }

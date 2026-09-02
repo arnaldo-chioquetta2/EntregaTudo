@@ -57,6 +57,45 @@ void main() {
     expect((response['data'] as Map<String, dynamic>)['id'], 3);
   });
 
+  test('solicita exclusao com POST sem body e aceita 202 PENDING', () async {
+    final client = _FakeClient((request) {
+      expect(request.method, 'POST');
+      expect(request.url.path, '/api/v1/account/deletion-request');
+      expect(request.headers['authorization'], 'Bearer test-token');
+      expect((request as http.Request).body, isEmpty);
+      return http.Response(
+        jsonEncode(<String, dynamic>{
+          'success': true,
+          'data': <String, dynamic>{'status': 'PENDING'},
+        }),
+        202,
+      );
+    });
+    final api = ApiV1Client(client: client, onUnauthorized: () async {});
+
+    final response = await api.post('/account/deletion-request');
+
+    expect(response['success'], isTrue);
+    expect((response['data'] as Map<String, dynamic>)['status'], 'PENDING');
+  });
+
+  test('falha na exclusao nao limpa a sessao', () async {
+    final client = _FakeClient((_) => http.Response(
+          jsonEncode(<String, dynamic>{
+            'success': false,
+            'message': 'Falha temporaria.',
+          }),
+          500,
+        ));
+    final api = ApiV1Client(client: client, onUnauthorized: () async {});
+
+    await expectLater(
+      api.post('/account/deletion-request'),
+      throwsA(isA<ApiV1Exception>()),
+    );
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('authToken'), 'test-token');
+  });
   test('preserva status, code, message e errors em falha HTTP', () async {
     final client = _FakeClient((_) => http.Response(
           jsonEncode(<String, dynamic>{

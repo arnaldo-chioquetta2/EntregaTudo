@@ -105,6 +105,7 @@ echo Chamando UPA.BAT...
 echo --------------------------------------------------
 
 call "%UPA_BAT%"
+pause
 goto :fim
 
 :erro

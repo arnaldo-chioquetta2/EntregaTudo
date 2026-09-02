@@ -60,7 +60,7 @@ class _PixPaymentPageState extends State<PixPaymentPage> {
         await _openPaid();
       }
     } on ApiV1Exception catch (error) {
-      debugPrint('[Network.Waiting] source=payment_status code=${error.code}');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       if (mounted)
         setState(() => _error =
             (error.code == 'timeout' || error.code == 'network_error')
@@ -151,7 +151,7 @@ class _PixPaymentPageState extends State<PixPaymentPage> {
                   const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
           const Text(
-            'Erro no valor - correção pendente',
+            'Erro no valor - correÃ§Ã£o pendente',
             style: TextStyle(
               color: Colors.red,
               fontWeight: FontWeight.bold,

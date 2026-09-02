@@ -1,0 +1,7 @@
+import 'browser_resource_timing_types.dart';
+
+BrowserRequestMark? browserRequestStart(String url) => null;
+
+BrowserResourceTiming? browserResourceTimingAfter(BrowserRequestMark? mark) {
+  return null;
+}

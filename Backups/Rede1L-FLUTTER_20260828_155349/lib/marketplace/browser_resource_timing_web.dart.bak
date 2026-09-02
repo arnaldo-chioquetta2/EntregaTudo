@@ -1,0 +1,64 @@
+import 'dart:js_interop';
+
+import 'package:web/web.dart';
+
+import 'browser_resource_timing_types.dart';
+
+double? _positive(double value) => value > 0 ? value : null;
+
+int? _positiveInt(int value) => value > 0 ? value : null;
+
+String? _nonEmpty(String value) => value.isEmpty ? null : value;
+
+BrowserRequestMark? browserRequestStart(String url) {
+  try {
+    return BrowserRequestMark(
+      url: url,
+      startTime: window.performance.now(),
+    );
+  } catch (_) {
+    return null;
+  }
+}
+
+BrowserResourceTiming? browserResourceTimingAfter(BrowserRequestMark? mark) {
+  if (mark == null) return null;
+
+  try {
+    final entries = window.performance.getEntriesByType('resource').toDart;
+    PerformanceResourceTiming? selected;
+    for (final entry in entries) {
+      if (!entry.isA<PerformanceResourceTiming>() || entry.name != mark.url) {
+        continue;
+      }
+
+      // The entry may start a few milliseconds before fetch() is invoked.
+      final resource = entry as PerformanceResourceTiming;
+      if (resource.startTime < mark.startTime - 250) continue;
+      if (selected == null || resource.startTime > selected.startTime) {
+        selected = resource;
+      }
+    }
+
+    if (selected == null) return null;
+    return BrowserResourceTiming(
+      startTime: selected.startTime,
+      duration: selected.duration,
+      fetchStart: _positive(selected.fetchStart),
+      domainLookupStart: _positive(selected.domainLookupStart),
+      domainLookupEnd: _positive(selected.domainLookupEnd),
+      connectStart: _positive(selected.connectStart),
+      secureConnectionStart: _positive(selected.secureConnectionStart),
+      connectEnd: _positive(selected.connectEnd),
+      requestStart: _positive(selected.requestStart),
+      responseStart: _positive(selected.responseStart),
+      responseEnd: _positive(selected.responseEnd),
+      transferSize: _positiveInt(selected.transferSize),
+      encodedBodySize: _positiveInt(selected.encodedBodySize),
+      decodedBodySize: _positiveInt(selected.decodedBodySize),
+      nextHopProtocol: _nonEmpty(selected.nextHopProtocol),
+    );
+  } catch (_) {
+    return null;
+  }
+}

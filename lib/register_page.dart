@@ -8,13 +8,13 @@ import 'package:entregatudo/constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // 1.4.3 Mais logs no cadastro
-// 1.4.2 Mostra melhor formatado a mensagem de usuário já existente no cadastro
-// 1.3.8 Correção da crítica da placa
-// 1.3.7 Correção do cadastro
-// 1.3.6 Log na conferência do convite
+// 1.4.2 Mostra melhor formatado a mensagem de usuÃ¡rio jÃ¡ existente no cadastro
+// 1.3.8 CorreÃ§Ã£o da crÃ­tica da placa
+// 1.3.7 CorreÃ§Ã£o do cadastro
+// 1.3.6 Log na conferÃªncia do convite
 // 1.3.5 Log para o servidor ao logar e ao cadastrar
-// 1.3.4 Confirmação de código na entrega
-// 1.3.3 Convite na fluxo certo de crítica
+// 1.3.4 ConfirmaÃ§Ã£o de cÃ³digo na entrega
+// 1.3.3 Convite na fluxo certo de crÃ­tica
 
 class RegisterPage extends StatefulWidget {
   final String? prefillName;
@@ -67,7 +67,7 @@ class _RegisterPageState extends State<RegisterPage> {
   bool JaMostrouCnhInv = false;
   bool JaMostrouPlaca = false;
   String? _inviteStatus;
-  int _inviteValid = -1; // -1: não verificado | 0: inválido | 1: válido
+  int _inviteValid = -1; // -1: nÃ£o verificado | 0: invÃ¡lido | 1: vÃ¡lido
 
   String? _inviterName;
 
@@ -75,7 +75,7 @@ class _RegisterPageState extends State<RegisterPage> {
     final code = _inviteController.text.trim();
     if (code.isEmpty) {
       setState(() {
-        _inviteStatus = "Digite o código de convite.";
+        _inviteStatus = "Digite o cÃ³digo de convite.";
         _inviteValid = -1;
       });
       return;
@@ -86,12 +86,12 @@ class _RegisterPageState extends State<RegisterPage> {
         setState(() {
           _inviteValid = 1;
           _inviterName = result['inviter_name'];
-          _inviteStatus = "Convite válido! Captador: $_inviterName";
+          _inviteStatus = "Convite vÃ¡lido! Captador: $_inviterName";
         });
       } else {
         setState(() {
           _inviteValid = 0;
-          _inviteStatus = result['error'] ?? "Convite inválido.";
+          _inviteStatus = result['error'] ?? "Convite invÃ¡lido.";
         });
       }
     } catch (e) {
@@ -115,41 +115,31 @@ class _RegisterPageState extends State<RegisterPage> {
     super.initState();
 
     // --------------------------------------
-    // 🔥 1) Loga entrada na tela + versão do app
+    // ðŸ”¥ 1) Loga entrada na tela + versÃ£o do app
     // --------------------------------------
     _logEntrouNaTelaCadastro();
 
     // --------------------------------------
-    // 🔥 2) Captura global de erros
+    // ðŸ”¥ 2) Captura global de erros
     // --------------------------------------
     FlutterError.onError = (FlutterErrorDetails details) {
-      API.logApp("Cadastro", "FlutterError", {
-        "error": details.exception.toString(),
-        "stack": details.stack.toString(),
-        "versaoApp": AppConfig.versaoApp,
-        "versaoAppInt": AppConfig.versaoAppInt,
-      });
+      API.logApp("Cadastro", "FlutterError");
     };
 
     PlatformDispatcher.instance.onError = (error, stack) {
-      API.logApp("Cadastro", "PlatformError", {
-        "error": error.toString(),
-        "stack": stack.toString(),
-        "versaoApp": AppConfig.versaoApp,
-        "versaoAppInt": AppConfig.versaoAppInt,
-      });
+      API.logApp("Cadastro", "PlatformError");
       return true;
     };
 
     // --------------------------------------
-    // 🔥 3) Configurações internas
+    // ðŸ”¥ 3) ConfiguraÃ§Ãµes internas
     // --------------------------------------
     _distanciaMaximaController.text = '30';
     _aplicarPrefill();
     _carregarFallbackDosPrefs();
 
     // --------------------------------------
-    // 🔥 4) Logs ao perder o foco
+    // ðŸ”¥ 4) Logs ao perder o foco
     // --------------------------------------
     _focusUsuario
         .addListener(() => _logSaidaCampo("usuario", _usuarioController.text));
@@ -181,7 +171,7 @@ class _RegisterPageState extends State<RegisterPage> {
     if (widget.prefillUsername?.isNotEmpty ?? false) {
       _usuarioController.text = widget.prefillUsername!;
     } else if (_usuarioController.text.isEmpty && widget.prefillEmail != null) {
-      // sugestão de usuário a partir do email (antes do @)
+      // sugestÃ£o de usuÃ¡rio a partir do email (antes do @)
       final at = widget.prefillEmail!.indexOf('@');
       if (at > 0)
         _usuarioController.text = widget.prefillEmail!.substring(0, at);
@@ -191,7 +181,7 @@ class _RegisterPageState extends State<RegisterPage> {
   Future<void> _carregarFallbackDosPrefs() async {
     final prefs = await SharedPreferences.getInstance();
 
-    // só preenche se estiver vazio (não sobrescreve o que já veio por parâmetro)
+    // sÃ³ preenche se estiver vazio (nÃ£o sobrescreve o que jÃ¡ veio por parÃ¢metro)
     if (_nameController.text.isEmpty) {
       final name = prefs.getString('userName');
       if (name != null && name.isNotEmpty) _nameController.text = name;
@@ -200,7 +190,7 @@ class _RegisterPageState extends State<RegisterPage> {
       final email = prefs.getString('userEmail');
       if (email != null && email.isNotEmpty) _emailController.text = email;
     }
-    // opcional: sugerir usuário pelo email
+    // opcional: sugerir usuÃ¡rio pelo email
     if (_usuarioController.text.isEmpty) {
       final email = _emailController.text;
       final at = email.indexOf('@');
@@ -210,7 +200,7 @@ class _RegisterPageState extends State<RegisterPage> {
     // se quiser exibir/guardar googleId pra uso interno:
     final googleId = prefs.getString('googleId'); // se o AuthService salvou
     if (googleId != null) {
-      // você pode mostrar num Text abaixo do título, por exemplo:
+      // vocÃª pode mostrar num Text abaixo do tÃ­tulo, por exemplo:
       // setState(() => _googleId = googleId);
       // (ou apenas guardar para envio junto do cadastro)
     }
@@ -255,7 +245,7 @@ class _RegisterPageState extends State<RegisterPage> {
             TextField(
               controller: _usuarioController,
               focusNode: _focusUsuario,
-              decoration: const InputDecoration(labelText: 'Usuário'),
+              decoration: const InputDecoration(labelText: 'UsuÃ¡rio'),
             ),
             TextField(
               controller: _nameController,
@@ -299,7 +289,7 @@ class _RegisterPageState extends State<RegisterPage> {
               controller: _distanciaMaximaController,
               focusNode: _focusDistancia,
               decoration: const InputDecoration(
-                labelText: 'Distância Máxima (km)',
+                labelText: 'DistÃ¢ncia MÃ¡xima (km)',
                 helperText: 'Valor entre 1 e 30',
               ),
               keyboardType: TextInputType.number,
@@ -308,7 +298,7 @@ class _RegisterPageState extends State<RegisterPage> {
             TextFormField(
               controller: _inviteController,
               decoration: InputDecoration(
-                labelText: "Código de Convite",
+                labelText: "CÃ³digo de Convite",
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.check_circle),
                   onPressed: _verifyInvite,
@@ -345,7 +335,7 @@ class _RegisterPageState extends State<RegisterPage> {
               ElevatedButton(
                 onPressed: _cadastrando ? null : _usarConvitePadrao,
                 child: const Text(
-                  "Não tenho o convite",
+                  "NÃ£o tenho o convite",
                   style: TextStyle(fontSize: 13),
                 ),
               ),
@@ -357,7 +347,7 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _enviarCadastro() async {
-    await API.logApp("Cadastro", "Início do processo de cadastro");
+    await API.logApp("Cadastro", "InÃ­cio do processo de cadastro");
     setState(() => _cadastrando = true);
 
     if (_inviteValid == -1) {
@@ -382,15 +372,12 @@ class _RegisterPageState extends State<RegisterPage> {
       await _logCadastroEnviandoDados();
       final resultado = await _realizarCadastro();
 
-      print("=== [RegisterPage] Resultado do cadastro ===");
-      print(resultado);
-
       // ---------------------------
-      // 🔥 NOVA LÓGICA DE SUCESSO / ERRO
+      // ðŸ”¥ NOVA LÃ“GICA DE SUCESSO / ERRO
       // ---------------------------
 
       if (resultado.containsKey('Erro') && resultado['Erro'] == 0) {
-        // Sucesso — salvar nos SharedPreferences
+        // Sucesso â€” salvar nos SharedPreferences
         final prefs = await SharedPreferences.getInstance();
         await prefs.setInt('idUser', resultado['id']);
         await prefs.setString('nomeUser', _nameController.text.trim());
@@ -414,29 +401,18 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _logCadastroInvalidInvite() async {
-    await API.logApp("Cadastro", "Convite inválido ou ausente", {
-      "invite": _inviteController.text,
-      "inviteStatus": _inviteStatus,
-    });
+    await API.logApp("Cadastro", "Convite invalido ou ausente");
   }
 
   void _mostrarMensagemInviteInvalido() {
     mostrarMensagem(
       context,
-      "Você precisa de um convite válido para se cadastrar.",
+      "VocÃª precisa de um convite vÃ¡lido para se cadastrar.",
     );
   }
 
   Future<void> _logCadastroDadosColetados() async {
-    await API.logApp("Cadastro", "Dados capturados para envio", {
-      "nome": _nameController.text.trim(),
-      "usuario": _usuarioController.text.trim(),
-      "email": _emailController.text.trim(),
-      "telefone": _phoneController.text.trim(),
-      "placa": _placaController.text.trim().toUpperCase(),
-      "distanciaMaxima":
-          int.tryParse(_distanciaMaximaController.text.trim()) ?? 30,
-    });
+    await API.logApp("Cadastro", "Dados capturados para envio");
   }
 
   bool _validarNome() {
@@ -450,7 +426,7 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _logCadastroErroNomeInvalido() async {
-    await API.logApp("Cadastro", "Erro: nome inválido");
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
   }
 
   void _mostrarMensagemNomeInvalido() {
@@ -468,12 +444,11 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _logCadastroErroEmailInvalido() async {
-    await API.logApp("Cadastro", "Erro: email inválido",
-        {"email": _emailController.text.trim()});
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
   }
 
   void _mostrarMensagemEmailInvalido() {
-    mostrarMensagem(context, 'Por favor, insira um email válido.');
+    mostrarMensagem(context, 'Por favor, insira um email vÃ¡lido.');
   }
 
   bool _validarSenha() {
@@ -487,12 +462,12 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _logCadastroErroSenhaInvalida() async {
-    await API.logApp("Cadastro", "Erro: senha inválida");
+    debugPrint('[Sanitized] sensitive_details_suppressed=true');
   }
 
   void _mostrarMensagemSenhaInvalida() {
     mostrarMensagem(context,
-        'A senha não pode ser vazia e deve ter no mínimo 6 caracteres.');
+        'A senha nÃ£o pode ser vazia e deve ter no mÃ­nimo 6 caracteres.');
   }
 
   bool _validarPlaca() {
@@ -510,11 +485,11 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _logCadastroErroPlacaInvalida(String placa) async {
-    await API.logApp("Cadastro", "Erro: placa inválida", {"placa": placa});
+    await API.logApp("Cadastro", "Erro: placa invalida");
   }
 
   void _mostrarMensagemPlacaInvalida() {
-    mostrarMensagem(context, 'Por favor, insira uma placa válida.');
+    mostrarMensagem(context, 'Por favor, insira uma placa vÃ¡lida.');
   }
 
   bool _validarUsuario() {
@@ -528,11 +503,11 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _logCadastroErroUsuarioEmBranco() async {
-    await API.logApp("Cadastro", "Erro: usuário em branco");
+    await API.logApp("Cadastro", "Erro: usuÃ¡rio em branco");
   }
 
   void _mostrarMensagemUsuarioEmBranco() {
-    mostrarMensagem(context, 'Por favor, insira o nome de usuário.');
+    mostrarMensagem(context, 'Por favor, insira o nome de usuÃ¡rio.');
   }
 
   bool _validarDistanciaMaxima() {
@@ -548,13 +523,11 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _logCadastroErroDistanciaForaDoLimite(int valor) async {
-    await API.logApp("Cadastro", "Erro: distância fora do limite", {
-      "valor": valor,
-    });
+    await API.logApp("Cadastro", "Erro: distancia fora do limite");
   }
 
   void _mostrarMensagemDistanciaForaDoLimite() {
-    mostrarMensagem(context, 'Digite uma distância máxima entre 1 e 30 km.');
+    mostrarMensagem(context, 'Digite uma distÃ¢ncia mÃ¡xima entre 1 e 30 km.');
   }
 
   Future<Map<String, dynamic>> _realizarCadastro() async {
@@ -577,7 +550,7 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _logCadastroSucesso(Map<String, dynamic> resultado) async {
-    await API.logApp("Cadastro", "Cadastro bem-sucedido", resultado);
+    await API.logApp("Cadastro", "Cadastro bem-sucedido");
   }
 
   void _navegarParaHomePage() {
@@ -587,7 +560,7 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _logCadastroFalha(Map<String, dynamic> resultado) async {
-    await API.logApp("Cadastro", "Falha no cadastro", resultado);
+    await API.logApp("Cadastro", "Falha no cadastro");
   }
 
   void _mostrarMensagemCadastroFalhou(Map<String, dynamic> resultado) {
@@ -599,10 +572,9 @@ class _RegisterPageState extends State<RegisterPage> {
         resultado['message'] != null) {
       msg = resultado['message'];
     } else {
-      msg = "Não foi possível concluir o cadastro.";
+      msg = "NÃ£o foi possÃ­vel concluir o cadastro.";
     }
-
-    print("[ERRO_EXIBIDO] $msg");
+    print("[RegisterPage] erro_exibido=true");
 
     showDialog(
       context: context,
@@ -620,10 +592,7 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _logCadastroErroInesperado(Object e, StackTrace st) async {
-    await API.logApp("Cadastro", "Erro inesperado", {
-      "erro": e.toString(),
-      "stack": st.toString(),
-    });
+    await API.logApp("Cadastro", "Erro inesperado");
   }
 
   void _mostrarMensagemErroInesperado() {
@@ -635,7 +604,7 @@ class _RegisterPageState extends State<RegisterPage> {
   //         MaterialPageRoute(builder: (context) => const HomePage()),
   //       );
   //     } else {
-  //       await API.logApp("Cadastro", "Falha no cadastro", resultado);
+  //       await API.logApp("Cadastro", "Falha no cadastro");
   //       mostrarMensagem(
   //         context,
   //         resultado['message'],
@@ -644,10 +613,7 @@ class _RegisterPageState extends State<RegisterPage> {
   //     }
   //   } catch (e, st) {
   //     setState(() => _cadastrando = false);
-  //     await API.logApp("Cadastro", "Erro inesperado", {
-  //       "erro": e.toString(),
-  //       "stack": st.toString(),
-  //     });
+  //     await API.logApp("Cadastro", "Erro inesperado");
   //     mostrarMensagem(context, "Erro inesperado durante o cadastro.");
   //   }
   // }
@@ -677,13 +643,13 @@ class _RegisterPageState extends State<RegisterPage> {
           context: context,
           barrierDismissible: false,
           builder: (dialogContext) => AlertDialog(
-            title: const Text("CNH Inválida"),
+            title: const Text("CNH InvÃ¡lida"),
             content: const Text(
-                "A CNH informada é inválida. Deseja continuar com o cadastro mesmo assim?"),
+                "A CNH informada Ã© invÃ¡lida. Deseja continuar com o cadastro mesmo assim?"),
             actions: [
               TextButton(
                   onPressed: () => Navigator.of(dialogContext).pop(false),
-                  child: const Text("Não")),
+                  child: const Text("NÃ£o")),
               TextButton(
                   onPressed: () => Navigator.of(dialogContext).pop(true),
                   child: const Text("Sim")),
@@ -702,7 +668,7 @@ class _RegisterPageState extends State<RegisterPage> {
         // Tenta decodificar o JSON interno
         final decoded = json.decode(details);
 
-        // Se tiver o padrão do servidor (Erro e DescErro)
+        // Se tiver o padrÃ£o do servidor (Erro e DescErro)
         if (decoded is Map && decoded.containsKey('DescErro')) {
           detalheFormatado = decoded['DescErro'];
         } else {
@@ -711,7 +677,7 @@ class _RegisterPageState extends State<RegisterPage> {
               const JsonEncoder.withIndent('  ').convert(decoded);
         }
       } catch (e) {
-        // Se falhar a decodificação, mostra o texto original
+        // Se falhar a decodificaÃ§Ã£o, mostra o texto original
         detalheFormatado = details;
       }
     }
@@ -746,10 +712,10 @@ class _RegisterPageState extends State<RegisterPage> {
               Clipboard.setData(ClipboardData(text: detalheFormatado));
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                    content: Text('Detalhes copiados para a memória')),
+                    content: Text('Detalhes copiados para a memÃ³ria')),
               );
             },
-            child: const Text('Copiar detalhes para a memória'),
+            child: const Text('Copiar detalhes para a memÃ³ria'),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -765,7 +731,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
     if (telefone.isEmpty) {
       setState(() => _cadastrando = false);
-      mostrarMensagem(context, 'Por favor, insira um número de telefone.');
+      mostrarMensagem(context, 'Por favor, insira um nÃºmero de telefone.');
       return false;
     }
     return true;
@@ -774,9 +740,7 @@ class _RegisterPageState extends State<RegisterPage> {
   Future<void> _logSaidaCampo(String campo, String valor) async {
     if (mounted && !_cadastrando) {
       if (!_getFocusOf(campo).hasFocus) {
-        await API.logApp(
-            "Cadastro", "Campo alterado", {"campo": campo, "valor": valor});
-        print("[LOG_CAMPO] $campo => $valor");
+        await API.logApp("Cadastro", "Campo alterado", {"campo": campo});
       }
     }
   }

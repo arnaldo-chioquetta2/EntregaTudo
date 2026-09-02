@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:entregatudo/api.dart';
 import 'package:http/http.dart' as http;
-// import 'package:google_sign_in/google_sign_in.dart'; // 🔸 Desativado temporariamente
+// import 'package:google_sign_in/google_sign_in.dart'; // ðŸ”¸ Desativado temporariamente
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'features/location_service.dart';
+import 'utils/online_status_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthResult {
@@ -34,9 +36,9 @@ class AuthResult {
 
 class AuthService {
   static const _webClientId =
-      '1092224573691-fo0hh8apcun2mllc9bk26s92330q5kus.apps.googleusercontent.com'; // 🔸 Mantido apenas como referência
+      '1092224573691-fo0hh8apcun2mllc9bk26s92330q5kus.apps.googleusercontent.com'; // ðŸ”¸ Mantido apenas como referÃªncia
 
-  // 🔹 Desativado: inicialização do Google Sign-In
+  // ðŸ”¹ Desativado: inicializaÃ§Ã£o do Google Sign-In
   // final GoogleSignIn _googleSignIn = GoogleSignIn(
   //   clientId: kIsWeb ? _webClientId : null,
   //   scopes: const <String>[
@@ -50,33 +52,41 @@ class AuthService {
   int? _lastQueryId;
   int? get lastQueryId => _lastQueryId;
 
-  // 🔹 Stub temporário: login Google desativado
+  // ðŸ”¹ Stub temporÃ¡rio: login Google desativado
   Future<AuthResult> signInWithGoogle() async {
-    print('⚠️ Login Google desativado temporariamente');
+    print('âš ï¸ Login Google desativado temporariamente');
     return AuthResult(
       success: false,
-      message: 'Login Google desativado nesta versão.',
+      message: 'Login Google desativado nesta versÃ£o.',
     );
   }
 
-  // 🔹 Stub temporário: polling de credenciais (mantido ativo pois usado por backend)
+  // ðŸ”¹ Stub temporÃ¡rio: polling de credenciais (mantido ativo pois usado por backend)
   Future<AuthResult> trazCredenciais({
     int? userIdForQuery,
     Duration interval = const Duration(milliseconds: 500),
     Duration timeout = const Duration(seconds: 20),
   }) async {
-    print('⚠️ Polling de credenciais desativado temporariamente (Google).');
+    print(
+        'âš ï¸ Polling de credenciais desativado temporariamente (Google).');
     return AuthResult(
       success: false,
-      message: 'Função Google desativada.',
+      message: 'FunÃ§Ã£o Google desativada.',
     );
   }
 
-  // 🔹 Stub temporário: signOut do Google
+  // ðŸ”¹ Stub temporÃ¡rio: signOut do Google
   Future<void> signOut() async {
-    print('⚠️ SignOut Google desativado temporariamente');
-    await _secure.deleteAll();
+    print('SignOut Google desativado temporariamente');
     final prefs = await SharedPreferences.getInstance();
+    final id = prefs.getInt('idUser');
+    final isMotoboy = prefs.getBool('isMotoboy') ?? false;
+    if (isMotoboy) {
+      LocationService().stopTracking();
+      await OnlineStatusService.setMotoStatus(false);
+      if (id != null) await API.motoOff(id);
+    }
+    await _secure.deleteAll();
     await prefs.remove('idUser');
   }
 
@@ -89,8 +99,6 @@ class AuthService {
     String? photoUrl,
     String? googleId,
   }) async {
-    print('[Auth] _persistSession START (userId=$userId)');
-
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('idUser', userId);
@@ -117,16 +125,16 @@ class AuthService {
 
       print('[Auth] _persistSession DONE');
     } catch (e) {
-      print('[Auth] _persistSession ERROR: $e');
+      print('[Auth] persist_failed=true');
     }
   }
 
-  // 🔹 Stub temporário: tentativa de login silencioso com Google
+  // ðŸ”¹ Stub temporÃ¡rio: tentativa de login silencioso com Google
   Future<AuthResult> trySilentGoogleLogin() async {
-    print('⚠️ Silent Login Google desativado temporariamente');
+    print('âš ï¸ Silent Login Google desativado temporariamente');
     return AuthResult(
       success: false,
-      message: 'Login Google desativado nesta versão.',
+      message: 'Login Google desativado nesta versÃ£o.',
     );
   }
 }

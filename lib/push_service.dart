@@ -30,11 +30,10 @@ class PushService {
         badge: true,
         sound: true,
       );
-      debugPrint('[Push.Permission] status=${settings.authorizationStatus}');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
       final token = await messaging.getToken();
       if (token != null) {
         _currentToken = token;
-        _logToken(token);
         await _registerCurrentToken();
       }
       messaging.onTokenRefresh.listen(_onTokenRefresh);
@@ -50,7 +49,6 @@ class PushService {
 
   static Future<void> _onTokenRefresh(String token) async {
     _currentToken = token;
-    _logToken(token);
     await _registerCurrentToken(force: true);
   }
 
@@ -94,7 +92,6 @@ class PushService {
     final masked = token.length <= 8
         ? 'present'
         : '${token.substring(0, 4)}...${token.substring(token.length - 4)}';
-    debugPrint('[Push.Token] available=true value=$masked');
   }
 
   static void _onForegroundMessage(RemoteMessage message) {

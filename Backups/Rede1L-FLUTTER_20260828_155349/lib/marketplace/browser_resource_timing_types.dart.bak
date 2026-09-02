@@ -1,0 +1,45 @@
+class BrowserRequestMark {
+  const BrowserRequestMark({
+    required this.url,
+    required this.startTime,
+  });
+
+  final String url;
+  final double startTime;
+}
+
+class BrowserResourceTiming {
+  const BrowserResourceTiming({
+    required this.startTime,
+    required this.duration,
+    this.fetchStart,
+    this.domainLookupStart,
+    this.domainLookupEnd,
+    this.connectStart,
+    this.secureConnectionStart,
+    this.connectEnd,
+    this.requestStart,
+    this.responseStart,
+    this.responseEnd,
+    this.transferSize,
+    this.encodedBodySize,
+    this.decodedBodySize,
+    this.nextHopProtocol,
+  });
+
+  final double startTime;
+  final double duration;
+  final double? fetchStart;
+  final double? domainLookupStart;
+  final double? domainLookupEnd;
+  final double? connectStart;
+  final double? secureConnectionStart;
+  final double? connectEnd;
+  final double? requestStart;
+  final double? responseStart;
+  final double? responseEnd;
+  final int? transferSize;
+  final int? encodedBodySize;
+  final int? decodedBodySize;
+  final String? nextHopProtocol;
+}

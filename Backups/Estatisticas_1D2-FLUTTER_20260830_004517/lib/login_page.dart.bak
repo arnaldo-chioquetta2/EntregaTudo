@@ -1,0 +1,479 @@
+import 'dart:async';
+
+import 'package:entregatudo/api.dart';
+import 'package:entregatudo/app_update_info.dart';
+import 'package:entregatudo/app_update_service.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:entregatudo/constants.dart';
+import 'package:entregatudo/auth_service.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:entregatudo/register_page.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'forgot_password_page.dart';
+import 'widgets/web_debug_log_panel.dart';
+import 'app/authenticated_shell.dart';
+import 'push_service.dart';
+import 'services/analytics_service.dart';
+
+// 1.4.4 MotoBoy e Fornecedor ao mesmo tempo
+// 1.4.1 Recusa por versÃ£o antiga
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      title: 'TeleTudo App MotoBoys',
+      home: LoginPage(),
+    );
+  }
+}
+
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
+
+  @override
+  _LoginPageState createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  final TextEditingController _userController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  bool _isMounted = true;
+  bool _loadingGoogle = false;
+  final _storage = const FlutterSecureStorage();
+  bool _rememberPassword = true;
+  bool _obscurePassword = true;
+  AppUpdateInfo? _appUpdateInfo;
+
+  @override
+  void initState() {
+    super.initState();
+    if (kIsWeb) {
+      _userController.text = "teste";
+    } else {
+      _loadSavedCredentials();
+    }
+    tentarSilent();
+    _verificarAtualizacao();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    final savedUser = await _storage.read(key: 'user');
+    final savedPass = await _storage.read(key: 'password');
+    if (savedUser != null && savedPass != null) {
+      _userController.text = savedUser;
+      _passwordController.text = savedPass;
+      await API.logApp(
+        "Login",
+        "UsuÃ¡rio carregado do storage",
+        {"user": savedUser},
+      );
+    }
+  }
+
+  Future<void> tentarSilent() async {
+    setState(() => _loadingGoogle = true);
+    try {
+      final auth = AuthService();
+      final res = await auth.trySilentGoogleLogin();
+
+      print(
+          '[UI] silent => success=${res.success} isNew=${res.isNewUser} userId=${res.userId}');
+
+      if (!res.success) {
+        // nÃ£o navega; sÃ³ deixa o botÃ£o visÃ­vel pra login â€œnormalâ€
+        return;
+      }
+
+      // sucesso: roteia como de costume
+      await PushService.registerCurrentToken();
+
+      if (res.isNewUser == true) {
+        Navigator.pushReplacement(
+            context, MaterialPageRoute(builder: (_) => const RegisterPage()));
+      } else {
+        Navigator.pushReplacement(context,
+            MaterialPageRoute(builder: (_) => const AuthenticatedShell()));
+      }
+    } catch (e) {
+      print('[UI] silent EXCEPTION: $e');
+    } finally {
+      if (mounted) setState(() => _loadingGoogle = false);
+    }
+  }
+
+  Future<void> _verificarAtualizacao() async {
+    debugPrint('[Login][AppUpdate] consulta_iniciada');
+    final resultado = await AppUpdateService.checkForUpdate();
+    if (!mounted) {
+      debugPrint('[Login][AppUpdate] tela_descartada_antes_do_resultado');
+      return;
+    }
+    setState(() => _appUpdateInfo = resultado);
+    debugPrint('[Login][AppUpdate] consulta_concluida');
+    debugPrint('[Login][AppUpdate] status=' + resultado.status.name);
+    debugPrint('[Login][AppUpdate] current_version=' +
+        (resultado.currentVersion ?? '(indisponivel)'));
+    debugPrint('[Login][AppUpdate] latest_version=' +
+        (resultado.latestVersion ?? '(indisponivel)'));
+    debugPrint('[Login][AppUpdate] update_available=' +
+        (resultado.status == AppUpdateStatus.updateAvailable).toString());
+    if (resultado.status == AppUpdateStatus.updateAvailable) {
+      debugPrint('[Login][AppUpdate] botao_exibido');
+    }
+  }
+
+  Future<void> _abrirDownloadAtualizacao() async {
+    final info = _appUpdateInfo;
+    if (info == null) return;
+    debugPrint('[Login][AppUpdate] download_acionado');
+    final opened = await AppUpdateService.openDownload(info);
+    debugPrint('[Login][AppUpdate] download_aberto=' + opened.toString());
+    if (!mounted || opened) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+          content: Text('Não foi possível abrir o download da atualização.')),
+    );
+  }
+
+  @override
+  void dispose() {
+    _isMounted = false;
+    super.dispose();
+  }
+
+  // Future<void> _loginComGoogle() async {
+  //   print('[UI] _loginComGoogle START (REAL)');
+  //   if (!mounted) return;
+  //   setState(() => _loadingGoogle = true);
+
+  //   try {
+  //     final auth = AuthService();
+
+  //     // 1) Inicia o fluxo: nextId -> Google Sign-In -> callback ?ID=<nextId>
+  //     print('[UI] chamando signInWithGoogle() (real)');
+  //     final init = await auth.signInWithGoogle();
+  //     print(
+  //         '[UI] init => success=${init.success} | msg=${init.message} | queryId=${init.queryId} | userId=${init.userId} | isNew=${init.isNewUser}');
+
+  //     if (!init.success) {
+  //       showErrorDialog(init.message ?? 'Falha ao iniciar o login Google.');
+  //       return;
+  //     }
+
+  //     // 2) Se o backend jÃ¡ devolveu user_id/tokens, navegamos imediatamente
+  //     if (init.userId != null) {
+  //       if (init.isNewUser == true) {
+  //         print('[UI] login finalizado (novo usuÃ¡rio) â†’ RegisterPage');
+  //         if (!mounted) return;
+  //         Navigator.pushReplacement(
+  //           context,
+  //           MaterialPageRoute(builder: (_) => const RegisterPage()),
+  //         );
+  //       } else {
+  //         print('[UI] login finalizado (usuÃ¡rio existente) â†’ HomePage');
+  //         if (!mounted) return;
+  //         Navigator.pushReplacement(
+  //           context,
+  //           MaterialPageRoute(builder: (_) => const HomePage()),
+  //         );
+  //       }
+  //       return;
+  //     }
+
+  //     // 3) Caso contrÃ¡rio, seguimos com o POLLING usando o MESMO queryId
+  //     final qid = init.queryId ?? auth.lastQueryId;
+  //     if (qid == null) {
+  //       print('[UI] ERRO: queryId ausente para polling');
+  //       showErrorDialog('Falha interna: ID de consulta ausente para polling.');
+  //       return;
+  //     }
+
+  //     print('[UI] iniciando polling com queryId=$qid');
+  //     final cred = await auth.trazCredenciais(userIdForQuery: qid);
+  //     print(
+  //         '[UI] polling result => success=${cred.success} | msg=${cred.message} | userId=${cred.userId} | isNew=${cred.isNewUser}');
+
+  //     if (!cred.success) {
+  //       showErrorDialog(cred.message ?? 'Falha no login.');
+  //       return;
+  //     }
+
+  //     // 4) NavegaÃ§Ã£o apÃ³s polling concluÃ­do
+  //     if (cred.isNewUser == true) {
+  //       print('[UI] novo usuÃ¡rio (via polling) â†’ RegisterPage');
+  //       if (!mounted) return;
+  //       Navigator.pushReplacement(
+  //         context,
+  //         MaterialPageRoute(builder: (_) => const RegisterPage()),
+  //       );
+  //     } else {
+  //       print('[UI] usuÃ¡rio existente (via polling) â†’ HomePage');
+  //       if (!mounted) return;
+  //       Navigator.pushReplacement(
+  //         context,
+  //         MaterialPageRoute(builder: (_) => const HomePage()),
+  //       );
+  //     }
+  //   } catch (e) {
+  //     print('[UI] EXCEPTION (real): $e');
+  //     if (mounted) showErrorDialog('Erro: $e');
+  //   } finally {
+  //     if (mounted) setState(() => _loadingGoogle = false);
+  //     print('[UI] _loginComGoogle END (REAL)');
+  //   }
+  // }
+
+  @override
+  Widget build(BuildContext context) {
+    final googleButtonChild = _loadingGoogle
+        ? const SizedBox(
+            height: 24,
+            width: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : const Text("Login com Google");
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('EntregaTudo ' + AppConfig.versaoApp),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: StatefulBuilder(
+          builder: (context, setState) => Column(
+            children: [
+              TextField(
+                controller: _userController,
+                decoration: const InputDecoration(labelText: 'User'),
+              ),
+              TextField(
+                controller: _passwordController,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  suffixIcon: IconButton(
+                    tooltip:
+                        _obscurePassword ? 'Mostrar senha' : 'Ocultar senha',
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
+                ),
+                obscureText: _obscurePassword,
+              ),
+              CheckboxListTile(
+                title: const Text('Lembrar senha'),
+                value: _rememberPassword,
+                onChanged: (val) {
+                  setState(() {
+                    _rememberPassword = val ?? false;
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () async {
+                  if (!_isMounted) return;
+                  print("ðŸ”¹ [Login] BotÃ£o pressionado");
+                  try {
+                    final user = _userController.text.trim();
+                    final password = _passwordController.text.trim();
+                    print(
+                        "ðŸ”¹ [Login] user='$user' password='${password.isNotEmpty ? '***' : '(vazio)'}'");
+                    if (user.isEmpty || password.isEmpty) {
+                      print("âš ï¸ [Login] Campos vazios");
+                      showErrorDialog("Preencha usuÃ¡rio e senha.");
+                      return;
+                    }
+                    double lat = 0.0;
+                    double lon = 0.0;
+                    print(
+                        "ðŸ“¡ [Login] Chamando API.veLogin('$user', senhaOculta, lat=$lat, lon=$lon)");
+                    String result = await API.veLogin(user, password, lat, lon);
+                    print("ðŸ“¥ [Login] Retorno do servidor: '$result'");
+                    if (result == "") {
+                      unawaited(AnalyticsService.instance
+                          .track(AnalyticsEvent.loginSuccess));
+                      await PushService.registerCurrentToken();
+                      print(
+                          "âœ… [Login] Login bem-sucedido, gravando credenciais...");
+                      await API.logApp(
+                        "Login",
+                        "Login bem-sucedido",
+                        {
+                          "user": user,
+                          "plataforma": kIsWeb ? "WEB" : "MOBILE",
+                        },
+                      );
+                      if (_rememberPassword) {
+                        await _storage.write(key: 'user', value: user);
+                        await _storage.write(key: 'password', value: password);
+                        print("ðŸ’¾ [Login] Credenciais salvas");
+                      } else {
+                        await _storage.delete(key: 'user');
+                        await _storage.delete(key: 'password');
+                        print(
+                            "ðŸ§¹ [Login] Credenciais removidas (nÃ£o lembrar senha)");
+                      }
+                      print("âž¡ï¸ [Login] Redirecionando para HomePage...");
+                      if (_isMounted) {
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                              builder: (context) => const AuthenticatedShell()),
+                        );
+                      }
+                    } else {
+                      print("âŒ [Login] Erro retornado: $result");
+
+                      // Detecta erro de versÃ£o antiga
+                      if (result.startsWith("VERSAO_ANTIGA|")) {
+                        final mensagem =
+                            result.substring("VERSAO_ANTIGA|".length);
+                        _mostrarDialogVersaoAntiga(context, mensagem);
+                      } else {
+                        showErrorDialog(result);
+                      }
+                    }
+                  } catch (e, st) {
+                    print("ðŸ’¥ [Login] EXCEPTION: $e");
+                    print("ðŸ“œ [StackTrace] $st");
+                    if (_isMounted) {
+                      showErrorDialog("Erro durante o login: $e");
+                    }
+                  }
+                },
+                child: const Text("Login"),
+              ),
+              const SizedBox(height: 12),
+              if (_appUpdateInfo?.status == AppUpdateStatus.updateAvailable &&
+                  (_appUpdateInfo?.latestVersion?.trim().isNotEmpty ?? false))
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.system_update),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Nova versão ' +
+                                _appUpdateInfo!.latestVersion! +
+                                ' disponível',
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _abrirDownloadAtualizacao,
+                          child: Text('Atualizar para ' +
+                              _appUpdateInfo!.latestVersion!),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (kIsWeb) const WebDebugLogPanel(),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  if (_isMounted) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const RegisterPage(),
+                      ),
+                    );
+                  }
+                },
+                child: const Text("Cadastrar Novo UsuÃ¡rio"),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ForgotPasswordPage(),
+                    ),
+                  );
+                },
+                child: const Text("Esqueci minha senha"),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("Erro"),
+          content: SingleChildScrollView(
+            child: SelectableText(message),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("OK"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _mostrarDialogVersaoAntiga(BuildContext context, String mensagem) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) {
+        return AlertDialog(
+          title: const Text(
+            "AtualizaÃ§Ã£o NecessÃ¡ria",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: Text(mensagem),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text("Cancelar"),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                // Abre o link de download
+                launchUrl(
+                  Uri.parse("https://teletudo.com/download/EntregaTudo.apk"),
+                  mode: LaunchMode.externalApplication,
+                );
+              },
+              child: const Text(
+                "Atualizar Agora",
+                style: TextStyle(color: Colors.blue),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}

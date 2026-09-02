@@ -12,6 +12,7 @@ import 'forgot_password_page.dart';
 import 'widgets/web_debug_log_panel.dart';
 import 'app/authenticated_shell.dart';
 import 'push_service.dart';
+import 'services/analytics_service.dart';
 
 // 1.4.4 MotoBoy e Fornecedor ao mesmo tempo
 // 1.4.1 Recusa por versÃ£o antiga
@@ -68,11 +69,7 @@ class _LoginPageState extends State<LoginPage> {
     if (savedUser != null && savedPass != null) {
       _userController.text = savedUser;
       _passwordController.text = savedPass;
-      await API.logApp(
-        "Login",
-        "UsuÃ¡rio carregado do storage",
-        {"user": savedUser},
-      );
+      await API.logApp("Login", "Usuario carregado do storage");
     }
   }
 
@@ -82,8 +79,7 @@ class _LoginPageState extends State<LoginPage> {
       final auth = AuthService();
       final res = await auth.trySilentGoogleLogin();
 
-      print(
-          '[UI] silent => success=${res.success} isNew=${res.isNewUser} userId=${res.userId}');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
 
       if (!res.success) {
         // nÃ£o navega; sÃ³ deixa o botÃ£o visÃ­vel pra login â€œnormalâ€
@@ -101,7 +97,7 @@ class _LoginPageState extends State<LoginPage> {
             MaterialPageRoute(builder: (_) => const AuthenticatedShell()));
       }
     } catch (e) {
-      print('[UI] silent EXCEPTION: $e');
+      debugPrint('[Sanitized] sensitive_details_suppressed=true');
     } finally {
       if (mounted) setState(() => _loadingGoogle = false);
     }
@@ -285,27 +281,24 @@ class _LoginPageState extends State<LoginPage> {
               ElevatedButton(
                 onPressed: () async {
                   if (!_isMounted) return;
-                  print("ðŸ”¹ [Login] BotÃ£o pressionado");
+                  print("[Login] login_request_started");
                   try {
                     final user = _userController.text.trim();
                     final password = _passwordController.text.trim();
-                    print(
-                        "ðŸ”¹ [Login] user='$user' password='${password.isNotEmpty ? '***' : '(vazio)'}'");
                     if (user.isEmpty || password.isEmpty) {
-                      print("âš ï¸ [Login] Campos vazios");
-                      showErrorDialog("Preencha usuÃ¡rio e senha.");
+                      print("[Login] validation_failed=empty_fields");
+                      showErrorDialog("Preencha usuário e senha.");
                       return;
                     }
-                    double lat = 0.0;
-                    double lon = 0.0;
-                    print(
-                        "ðŸ“¡ [Login] Chamando API.veLogin('$user', senhaOculta, lat=$lat, lon=$lon)");
+                    const double lat = 0.0;
+                    const double lon = 0.0;
                     String result = await API.veLogin(user, password, lat, lon);
-                    print("ðŸ“¥ [Login] Retorno do servidor: '$result'");
+                    print("[Login] response_processed=true");
                     if (result == "") {
+                      AnalyticsService.instance
+                          .track(AnalyticsEvent.loginSuccess);
                       await PushService.registerCurrentToken();
-                      print(
-                          "âœ… [Login] Login bem-sucedido, gravando credenciais...");
+                      print("[Login] success=true");
                       await API.logApp(
                         "Login",
                         "Login bem-sucedido",
@@ -321,8 +314,8 @@ class _LoginPageState extends State<LoginPage> {
                       } else {
                         await _storage.delete(key: 'user');
                         await _storage.delete(key: 'password');
-                        print(
-                            "ðŸ§¹ [Login] Credenciais removidas (nÃ£o lembrar senha)");
+                        debugPrint(
+                            '[Sanitized] sensitive_details_suppressed=true');
                       }
                       print("âž¡ï¸ [Login] Redirecionando para HomePage...");
                       if (_isMounted) {
@@ -332,7 +325,7 @@ class _LoginPageState extends State<LoginPage> {
                         );
                       }
                     } else {
-                      print("âŒ [Login] Erro retornado: $result");
+                      print("[Login] success=false");
 
                       // Detecta erro de versÃ£o antiga
                       if (result.startsWith("VERSAO_ANTIGA|")) {
@@ -344,10 +337,9 @@ class _LoginPageState extends State<LoginPage> {
                       }
                     }
                   } catch (e, st) {
-                    print("ðŸ’¥ [Login] EXCEPTION: $e");
-                    print("ðŸ“œ [StackTrace] $st");
+                    debugPrint('[Sanitized] sensitive_details_suppressed=true');
                     if (_isMounted) {
-                      showErrorDialog("Erro durante o login: $e");
+                      showErrorDialog("Erro durante o login");
                     }
                   }
                 },

@@ -13,7 +13,7 @@ class OnlineStatusService {
   // ===============================================
   static Future<bool> getMotoStatus() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(keyMoto) ?? true; // padrão: online
+    return prefs.getBool(keyMoto) ?? true; // padrÃ£o: online
   }
 
   static Future<void> setMotoStatus(bool value) async {
@@ -26,7 +26,7 @@ class OnlineStatusService {
   // ===============================================
   static Future<bool> getFornecedorStatus() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(keyFornecedor) ?? true; // padrão: online
+    return prefs.getBool(keyFornecedor) ?? true; // padrÃ£o: online
   }
 
   static Future<void> setFornecedorStatus(bool value) async {
