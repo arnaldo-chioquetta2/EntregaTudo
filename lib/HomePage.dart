@@ -10,6 +10,7 @@ import 'package:entregatudo/constants.dart';
 import 'services/entrega_service.dart';
 import 'package:flutter/material.dart';
 import 'features/location_service.dart';
+import 'features/home_operational_controller.dart';
 import 'package:flutter/foundation.dart';
 import 'package:entregatudo/utils/sound.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -27,7 +28,9 @@ import 'fornecedor_entregadores_preferences_page.dart';
 // 1.2.4 Conserto do link para as configuraÃƒÂ§ÃƒÂµes
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({super.key, this.operationalController});
+
+  final HomeOperationalController? operationalController;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -37,7 +40,10 @@ class _HomePageState extends State<HomePage> {
   static const Color corOnline = Color(0xFFF57C00); // Laranja
   static const Color corOffline = Color(0xFF2E7D32); // Verde
 
-  Timer? _timer;
+  late final HomeOperationalController _operationalController =
+      widget.operationalController ?? HomeOperationalController();
+
+  LocationService get _locationService => _operationalController.locationService;
   Map<String, dynamic>? deliveryData;
   String? statusMessage;
   bool hasPickedUp = false;
@@ -45,7 +51,7 @@ class _HomePageState extends State<HomePage> {
   bool hasAcceptedDelivery = false;
   String saldo = 'R\$ 0,00';
   double saldoNum = 0.0;
-  final LocationService _locationService = LocationService();
+
   int lojasNoRaio = 0;
   bool isSaldoAtualizado = false;
   bool isCheckingLogin = false;
@@ -56,14 +62,30 @@ class _HomePageState extends State<HomePage> {
   int? idLoja;
   bool isMotoboy = false;
   bool isFornecedor = false;
-  bool isMotoBoyOnline = false;
-  bool _motoboyTrackingActive = false;
-  bool isFornecedorOnline = false;
+  bool get isMotoBoyOnline => _operationalController.motoboyOnline;
+  set isMotoBoyOnline(bool value) =>
+      _operationalController.setMotoboyOnline(value);
+  bool get _motoboyTrackingActive =>
+      _operationalController.motoboyTrackingActive;
+  set _motoboyTrackingActive(bool value) =>
+      _operationalController.motoboyTrackingActive = value;
+  bool get isFornecedorOnline => _operationalController.fornecedorOnline;
+  set isFornecedorOnline(bool value) =>
+      _operationalController.setFornecedorOnline(value);
   int _quantidadeFavoritosRecebidos = 0;
   String? _nomeEmpresaFavorita;
-  bool hbPausadoPorEntrega = false;
-  bool hbPausadoPorVenda = false;
-  bool proximoEhFornecedor = true;
+  bool get hbPausadoPorEntrega =>
+      _operationalController.heartbeatPausedByDelivery;
+  set hbPausadoPorEntrega(bool value) =>
+      _operationalController.heartbeatPausedByDelivery = value;
+  bool get hbPausadoPorVenda =>
+      _operationalController.heartbeatPausedBySale;
+  set hbPausadoPorVenda(bool value) =>
+      _operationalController.heartbeatPausedBySale = value;
+  bool get proximoEhFornecedor =>
+      _operationalController.nextHeartbeatIsFornecedor;
+  set proximoEhFornecedor(bool value) =>
+      _operationalController.nextHeartbeatIsFornecedor = value;
   final TextEditingController _codigoClienteController =
       TextEditingController();
   String? erroCodigoCliente;
@@ -71,10 +93,16 @@ class _HomePageState extends State<HomePage> {
   double? valorEntregaAtual;
   AppUpdateInfo? _appUpdateInfo;
 
-  EntregaAtiva? entregaAtiva;
+  EntregaAtiva? get entregaAtiva => _operationalController.entregaAtiva;
+  set entregaAtiva(EntregaAtiva? value) => _operationalController.entregaAtiva = value;
 
-  Map<String, dynamic>? deliveryDataMotoboy;
-  Map<String, dynamic>? deliveryDataFornecedor;
+  Map<String, dynamic>? get deliveryDataMotoboy => _operationalController.deliveryDataMotoboy;
+  set deliveryDataMotoboy(Map<String, dynamic>? value) =>
+      _operationalController.deliveryDataMotoboy = value;
+  Map<String, dynamic>? get deliveryDataFornecedor =>
+      _operationalController.deliveryDataFornecedor;
+  set deliveryDataFornecedor(Map<String, dynamic>? value) =>
+      _operationalController.deliveryDataFornecedor = value;
 
   Future<void> _toggleMotoBoyOnline() async {
     await _setMotoboyOnline(!isMotoBoyOnline);
@@ -83,24 +111,13 @@ class _HomePageState extends State<HomePage> {
   Future<void> _setMotoboyOnline(bool online) async {
     if (!isMotoboy) return;
     try {
-      if (online) {
-        await _locationService.requestPermissions();
-        _motoboyTrackingActive = true;
-        _locationService.startTracking((position) async {
-          if (!isMotoBoyOnline || !_motoboyTrackingActive) return;
-          final prefs = await SharedPreferences.getInstance();
-          await _processaMotoboy(prefs, position.latitude, position.longitude);
-        });
-        await OnlineStatusService.setMotoStatus(true);
-      } else {
-        _motoboyTrackingActive = false;
-        _locationService.stopTracking();
-        await OnlineStatusService.setMotoStatus(false);
-        if (userId != null) await API.motoOff(userId!);
-      }
+      await _operationalController.setMotoboyAvailability(
+        online: online,
+        userId: userId,
+        heartbeatInterval: Duration(seconds: intervalo),
+      );
       if (!mounted) return;
       setState(() => isMotoBoyOnline = online);
-      if (online) agendarProximoHeartbeat();
     } catch (e) {
       _motoboyTrackingActive = false;
       _locationService.stopTracking();
@@ -149,11 +166,21 @@ class _HomePageState extends State<HomePage> {
 
   late Future<void> _initFuture;
 
+  void _onOperationalStateChanged() {
+    if (!mounted) return;
+    setState(() {
+      lojasNoRaio = _operationalController.lojasNoRaio;
+    });
+  }
+
   int intervalo = kIsWeb ? 5 : 1;
 
   @override
   void initState() {
     super.initState();
+    _operationalController.addListener(_onOperationalStateChanged);
+    _operationalController.onNewSale = (novaVenda, itensVenda) =>
+        mostrarAvisoNovaVenda(novaVenda, itensVenda);
     _initLogFile();
 
     // Ã°Å¸â€Â¥ Carrega estados de online/offline
@@ -216,6 +243,10 @@ class _HomePageState extends State<HomePage> {
       // ============================================================
       isFornecedor = prefs.getBool('isFornecedor') ?? false;
       isMotoboy = prefs.getBool('isMotoboy') ?? false;
+      _operationalController.setProfileFlags(
+        isMotoboy: isMotoboy,
+        isFornecedor: isFornecedor,
+      );
 
       _log(
           "Perfis carregados Ã¢â€ â€™ Motoboy=$isMotoboy | Fornecedor=$isFornecedor");
@@ -274,7 +305,7 @@ class _HomePageState extends State<HomePage> {
       _log("Agendando heartbeat (intervalo=$intervalo s)...");
 
       // _scheduleNextHeartbeat(intervalo);
-      agendarProximoHeartbeat();
+      _operationalController.scheduleHeartbeatCycle(Duration(seconds: intervalo));
 
       _log(
           "VerificaÃƒÂ§ÃƒÂ£o concluÃƒÂ­da com sucesso.");
@@ -287,7 +318,11 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _operationalController.removeListener(_onOperationalStateChanged);
+    _operationalController.onNewSale = null;
+    if (widget.operationalController == null) {
+      _operationalController.disposeSession();
+    }
     _codigoClienteController.dispose();
     super.dispose();
   }
@@ -506,7 +541,7 @@ class _HomePageState extends State<HomePage> {
                             novoStatus);
 
                         if (!novoStatus) {
-                          await API.fornecedorOff(idLoja: idLoja);
+                          await _operationalController.fornecedorOff(idLoja: idLoja);
                         }
 
                         setState(() => isFornecedorOnline = novoStatus);
@@ -631,364 +666,6 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     );
-  }
-
-  void _scheduleNextHeartbeat(int seconds) {
-    try {
-      _log(
-          "Ã¢ÂÂ³ Agendando prÃƒÂ³ximo heartbeat (${seconds}s)Ã¢â‚¬Â¦ cancelando anterior=${_timer != null}");
-
-      _timer?.cancel();
-
-      _timer = Timer(Duration(seconds: seconds), () async {
-        _log("Ã¢ÂÂ± Tick do heartbeat chegou");
-
-        // ------------------------------------------------------
-        // 1) SE AMBOS ESTÃƒÆ’O OFFLINE NOS BOTÃƒâ€¢ES
-        // ------------------------------------------------------
-        if (!isMotoBoyOnline && !isFornecedorOnline) {
-          _log(
-              "Ã¢Å¡Â Ã¯Â¸Â Nenhum perfil estÃƒÂ¡ online Ã¢â€ â€™ Heartbeat nÃƒÂ£o serÃƒÂ¡ enviado.");
-          _scheduleNextHeartbeat(seconds);
-          return;
-        }
-
-        // ------------------------------------------------------
-        // 2) SE AMBOS ESTÃƒÆ’O PAUSADOS
-        // ------------------------------------------------------
-        if (hbPausadoPorEntrega && hbPausadoPorVenda) {
-          _log(
-              "Ã¢Å¡Â Ã¯Â¸Â Ambos os heartbeats estÃƒÂ£o PAUSADOS Ã¢â€ â€™ Aguardando liberaÃƒÂ§ÃƒÂ£o.");
-          _scheduleNextHeartbeat(seconds);
-          return;
-        }
-
-        // ------------------------------------------------------
-        // 3) SE USUÃƒÂRIO Ãƒâ€° APENAS MOTOBOY
-        // ------------------------------------------------------
-        if (isMotoboy && !isFornecedor) {
-          if (!isMotoBoyOnline) {
-            _log(
-                "Ã¢Å¡Â Ã¯Â¸Â MotoBoy estÃƒÂ¡ offline Ã¢â€ â€™ nÃƒÂ£o enviar heartbeat.");
-          } else if (hbPausadoPorVenda) {
-            _log(
-                "Ã¢Å¡Â Ã¯Â¸Â Heartbeat MotoBoy PAUSADO por venda do fornecedor.");
-          } else {
-            await chamaHeartbeat();
-          }
-
-          _scheduleNextHeartbeat(seconds);
-          return;
-        }
-
-        // ------------------------------------------------------
-        // 4) SE USUÃƒÂRIO Ãƒâ€° APENAS FORNECEDOR
-        // ------------------------------------------------------
-        if (!isMotoboy && isFornecedor) {
-          if (!isFornecedorOnline) {
-            _log(
-                "Ã¢Å¡Â Ã¯Â¸Â Fornecedor estÃƒÂ¡ offline Ã¢â€ â€™ nÃƒÂ£o enviar heartbeat.");
-          } else if (hbPausadoPorEntrega) {
-            _log(
-                "Ã¢Å¡Â Ã¯Â¸Â Heartbeat Fornecedor PAUSADO por entrega do motoboy.");
-          } else {
-            await chamaHeartbeat();
-          }
-
-          _scheduleNextHeartbeat(seconds);
-          return;
-        }
-
-        // ------------------------------------------------------
-        // 5) SE Ãƒâ€° AMBOS OS PERFIS
-        // ------------------------------------------------------
-        if (isMotoboy && isFornecedor) {
-          _log(
-              "Modo AMBOS ATIVOS Ã¢â€ â€™ Decision by chamaHeartbeat()");
-          await chamaHeartbeat();
-          _scheduleNextHeartbeat(seconds);
-          return;
-        }
-      });
-    } catch (e, st) {
-      _log("ERRO ao agendar heartbeat: $e\n$st");
-    }
-  }
-
-  void pausarHeartbeatFornecedor() {
-    hbPausadoPorEntrega = true;
-    _log(
-        "Ã¢ÂÂ¸ HeartbeatF PAUSADO (Motoboy aceitou entrega)");
-  }
-
-  void pausarHeartbeatMotoBoy() {
-    hbPausadoPorVenda = true;
-    _log(
-        "Ã¢ÂÂ¸ HeartbeatM PAUSADO (Fornecedor aceitou venda)");
-  }
-
-  void despausarHeartbeatFornecedor() {
-    hbPausadoPorEntrega = false;
-    _log("Ã¢â€“Â¶ HeartbeatF DESPAUSADO");
-  }
-
-  void despausarHeartbeatMotoBoy() {
-    hbPausadoPorVenda = false;
-    _log("Ã¢â€“Â¶ HeartbeatM DESPAUSADO");
-  }
-
-  Future<void> chamaHeartbeat() async {
-    _log('--- chamaHeartbeat START ---');
-
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-
-    try {
-      final pos = _locationService.ultimaPosicao;
-      final latitude = pos?.latitude ?? -30.1165;
-      final longitude = pos?.longitude ?? -51.1355;
-
-      _log("Local atual: lat=$latitude lon=$longitude");
-
-      final bool usuarioEhMotoboy = isMotoboy;
-      final bool usuarioEhFornecedor = isFornecedor;
-
-      // ============================================================
-      // 1) SE SÃƒâ€œ MOTOBOY
-      // ============================================================
-      if (usuarioEhMotoboy && !usuarioEhFornecedor) {
-        _log("Modo: SOMENTE MOTOBOY");
-        if (!hbPausadoPorVenda && !_motoboyTrackingActive) {
-          await _processaMotoboy(prefs, latitude, longitude);
-        } else {
-          _log("Heartbeat MotoBoy PAUSADO (hbPausadoPorVenda=true)");
-        }
-
-        return; // continuarÃƒÂ¡ no finally para reagendar
-      }
-
-      // ============================================================
-      // 2) SE SÃƒâ€œ FORNECEDOR
-      // ============================================================
-      if (!usuarioEhMotoboy && usuarioEhFornecedor) {
-        _log("Modo: SOMENTE FORNECEDOR");
-        if (!hbPausadoPorEntrega) {
-          await _processaFornecedor(prefs, latitude, longitude);
-        } else {
-          _log("Heartbeat Fornecedor PAUSADO (hbPausadoPorEntrega=true)");
-        }
-
-        return;
-      }
-
-      // ============================================================
-      // 3) SE FOR AMBOS (MOTOBOY + FORNECEDOR)
-      // ============================================================
-      if (usuarioEhMotoboy && usuarioEhFornecedor) {
-        _log("Modo: AMBOS OS PERFIS ATIVOS");
-
-        // alternÃƒÂ¢ncia
-        if (proximoEhFornecedor) {
-          _log(
-              "Ã¢â€ â€™ Tick atual: Fornecedor");
-
-          if (!hbPausadoPorEntrega) {
-            await _processaFornecedor(prefs, latitude, longitude);
-          } else {
-            _log("Fornecedor PAUSADO (hbPausadoPorEntrega=true)");
-          }
-
-          proximoEhFornecedor = false;
-        } else {
-          _log("Ã¢â€ â€™ Tick atual: Motoboy");
-
-          if (!hbPausadoPorVenda && !_motoboyTrackingActive) {
-            await _processaMotoboy(prefs, latitude, longitude);
-          } else {
-            _log("Motoboy PAUSADO (hbPausadoPorVenda=true)");
-          }
-
-          proximoEhFornecedor = true;
-        }
-
-        return;
-      }
-    } catch (e, st) {
-      _log('ERRO em chamaHeartbeat: $e\n$st');
-    } finally {
-      _log(
-          'Reagendando heartbeat (intervalo=$intervalo s)Ã¢â‚¬Â¦');
-      _scheduleNextHeartbeat(intervalo);
-      _log('--- chamaHeartbeat END ---');
-    }
-  }
-
-  Future<void> _processaFornecedor(
-      SharedPreferences prefs, double latitude, double longitude) async {
-    _log(
-        'Fornecedor detectado. Chamando API.sendHeartbeatFÃ¢â‚¬Â¦');
-
-    final fornecedorDetails = await API.sendHeartbeatF(latitude, longitude);
-
-    if (fornecedorDetails == null) {
-      _log("ERRO: fornecedorDetails == null");
-      return;
-    }
-
-    final temNovaVenda = fornecedorDetails.novaVenda != null;
-    final novaVenda = fornecedorDetails.novaVenda;
-    final itens = fornecedorDetails.itensVenda;
-
-    _log('HeartbeatF OK: lojasNoRaio=${fornecedorDetails.lojasNoRaio}, '
-        'idLoja=${fornecedorDetails.idLoja}, '
-        'temNovaVenda=$temNovaVenda, '
-        'novaVendaObj=${novaVenda != null}, '
-        'itensVenda=${itens.length}');
-
-    // ----------------------------------------------------------
-    // 1) Processar nova venda SOMENTE se REAL e completa
-    // ----------------------------------------------------------
-    if (temNovaVenda && novaVenda != null && itens.isNotEmpty) {
-      _log("Ã¢Å¾Â¡ Nova venda REAL detectada!");
-
-      await prefs.setString('hora', novaVenda.hora);
-      await prefs.setString('valor', novaVenda.valor);
-      await prefs.setString('cliente', novaVenda.cliente);
-      await prefs.setInt('idPed', novaVenda.idPed);
-      await prefs.setInt('idAviso', novaVenda.idAviso);
-
-      // Exibir aviso ao fornecedor (popup + som)
-      await mostrarAvisoNovaVenda(novaVenda, itens);
-    } else {
-      _log("Nenhuma nova venda REAL. Nada serÃƒÂ¡ exibido.");
-    }
-
-    // ----------------------------------------------------------
-    // 2) Atualiza SOMENTE a UI do fornecedor
-    //    (nÃƒÂ£o interfere mais no deliveryData do motoboy)
-    // ----------------------------------------------------------
-    setState(() {
-      lojasNoRaio = fornecedorDetails.lojasNoRaio;
-
-      deliveryDataFornecedor = {
-        'idLoja': fornecedorDetails.idLoja,
-        'lojasNoRaio': fornecedorDetails.lojasNoRaio,
-        // Se quiser adicionar mais informaÃƒÂ§ÃƒÂµes no futuro, coloque aqui.
-      };
-    });
-
-    _log("Processamento Fornecedor concluÃƒÂ­do.");
-  }
-
-  Future<void> _trataNovaVenda(FornecedorHeartbeatResponse fornecedorDetails,
-      SharedPreferences prefs) async {
-    final novaVenda = fornecedorDetails.novaVenda!;
-    _log("Nova venda detectada!");
-
-    await prefs.setString('hora', novaVenda.hora);
-    await prefs.setString('valor', novaVenda.valor);
-    await prefs.setString('cliente', novaVenda.cliente);
-    await prefs.setInt('idPed', novaVenda.idPed);
-    await prefs.setInt('idAviso', novaVenda.idAviso);
-
-    await mostrarAvisoNovaVenda(novaVenda, fornecedorDetails.itensVenda);
-  }
-
-  Future<void> _processaMotoboy(
-      SharedPreferences prefs, double latitude, double longitude) async {
-    _log(
-        'Motoboy detectado. Chamando API.sendHeartbeatÃ¢â‚¬Â¦');
-
-    final deliveryDetails = await API.sendHeartbeat(latitude, longitude);
-
-    if (deliveryDetails == null) {
-      _log("ERRO: deliveryDetails == null");
-      return;
-    }
-
-    if (!mounted) return;
-
-    _log('HeartbeatM OK: lojasNoRaio=${deliveryDetails.lojasNoRaio}, '
-        'valor=${deliveryDetails.valor}, chamado=${deliveryDetails.chamado}');
-
-    // --------------------------------------------------------------
-    // 1) Nenhum chamado vÃƒÂ¡lido Ã¢â€ â€™ limpar UI motoboy
-    // --------------------------------------------------------------
-    if (deliveryDetails.chamado == null || deliveryDetails.chamado == 0) {
-      _log(
-          "Nenhum chamado vÃƒÂ¡lido (chamado=0). Limpando dados do motoboy.");
-
-      setState(() {
-        lojasNoRaio = deliveryDetails.lojasNoRaio;
-        deliveryDataMotoboy = null;
-      });
-
-      return;
-    }
-
-    // --------------------------------------------------------------
-    // 2) NÃƒÆ’O validar codigoConfirmacao aqui!
-    //    Apenas mostrar a entrega. CÃƒÂ³digo sÃƒÂ³ importa na finalizaÃƒÂ§ÃƒÂ£o.
-    // --------------------------------------------------------------
-    _log(
-        "Entrega recebida (chamado=${deliveryDetails.chamado}) Ã¢â€ â€™ exibindo ao motoboy.");
-    hbPausadoPorEntrega = true;
-
-    // --------------------------------------------------------------
-    // 3) Parse seguro Ã¢â‚¬â€ SEM risco de null
-    // --------------------------------------------------------------
-    final valorSeguro = (deliveryDetails.valor ?? 0).toDouble();
-    final distSeguro = (deliveryDetails.dist ?? 0).toDouble();
-    final pesoSeguro = (deliveryDetails.peso ?? 0).toDouble();
-
-    // --------------------------------------------------------------
-    // 4) Atualizar dados do motoboy para exibir entrega
-    // --------------------------------------------------------------
-    setState(() {
-      lojasNoRaio = deliveryDetails.lojasNoRaio;
-
-      deliveryDataMotoboy = {
-        'enderIN': deliveryDetails.enderIN ?? 'Desconhecido',
-        'enderFN': deliveryDetails.enderFN ?? 'Desconhecido',
-        'dist': distSeguro,
-        'valor': valorSeguro,
-        'peso': pesoSeguro,
-        'chamado': deliveryDetails.chamado,
-        'lojasNoRaio': deliveryDetails.lojasNoRaio,
-        'fornecedor': deliveryDetails.fornecedor,
-        'codigoRetirada': deliveryDetails.codigoRetirada,
-        'codigoColeta': deliveryDetails.codigoColeta,
-        'codigoConfirmacao': deliveryDetails.codigoConfirmacao,
-      };
-    });
-
-    // --------------------------------------------------------------
-    // 5) Enviar report apenas quando for um chamado novo
-    // --------------------------------------------------------------
-    final currentChamado = prefs.getInt('currentChamado');
-
-    if (currentChamado != deliveryDetails.chamado) {
-      _log(
-          "Novo chamado detectado Ã¢â‚¬â€ atualizando currentChamado");
-
-      await prefs.setInt('currentChamado', deliveryDetails.chamado ?? 0);
-
-      final userId = prefs.getInt('idUser');
-      if (userId != null) {
-        _log(
-            "Reportando visualizaÃƒÂ§ÃƒÂ£o ao servidorÃ¢â‚¬Â¦ userId=$userId");
-        await API.reportViewToServer(userId, deliveryDetails.chamado);
-      }
-    } else {
-      _log(
-          "Chamado jÃƒÂ¡ processado anteriormente. Ignorando report.");
-    }
-
-    // --------------------------------------------------------------
-    // 6) HeartbeatFornecedoR nÃƒÂ£o deve ser pausado aqui
-    //    Apenas quando motoboy ACEITA a entrega.
-    // --------------------------------------------------------------
-
-    _log("Processamento Motoboy concluÃƒÂ­do.");
   }
 
   Future<void> mostrarAvisoNovaVenda(
@@ -1440,126 +1117,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> executarHeartbeat() async {
-    _log(
-        "Ã°Å¸â€Â¥ executarHeartbeat() chamado.");
-
-    // =========================================================
-    // Ã¢â€ºâ€ 1) PAUSA GLOBAL DO MOTOBOY ENQUANTO ELE ESTÃƒÂ ANALISANDO ENTREGA
-    // =========================================================
-    if (isMotoboy && hbPausadoPorEntrega) {
-      _log(
-          "Ã¢â€ºâ€ Heartbeat Motoboy PAUSADO (aguardando decisÃƒÂ£o do motoboy)");
-      agendarProximoHeartbeat();
-      return;
-    }
-
-    // =========================================================
-    // 1) UsuÃƒÂ¡rio ÃƒÂ© AMBOS
-    // =========================================================
-    if (isMotoboy && isFornecedor) {
-      // Ã°Å¸â€˜â€° Se Motoboy estÃƒÂ¡ em entrega Ã¢â€ â€™ PAUSAR Fornecedor
-      if (hbPausadoPorEntrega) {
-        _log(
-            "Ã¢â€ºâ€ Heartbeat Fornecedor PAUSADO por entrega do Motoboy.");
-        await chamaHeartbeatMotoboy();
-        agendarProximoHeartbeat();
-        return;
-      }
-
-      // Ã°Å¸â€˜â€° Se Fornecedor estÃƒÂ¡ em venda Ã¢â€ â€™ PAUSAR Motoboy
-      if (hbPausadoPorVenda) {
-        _log(
-            "Ã¢â€ºâ€ Heartbeat Motoboy PAUSADO por venda do Fornecedor.");
-        await chamaHeartbeatFornecedor();
-        agendarProximoHeartbeat();
-        return;
-      }
-
-      // Ã°Å¸â€˜â€° AlternÃƒÂ¢ncia normal
-      if (proximoEhFornecedor) {
-        _log(
-            "Heartbeat Ã¢â€ â€™ Fornecedor (alternÃƒÂ¢ncia)");
-        await chamaHeartbeatFornecedor();
-        proximoEhFornecedor = false;
-      } else {
-        _log(
-            "Heartbeat Ã¢â€ â€™ Motoboy (alternÃƒÂ¢ncia)");
-        await chamaHeartbeatMotoboy();
-        proximoEhFornecedor = true;
-      }
-
-      agendarProximoHeartbeat();
-      return;
-    }
-
-    // =========================================================
-    // 2) Apenas FORNECEDOR
-    // =========================================================
-    if (isFornecedor) {
-      await chamaHeartbeatFornecedor();
-      agendarProximoHeartbeat();
-      return;
-    }
-
-    // =========================================================
-    // 3) Apenas MOTOBOY
-    // =========================================================
-    if (isMotoboy) {
-      await chamaHeartbeatMotoboy();
-      agendarProximoHeartbeat();
-      return;
-    }
-  }
-
-  void agendarProximoHeartbeat() {
-    _timer?.cancel();
-
-    if (isMotoboy && !isFornecedor) {
-      _timer = null;
-      return;
-    }
-    _log(
-        "Ã¢ÂÂ³ Agendando prÃƒÂ³ximo heartbeat em $intervalo segundos...");
-
-    _timer = Timer(Duration(seconds: intervalo), () {
-      executarHeartbeat();
-    });
-  }
-
-  Future<void> chamaHeartbeatFornecedor() async {
-    try {
-      await _processaFornecedorComLatLong();
-    } catch (e, st) {
-      _log("ERRO chamaHeartbeatFornecedor: $e\n$st");
-    }
-  }
-
-  Future<void> chamaHeartbeatMotoboy() async {
-    try {
-      await _processaMotoboyComLatLong();
-    } catch (e, st) {
-      _log("ERRO chamaHeartbeatMotoboy: $e\n$st");
-    }
-  }
-
-  Future<void> _processaFornecedorComLatLong() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    final pos = _locationService.ultimaPosicao;
-    final latitude = pos?.latitude ?? -30.1165;
-    final longitude = pos?.longitude ?? -51.1355;
-
-    await _processaFornecedor(prefs, latitude, longitude);
-  }
-
-  Future<void> _processaMotoboyComLatLong() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    final pos = _locationService.ultimaPosicao;
-    final latitude = pos?.latitude ?? -30.1165;
-    final longitude = pos?.longitude ?? -51.1355;
-
-    await _processaMotoboy(prefs, latitude, longitude);
-  }
 
 // ===========================================================
 // VERSÃƒÆ’O 1.5.0 - 2025-12-06

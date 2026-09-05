@@ -10,6 +10,7 @@ import 'api_v1_session.dart';
 
 class ApiV1Client {
   static const String baseUrl = 'https://teletudo.com/api/v1';
+  static const String apiBaseUrl = 'https://teletudo.com/api';
   static const Duration requestTimeout = Duration(seconds: 15);
 
   final http.Client _client;
@@ -49,6 +50,30 @@ class ApiV1Client {
     );
   }
 
+  Future<Map<String, dynamic>> getApi(
+    String path, {
+    Map<String, String>? queryParameters,
+  }) {
+    return _request(
+      method: 'GET',
+      path: path,
+      queryParameters: queryParameters,
+      rootUrl: apiBaseUrl,
+    );
+  }
+
+  Future<Map<String, dynamic>> postApi(
+    String path, {
+    Map<String, dynamic>? body,
+  }) {
+    return _request(
+      method: 'POST',
+      path: path,
+      body: body,
+      rootUrl: apiBaseUrl,
+    );
+  }
+
   Future<Map<String, dynamic>> patch(
     String path, {
     Map<String, dynamic>? body,
@@ -81,6 +106,7 @@ class ApiV1Client {
     Map<String, dynamic>? body,
     Map<String, String>? queryParameters,
     String? idempotencyKey,
+    String? rootUrl,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('authToken');
@@ -93,7 +119,7 @@ class ApiV1Client {
       ));
     }
 
-    final uri = Uri.parse('$baseUrl$path').replace(
+    final uri = Uri.parse('${rootUrl ?? baseUrl}$path').replace(
       queryParameters:
           queryParameters?.isEmpty == true ? null : queryParameters,
     );

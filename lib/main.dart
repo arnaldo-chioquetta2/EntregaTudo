@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'login_page.dart';
 import 'register_page.dart';
-import 'HomePage.dart';
+import 'app/authenticated_shell.dart';
 import 'captador_panel.dart';
 import 'marketplace/api_v1_session.dart';
 import 'push_service.dart';
@@ -25,7 +25,7 @@ class MyApp extends StatelessWidget {
       home: const LoginPage(),
       routes: {
         '/register': (_) => const RegisterPage(),
-        '/home': (_) => const HomePage(),
+        '/home': (_) => const AuthenticatedShell(),
         '/captador-panel': (_) => const CaptadorPanelPage(),
       },
       builder: (context, child) => child!,

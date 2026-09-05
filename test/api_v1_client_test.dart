@@ -154,4 +154,32 @@ void main() {
 
     await api.post('/pedidos/586/cancelar');
   });
+
+  test('postApi usa o endpoint legado e envia somente codigo e modo', () async {
+    final client = _FakeClient((request) {
+      expect(request.method, 'POST');
+      expect(request.url.toString(), 'https://teletudo.com/api/coleta/validar');
+      expect(request.headers['authorization'], 'Bearer test-token');
+      expect(jsonDecode((request as http.Request).body), <String, dynamic>{
+        'codigo': '1234',
+        'modo': 'consulta',
+      });
+      return http.Response(
+        jsonEncode(<String, dynamic>{
+          'success': true,
+          'modo': 'consulta',
+          'pedido': <String, dynamic>{'idPedido': 8, 'valor': 20},
+        }),
+        200,
+      );
+    });
+    final api = ApiV1Client(client: client, onUnauthorized: () async {});
+
+    final response = await api.postApi(
+      '/coleta/validar',
+      body: <String, dynamic>{'codigo': '1234', 'modo': 'consulta'},
+    );
+
+    expect(response['success'], isTrue);
+  });
 }

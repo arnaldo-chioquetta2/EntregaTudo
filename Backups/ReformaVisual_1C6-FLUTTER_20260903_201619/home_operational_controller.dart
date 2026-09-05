@@ -1,0 +1,165 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../api.dart';
+import 'location_service.dart';
+import '../models/entrega_ativa.dart';
+import '../models/delivery_details.dart';
+
+typedef MotoboyHeartbeat = Future<DeliveryDetails?> Function(
+    double latitude, double longitude);
+typedef ReportDeliveryView = Future<void> Function(int? userId, int? chamado);
+
+class HomeOperationalController extends ChangeNotifier {
+  HomeOperationalController({
+    LocationService? locationService,
+    MotoboyHeartbeat? motoboyHeartbeat,
+    ReportDeliveryView? reportDeliveryView,
+    Future<SharedPreferences> Function()? preferencesProvider,
+  })  : locationService = locationService ?? LocationService(),
+        _motoboyHeartbeat = motoboyHeartbeat ?? API.sendHeartbeat,
+        _reportDeliveryView = reportDeliveryView ?? API.reportViewToServer,
+        _preferencesProvider =
+            preferencesProvider ?? SharedPreferences.getInstance;
+
+  final LocationService locationService;
+  final MotoboyHeartbeat _motoboyHeartbeat;
+  final ReportDeliveryView _reportDeliveryView;
+  final Future<SharedPreferences> Function() _preferencesProvider;
+
+  Timer? heartbeatTimer;
+  bool motoboyTrackingActive = false;
+  bool motoboyOnline = false;
+  bool motoboyProfileActive = false;
+  bool fornecedorProfileActive = false;
+  bool fornecedorOnline = false;
+  bool heartbeatPausedByDelivery = false;
+  bool heartbeatPausedBySale = false;
+  bool nextHeartbeatIsFornecedor = true;
+  bool _motoboyHeartbeatInProgress = false;
+  bool _sessionDisposed = false;
+  EntregaAtiva? entregaAtiva;
+  Map<String, dynamic>? deliveryDataMotoboy;
+  Map<String, dynamic>? deliveryDataFornecedor;
+  int? currentChamado;
+  int lojasNoRaio = 0;
+
+  bool get motoboyHeartbeatInProgress => _motoboyHeartbeatInProgress;
+
+  void setProfileFlags({
+    required bool isMotoboy,
+    required bool isFornecedor,
+  }) {
+    motoboyProfileActive = isMotoboy;
+    fornecedorProfileActive = isFornecedor;
+  }
+
+  void setHeartbeatTimer(Timer? timer) {
+    heartbeatTimer?.cancel();
+    heartbeatTimer = timer;
+  }
+
+  void scheduleHeartbeat(Duration delay, FutureOr<void> Function() action) {
+    cancelHeartbeatTimer();
+    heartbeatTimer = Timer(delay, action);
+  }
+
+  void cancelHeartbeatTimer() {
+    heartbeatTimer?.cancel();
+    heartbeatTimer = null;
+  }
+
+  void setMotoboyOnline(bool value) {
+    if (motoboyOnline == value) return;
+    motoboyOnline = value;
+    notifyListeners();
+  }
+
+  void setFornecedorOnline(bool value) {
+    if (fornecedorOnline == value) return;
+    fornecedorOnline = value;
+    notifyListeners();
+  }
+
+  Future<bool> sendMotoboyHeartbeatFromCurrentPosition() async {
+    final position = locationService.ultimaPosicao;
+    final latitude = position?.latitude ?? -30.1165;
+    final longitude = position?.longitude ?? -51.1355;
+    return sendMotoboyHeartbeat(latitude, longitude);
+  }
+
+  Future<bool> sendMotoboyHeartbeat(double latitude, double longitude) async {
+    if (_sessionDisposed ||
+        !motoboyProfileActive ||
+        _motoboyHeartbeatInProgress) {
+      return false;
+    }
+
+    _motoboyHeartbeatInProgress = true;
+    try {
+      final response = await _motoboyHeartbeat(latitude, longitude);
+      if (response == null || _sessionDisposed) return false;
+      await processMotoboyResponse(response);
+      return true;
+    } finally {
+      _motoboyHeartbeatInProgress = false;
+    }
+  }
+
+  Future<bool> processMotoboyResponse(DeliveryDetails deliveryDetails) async {
+    if (_sessionDisposed) return false;
+
+    final prefs = await _preferencesProvider();
+    lojasNoRaio = deliveryDetails.lojasNoRaio;
+
+    if (deliveryDetails.chamado == null || deliveryDetails.chamado == 0) {
+      deliveryDataMotoboy = null;
+      notifyListeners();
+      return true;
+    }
+
+    heartbeatPausedByDelivery = true;
+    final valorSeguro = (deliveryDetails.valor ?? 0).toDouble();
+    final distSeguro = (deliveryDetails.dist ?? 0).toDouble();
+    final pesoSeguro = (deliveryDetails.peso ?? 0).toDouble();
+
+    deliveryDataMotoboy = {
+      'enderIN': deliveryDetails.enderIN ?? 'Desconhecido',
+      'enderFN': deliveryDetails.enderFN ?? 'Desconhecido',
+      'dist': distSeguro,
+      'valor': valorSeguro,
+      'peso': pesoSeguro,
+      'chamado': deliveryDetails.chamado,
+      'lojasNoRaio': deliveryDetails.lojasNoRaio,
+      'fornecedor': deliveryDetails.fornecedor,
+      'codigoRetirada': deliveryDetails.codigoRetirada,
+      'codigoColeta': deliveryDetails.codigoColeta,
+      'codigoConfirmacao': deliveryDetails.codigoConfirmacao,
+    };
+
+    final previousChamado = prefs.getInt('currentChamado');
+    currentChamado = previousChamado;
+    if (previousChamado != deliveryDetails.chamado) {
+      currentChamado = deliveryDetails.chamado;
+      await prefs.setInt('currentChamado', deliveryDetails.chamado!);
+      await _reportDeliveryView(
+        prefs.getInt('idUser'),
+        deliveryDetails.chamado,
+      );
+    }
+
+    notifyListeners();
+    return true;
+  }
+
+  void disposeSession() {
+    if (_sessionDisposed) return;
+    _sessionDisposed = true;
+    cancelHeartbeatTimer();
+    motoboyTrackingActive = false;
+    locationService.stopTracking();
+    dispose();
+  }
+}

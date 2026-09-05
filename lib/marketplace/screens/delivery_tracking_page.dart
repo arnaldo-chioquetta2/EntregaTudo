@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../HomePage.dart';
+import '../../app/authenticated_shell.dart';
 import '../api_v1_error.dart';
 import '../models/delivery_tracking_models.dart';
 import '../services/marketplace_service.dart';
@@ -286,7 +286,7 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
     if (!mounted) return;
     debugPrint('[Recovery.Clear] reason=delivery_terminal navigation=/home');
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const HomePage()),
+      MaterialPageRoute(builder: (_) => const AuthenticatedShell()),
       (_) => false,
     );
   }

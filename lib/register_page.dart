@@ -3,7 +3,7 @@ import 'dart:ui';
 import 'package:entregatudo/api.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:entregatudo/HomePage.dart';
+import 'package:entregatudo/app/authenticated_shell.dart';
 import 'package:entregatudo/constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -555,7 +555,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   void _navegarParaHomePage() {
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const HomePage()),
+      MaterialPageRoute(builder: (context) => const AuthenticatedShell()),
     );
   }
 
@@ -601,7 +601,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   //       mostrarMensagem(context, 'Cadastro bem-sucedido');
   //       Navigator.of(context).pushReplacement(
-  //         MaterialPageRoute(builder: (context) => const HomePage()),
+  //         MaterialPageRoute(builder: (context) => const AuthenticatedShell()),
   //       );
   //     } else {
   //       await API.logApp("Cadastro", "Falha no cadastro");
